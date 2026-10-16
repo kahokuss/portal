@@ -12,8 +12,9 @@ const club = (configGs.match(/CLUB_NAME:\s*'([^']+)'/) || [])[1];
 if (!club) throw new Error('Config.gs の CLUB_NAME が見つかりません');
 
 function build() {
-  const values = { key: '', login: '', error: '', home: conf.portalUrl, club: club, apiUrl: conf.apiUrl };
   const src = fs.readFileSync(path.join(root, 'src/Portal.html'), 'utf8');
+  const build = require('crypto').createHash('md5').update(src + JSON.stringify(conf) + club).digest('hex').slice(0, 10);
+  const values = { key: '', login: '', error: '', home: conf.portalUrl, club: club, apiUrl: conf.apiUrl, build: build };
   const out = src.replace(/<\?!=\s*JSON\.stringify\((\w+)\)\s*\?>/g, (m, name) => {
     if (!(name in values)) throw new Error('値が決まっていません: ' + name);
     return JSON.stringify(values[name]).replace(/</g, '\\u003c');

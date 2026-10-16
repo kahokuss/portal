@@ -178,6 +178,8 @@ var HOME_URL = "https://kahokuss.github.io/portal/";
 var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
+// GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
+var BUILD = "d7e2374abf";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -1153,7 +1155,16 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     renderNav();
     ({ home: home, events: events, family: family, admin: admin })[S.tab]();
   }
-  document.getElementById('reload').addEventListener('click', function () { S.toast = ''; call('refresh'); });
+  document.getElementById('reload').addEventListener('click', function () { S.toast = ''; checkNewVersion(); call('refresh'); });
+
+  /** スマホに古い画面が残っていても、新しい版が出ていれば読み直す（?v= を付けて、保存された画面を使わせない） */
+  function checkNewVersion() {
+    if (!BUILD || !window.fetch) return;
+    fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
+      var m = t.match(/var BUILD = "([^"]*)"/);
+      if (m && m[1] && m[1] !== BUILD) location.replace(location.pathname + '?v=' + m[1]);
+    }).catch(function () {});
+  }
 
   // ---- ログイン ----
   var STORE = 'clubPortalKey';
@@ -1189,6 +1200,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
+  if (q.get('v')) { q.delete('v'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   if (q.get('join')) {
     try { localStorage.setItem(JOIN, q.get('join').replace(/\D/g, '').slice(0, 6)); } catch (e) {}
     q.delete('join');
@@ -1208,6 +1220,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   } else {
     start();
   }
+  checkNewVersion();
 })();
 </script>
 </body>

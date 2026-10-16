@@ -36,6 +36,8 @@ const API_ACTIONS = {
   setTask: { run: setTaskAction_ },
   uploadPhoto: { run: uploadPhotoAction_ },
   photo: { raw: true, run: photoAction_ },
+  thumbs: { raw: true, run: thumbsAction_ },
+  deletePhoto: { run: deletePhotoAction_ },
   savePractices: { admin: true, run: savePracticesAction_ },
   editEvent: { admin: true, run: editEventAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
@@ -133,9 +135,11 @@ function buildState_(ctx) {
   const tasks = readRows_(SHEETS.TASKS)
     .filter((x) => x.id && raceKeys[x.eventKey])
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
+  // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => x['ファイルID'] && inRange[x.eventKey])
-    .map((x) => ({ id: x['ファイルID'], key: x.eventKey, by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE' }));
+    .filter((x) => photoIdOf_(x) && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
+    .reverse();
 
   // 記録はクラブの子どもの分をすべて（自己ベストを出すため）。LINEの「結果」コマンドで入れた分も入る
   const kidNames = {};
@@ -160,6 +164,7 @@ function buildState_(ctx) {
     kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
     sheetUrl: ctx.admin ? ss_().getUrl() : '',
+    photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
     parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f) })) : [],
     events: events,
     entries: entries,

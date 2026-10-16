@@ -196,10 +196,10 @@ function helpText_() {
     '登録 名前 学年 … お子さんを登録（例：登録 山田たろう 3年 山田はなこ 1年）。ポータルの「わが家」からもできます',
     '結果 種目 記録 … レース結果を記録（例：結果 100m 15.2秒）',
     '記録 … お子さんの記録一覧',
-    '写真 … 保存した写真フォルダのリンク',
+    '写真 … アルバム（ポータル）のリンク',
     '',
-    '📷 グループに送った写真は自動でアルバム（Googleドライブ）に保存されます。',
-    '🔒 「ポータル」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
+    '📷 グループに送った写真は自動で保存され、ポータルの「写真」で大会・練習ごとに見られます。',
+    '🔒 「ポータル」「写真」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
   ].join('\n');
 }
 
@@ -227,7 +227,7 @@ function parseCommand_(text) {
 }
 
 /** グループで送られても、みんなに見せる返事（ほかは送った人にだけ返す） */
-const PUBLIC_COMMANDS = ['portal'];
+const PUBLIC_COMMANDS = ['portal', 'photos'];
 
 function handleText_(ev) {
   const cmd = parseCommand_(ev.message.text);
@@ -247,7 +247,7 @@ function handleText_(ev) {
     case 'records':
       return handleRecordsCommand_(ev, cmd.args);
     case 'photos':
-      return respond_(ev, [text_('📷 写真フォルダ\n' + photoFolderUrl_())]);
+      return respond_(ev, [text_('📷 アルバム（LINEグループのメンバーだけが見られます）\n' + portalUrl_() + (portalUrl_().indexOf('?') >= 0 ? '&' : '?') + 'tab=album')]);
   }
 }
 
@@ -848,6 +848,8 @@ const API_ACTIONS = {
   setTask: { run: setTaskAction_ },
   uploadPhoto: { run: uploadPhotoAction_ },
   photo: { raw: true, run: photoAction_ },
+  thumbs: { raw: true, run: thumbsAction_ },
+  deletePhoto: { run: deletePhotoAction_ },
   savePractices: { admin: true, run: savePracticesAction_ },
   editEvent: { admin: true, run: editEventAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
@@ -945,9 +947,11 @@ function buildState_(ctx) {
   const tasks = readRows_(SHEETS.TASKS)
     .filter((x) => x.id && raceKeys[x.eventKey])
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
+  // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => x['ファイルID'] && inRange[x.eventKey])
-    .map((x) => ({ id: x['ファイルID'], key: x.eventKey, by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE' }));
+    .filter((x) => photoIdOf_(x) && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
+    .reverse();
 
   // 記録はクラブの子どもの分をすべて（自己ベストを出すため）。LINEの「結果」コマンドで入れた分も入る
   const kidNames = {};
@@ -972,6 +976,7 @@ function buildState_(ctx) {
     kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
     sheetUrl: ctx.admin ? ss_().getUrl() : '',
+    photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
     parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f) })) : [],
     events: events,
     entries: entries,
@@ -1398,14 +1403,56 @@ function uploadPhotoAction_(ctx, p) {
   return '写真を保存しました';
 }
 
-/** 写真を画面に出す。「写真」シートにある写真だけ（ほかのドライブのファイルは出さない） */
+/** 「写真」シートの行のドライブのファイルID（前の版の行は URL から取り出す） */
+function photoIdOf_(row) {
+  if (row['ファイルID']) return row['ファイルID'];
+  const m = String(row.URL || '').match(/\/d\/([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : '';
+}
+
+function photoData_(id, thumb) {
+  const file = DriveApp.getFileById(id);
+  let blob = thumb ? file.getThumbnail() : null;
+  if (!blob) blob = file.getBlob();
+  return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+}
+
+/**
+ * 写真を画面に出す。「写真」シートにある写真だけ（ほかのドライブのファイルは出さない）。
+ * ドライブのフォルダは共用アカウントだけのものにしておき、保護者はポータル（LINEグループのメンバーだけ）で見る。
+ */
 function photoAction_(ctx, p) {
   const id = String(p.id || '');
-  if (!id || !readRows_(SHEETS.PHOTOS).some((x) => x['ファイルID'] === id)) throw new Error('写真が見つかりません。');
-  const file = DriveApp.getFileById(id);
-  let blob = p.thumb ? file.getThumbnail() : null;
-  if (!blob) blob = file.getBlob();
-  return { id: id, data: 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+  if (!id || !readRows_(SHEETS.PHOTOS).some((x) => photoIdOf_(x) === id)) throw new Error('写真が見つかりません。');
+  return { id: id, data: photoData_(id, !!p.thumb) };
+}
+
+/** アルバムの小さい写真をまとめて返す（1回に12枚まで） */
+function thumbsAction_(ctx, p) {
+  const known = {};
+  readRows_(SHEETS.PHOTOS).forEach((x) => { const id = photoIdOf_(x); if (id) known[id] = true; });
+  const out = {};
+  (p.ids || []).slice(0, 12).forEach((id) => {
+    if (!known[id]) return;
+    try { out[id] = photoData_(id, true); } catch (err) { console.warn('写真を読めません: ' + id + ' ' + err); }
+  });
+  return out;
+}
+
+/** 写真を消す（上げた本人と役員）。ドライブではゴミ箱に入れる（30日は戻せる） */
+function deletePhotoAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.PHOTOS).find((x) => photoIdOf_(x) === p.id);
+    if (!row) throw new Error('写真が見つかりません。');
+    if (!ctx.admin && row.userId !== ctx.userId) throw new Error('写真を消せるのは、上げた人と役員だけです。');
+    try { DriveApp.getFileById(p.id).setTrashed(true); } catch (err) { console.warn(err); }
+    clearRow_(SHEETS.PHOTOS, row);
+    readRows_(SHEETS.TASKS).filter((t) => splitNames_(t['写真ID']).indexOf(p.id) >= 0).forEach((t) => {
+      t['写真ID'] = splitNames_(t['写真ID']).filter((x) => x !== p.id).join(',');
+      updateRow_(SHEETS.TASKS, t);
+    });
+  });
+  return '写真を消しました';
 }
 
 // ---- 予定づくり（役員） ----

@@ -301,6 +301,16 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('[data-et="手続き"]');
       assert.ok((await p.textContent('#view')).includes('大会に払う合計'));
     });
+    await step('保護者: 「写真」で、大会・練習ごとのアルバムが見られる', async () => {
+      await p.click('[data-nav="album"]');
+      await p.waitForSelector('.thumb img[src^="data:image"]');
+      assert.ok((await p.textContent('#view')).includes('秋季記録会'));
+      await p.click('.thumb');
+      await p.waitForSelector('#vSave:not([hidden])');
+      assert.ok(await p.isVisible('#vDel'), '自分が上げた写真は消せる');
+      await p.shot('9-album');
+      await p.click('#vClose');
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

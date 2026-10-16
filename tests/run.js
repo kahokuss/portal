@@ -396,6 +396,32 @@ test('一斉通知: 役員がLINEグループに送れる。通数が足りな�
   gas.cache.pushQuota && delete gas.cache.pushQuota;
   assert.throws(() => gas.ctx.api(kAdmin, 'broadcast', { text: 'x' }), /足りません/);
 });
+test('写真: アルバムはポータルで見る。前の版の行も出る。消せるのは上げた人と役員', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const img = 'data:image/jpeg;base64,' + Buffer.from('jpegdata').toString('base64');
+  const prac = gas.ctx.api(k2, 'bootstrap').events.find((e) => e.date === '2026-10-15');
+  let st = gas.ctx.api(k2, 'uploadPhoto', { key: prac.key, data: img });
+  assert.strictEqual(st.photos.length, 1, '練習の写真もアルバムに出る');
+  const old = gas.ctx.DriveApp.getFolderById().createFile({ getBytes: () => [1, 2], getContentType: () => 'image/jpeg', name: 'old.jpg' });
+  gas.run(`appendRow_(SHEETS.PHOTOS, { '日時': '2026-10-01 10:00:00', eventKey: '', '予定': '', userId: 'U3', '表示名': '佐藤', 'ファイル名': 'old.jpg', URL: 'https://drive.google.com/file/d/${old.getId()}xxxxxxxxxx/view' })`);
+  gas.files[old.getId() + 'xxxxxxxxxx'] = old;
+  st = gas.ctx.api(k3, 'bootstrap');
+  assert.strictEqual(st.photos.length, 2, '前の版（ファイルIDなし）の行も、URLから見つける');
+  assert.strictEqual(st.photoFolderUrl, '', 'ドライブのリンクは役員だけ');
+  const th = gas.ctx.api(k3, 'thumbs', { ids: st.photos.map((p) => p.id).concat(['secret']) });
+  assert.deepStrictEqual(Object.keys(th).length, 2, 'シートにない写真は返さない');
+  const mine = st.photos.find((p) => p.by === '鈴木');
+  assert.throws(() => gas.ctx.api(k3, 'deletePhoto', { id: mine.id }), /上げた人と役員/);
+  st = gas.ctx.api(k2, 'deletePhoto', { id: mine.id });
+  assert.strictEqual(st.photos.length, 1);
+  assert.ok(gas.files[mine.id].trashed, 'ドライブではゴミ箱へ');
+  assert.ok(gas.ctx.api(kAdmin, 'bootstrap').photoFolderUrl);
+  const r = gas.line(group('U3'), '写真');
+  assert.ok(r.includes('kahokuss.github.io/portal/?tab=album') && !r.includes('drive.google'), r);
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

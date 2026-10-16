@@ -37,8 +37,8 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .top .me { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .reload { margin-left: auto; flex: none; white-space: nowrap; }
 .view { flex: 1; padding: 12px; display: grid; gap: 12px; align-content: start; }
-.nav { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: sticky; bottom: 0; }
-.nav.admin { grid-template-columns: repeat(4, 1fr); }
+.nav { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: sticky; bottom: 0; }
+.nav.admin { grid-template-columns: repeat(5, 1fr); }
 .nav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 8px 0 7px; cursor: pointer; display: grid; justify-items: center; gap: 2px; }
 .nav button svg { width: 22px; height: 22px; }
 .nav button[aria-current="page"] { color: var(--track); font-weight: 700; }
@@ -146,7 +146,9 @@ form.f, .f { display: grid; gap: 8px; }
 .upl { display: inline-block; }
 .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 20; display: grid; place-items: center; padding: 12px; }
 .viewer img { max-width: 100%; max-height: calc(100vh - 80px); border-radius: 8px; }
-.viewer button { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; }
+.viewer .vbar { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+.viewer .vbar a { text-decoration: none; }
+.viewer .vcap { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; color: #fff; font-size: 12px; text-align: center; }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
 .cal .wd { font-size: 11px; color: var(--muted); }
 .cal button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 6px 0 4px; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -179,7 +181,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "56bc9c98c1";
+var BUILD = "c0e5039907";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -517,6 +519,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ']];
     view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
+      (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
       '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>';
     on('[data-go]', function () { S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
   }
@@ -1022,23 +1025,65 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
 
   var PHOTO = {};
+  /** 小さい写真を、12枚ずつまとめて読み込む */
   function loadThumbs() {
+    var want = [];
     view.querySelectorAll('img[data-src]').forEach(function (img) {
       var id = img.dataset.src;
       if (PHOTO['t' + id]) { img.src = PHOTO['t' + id]; return; }
-      if (PHOTO['w' + id]) return;
+      if (PHOTO['w' + id] || want.indexOf(id) >= 0) return;
       PHOTO['w' + id] = 1;
-      rpc('photo', { id: id, thumb: true }, function (r) { PHOTO['t' + id] = r.data; view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r.data; }); }, function () { delete PHOTO['w' + id]; });
+      want.push(id);
     });
+    for (var i = 0; i < want.length; i += 12) (function (ids) {
+      rpc('thumbs', { ids: ids }, function (r) {
+        ids.forEach(function (id) {
+          delete PHOTO['w' + id];
+          if (!r[id]) return;
+          PHOTO['t' + id] = r[id];
+          view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r[id]; });
+        });
+      }, function () { ids.forEach(function (id) { delete PHOTO['w' + id]; }); });
+    })(want.slice(i, i + 12));
   }
   function showPhoto(id) {
+    var info = ST.photos.find(function (p) { return p.id === id; }) || {}, canDel = ST.me.admin || info.mine;
     var box = document.createElement('div');
     box.className = 'viewer';
-    box.innerHTML = '<img alt="写真"><button class="btn small ghost" type="button">閉じる</button>';
-    box.querySelector('img').src = PHOTO['f' + id] || PHOTO['t' + id] || '';
-    box.addEventListener('click', function () { box.remove(); });
+    box.innerHTML = '<img alt="写真"><div class="vbar"><a class="btn small ghost" id="vSave" download="photo.jpg" hidden>保存</a>' + (canDel && info.id ? '<button class="btn small ghost" type="button" id="vDel">消す</button>' : '') + '<button class="btn small ghost" type="button" id="vClose">閉じる</button></div>' +
+      '<div class="vcap">' + esc([info.date ? md(info.date) : '', info.title, info.by ? info.by + 'さん' : ''].filter(Boolean).join('・')) + '<br>保存できないときは、写真を長押ししてください</div>';
+    var img = box.querySelector('img'), save = box.querySelector('#vSave');
+    function show(data) { img.src = data; save.href = data; save.hidden = false; }
+    if (PHOTO['f' + id]) show(PHOTO['f' + id]); else img.src = PHOTO['t' + id] || '';
+    box.addEventListener('click', function (e) { if (e.target === box || e.target.id === 'vClose') box.remove(); });
+    var del = box.querySelector('#vDel');
+    if (del) del.addEventListener('click', function () { if (confirm('この写真を消しますか？（みんなのアルバムから消えます）')) { box.remove(); call('deletePhoto', { id: id }); } });
     document.body.appendChild(box);
-    if (!PHOTO['f' + id]) rpc('photo', { id: id }, function (r) { PHOTO['f' + id] = r.data; box.querySelector('img').src = r.data; }, function () {});
+    if (!PHOTO['f' + id]) rpc('photo', { id: id }, function (r) { PHOTO['f' + id] = r.data; show(r.data); }, function () {});
+  }
+
+  // ---- アルバム ----
+  function album() {
+    var groups = [], byKey = {};
+    ST.photos.forEach(function (p) {
+      var k = p.key || 'd' + p.date, g = byKey[k];
+      if (!g) { var e = p.key && evByKey(p.key); g = byKey[k] = { key: k, ev: p.key || '', date: e ? e.date : p.date, title: e ? e.title : p.title || md(p.date), ids: [] }; groups.push(g); }
+      g.ids.push(p.id);
+    });
+    groups.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    var open = S.albumOpen || (S.albumOpen = {});
+    var h = toastHtml();
+    if (!groups.length) h += '<div class="card empty">まだ写真はありません。<br>LINEグループに送った写真は、自動でここに入ります。</div>';
+    groups.forEach(function (g) {
+      var all = open[g.key], ids = all ? g.ids : g.ids.slice(0, 9);
+      h += '<section class="card"><h2>' + esc(g.title) + '<small>' + md(g.date) + '・' + g.ids.length + '枚</small></h2>' + photosHtml(ids) +
+        (g.ids.length > ids.length ? '<button class="link" type="button" data-amore="' + esc(g.key) + '">あと' + (g.ids.length - ids.length) + '枚を見る ›</button>' : '') + '</section>';
+    });
+    h += '<div class="hint">このアルバムは、' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。写真をタップすると大きく見られ、保存できます。' + (ST.me.admin ? '元の写真は共用アカウントのGoogleドライブにあります（管理メニュー）。' : '') + '</div>';
+    view.innerHTML = h;
+    on('[data-amore]', function () { open[this.dataset.amore] = true; render(); });
+    on('[data-photo]', function () { showPhoto(this.dataset.photo); });
+    loadThumbs();
   }
   /** スマホの大きな写真は、送る前に小さくする（長い辺1600px） */
   function readImage(file, done) {
@@ -1270,9 +1315,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
     events: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     family: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
-    admin: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>'
+    admin: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
+    album: '<rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>'
   };
-  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['family', 'わが家'], ['admin', '管理']];
+  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['album', '写真'], ['family', 'わが家'], ['admin', '管理']];
   function renderNav() {
     var nav = document.getElementById('nav');
     nav.hidden = false;
@@ -1288,7 +1334,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('reload').hidden = false;
     if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
     renderNav();
-    ({ home: home, events: events, family: family, admin: admin })[S.tab]();
+    ({ home: home, events: events, album: album, family: family, admin: admin })[S.tab]();
   }
   document.getElementById('reload').addEventListener('click', function () { S.toast = ''; checkNewVersion(); call('refresh'); });
 
@@ -1335,7 +1381,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
-  if (q.get('v')) { q.delete('v'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  if (q.get('tab') && /^(home|events|album|family)$/.test(q.get('tab'))) S.tab = q.get('tab');
+  if (q.get('v') || q.get('tab')) { q.delete('v'); q.delete('tab'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   if (q.get('join')) {
     try { localStorage.setItem(JOIN, q.get('join').replace(/\D/g, '').slice(0, 6)); } catch (e) {}
     q.delete('join');

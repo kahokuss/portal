@@ -210,14 +210,56 @@ function uploadPhotoAction_(ctx, p) {
   return '写真を保存しました';
 }
 
-/** 写真を画面に出す。「写真」シートにある写真だけ（ほかのドライブのファイルは出さない） */
+/** 「写真」シートの行のドライブのファイルID（前の版の行は URL から取り出す） */
+function photoIdOf_(row) {
+  if (row['ファイルID']) return row['ファイルID'];
+  const m = String(row.URL || '').match(/\/d\/([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : '';
+}
+
+function photoData_(id, thumb) {
+  const file = DriveApp.getFileById(id);
+  let blob = thumb ? file.getThumbnail() : null;
+  if (!blob) blob = file.getBlob();
+  return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+}
+
+/**
+ * 写真を画面に出す。「写真」シートにある写真だけ（ほかのドライブのファイルは出さない）。
+ * ドライブのフォルダは共用アカウントだけのものにしておき、保護者はポータル（LINEグループのメンバーだけ）で見る。
+ */
 function photoAction_(ctx, p) {
   const id = String(p.id || '');
-  if (!id || !readRows_(SHEETS.PHOTOS).some((x) => x['ファイルID'] === id)) throw new Error('写真が見つかりません。');
-  const file = DriveApp.getFileById(id);
-  let blob = p.thumb ? file.getThumbnail() : null;
-  if (!blob) blob = file.getBlob();
-  return { id: id, data: 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+  if (!id || !readRows_(SHEETS.PHOTOS).some((x) => photoIdOf_(x) === id)) throw new Error('写真が見つかりません。');
+  return { id: id, data: photoData_(id, !!p.thumb) };
+}
+
+/** アルバムの小さい写真をまとめて返す（1回に12枚まで） */
+function thumbsAction_(ctx, p) {
+  const known = {};
+  readRows_(SHEETS.PHOTOS).forEach((x) => { const id = photoIdOf_(x); if (id) known[id] = true; });
+  const out = {};
+  (p.ids || []).slice(0, 12).forEach((id) => {
+    if (!known[id]) return;
+    try { out[id] = photoData_(id, true); } catch (err) { console.warn('写真を読めません: ' + id + ' ' + err); }
+  });
+  return out;
+}
+
+/** 写真を消す（上げた本人と役員）。ドライブではゴミ箱に入れる（30日は戻せる） */
+function deletePhotoAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.PHOTOS).find((x) => photoIdOf_(x) === p.id);
+    if (!row) throw new Error('写真が見つかりません。');
+    if (!ctx.admin && row.userId !== ctx.userId) throw new Error('写真を消せるのは、上げた人と役員だけです。');
+    try { DriveApp.getFileById(p.id).setTrashed(true); } catch (err) { console.warn(err); }
+    clearRow_(SHEETS.PHOTOS, row);
+    readRows_(SHEETS.TASKS).filter((t) => splitNames_(t['写真ID']).indexOf(p.id) >= 0).forEach((t) => {
+      t['写真ID'] = splitNames_(t['写真ID']).filter((x) => x !== p.id).join(',');
+      updateRow_(SHEETS.TASKS, t);
+    });
+  });
+  return '写真を消しました';
 }
 
 // ---- 予定づくり（役員） ----

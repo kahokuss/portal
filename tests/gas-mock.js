@@ -134,7 +134,7 @@ function createGas(options) {
       createFile: (blob) => {
         const id = 'file' + (Object.keys(files).length + 1);
         const bytes = blob.getBytes ? blob.getBytes() : [];
-        files[id] = { id, folder: name, name: blob.name, getId: () => id, getUrl: () => 'https://drive.google.com/file/d/' + id, getBlob: () => ({ getContentType: () => blob.getContentType(), getBytes: () => bytes }), getThumbnail: () => null };
+        files[id] = { id, folder: name, name: blob.name, getId: () => id, getUrl: () => 'https://drive.google.com/file/d/' + id, getBlob: () => ({ getContentType: () => blob.getContentType(), getBytes: () => bytes }), getThumbnail: () => null, setTrashed(v) { this.trashed = v; } };
         return files[id];
       },
     };

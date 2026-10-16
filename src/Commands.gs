@@ -22,10 +22,10 @@ function helpText_() {
     '登録 名前 学年 … お子さんを登録（例：登録 山田たろう 3年 山田はなこ 1年）。ポータルの「わが家」からもできます',
     '結果 種目 記録 … レース結果を記録（例：結果 100m 15.2秒）',
     '記録 … お子さんの記録一覧',
-    '写真 … 保存した写真フォルダのリンク',
+    '写真 … アルバム（ポータル）のリンク',
     '',
-    '📷 グループに送った写真は自動でアルバム（Googleドライブ）に保存されます。',
-    '🔒 「ポータル」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
+    '📷 グループに送った写真は自動で保存され、ポータルの「写真」で大会・練習ごとに見られます。',
+    '🔒 「ポータル」「写真」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
   ].join('\n');
 }
 
@@ -53,7 +53,7 @@ function parseCommand_(text) {
 }
 
 /** グループで送られても、みんなに見せる返事（ほかは送った人にだけ返す） */
-const PUBLIC_COMMANDS = ['portal'];
+const PUBLIC_COMMANDS = ['portal', 'photos'];
 
 function handleText_(ev) {
   const cmd = parseCommand_(ev.message.text);
@@ -73,7 +73,7 @@ function handleText_(ev) {
     case 'records':
       return handleRecordsCommand_(ev, cmd.args);
     case 'photos':
-      return respond_(ev, [text_('📷 写真フォルダ\n' + photoFolderUrl_())]);
+      return respond_(ev, [text_('📷 アルバム（LINEグループのメンバーだけが見られます）\n' + portalUrl_() + (portalUrl_().indexOf('?') >= 0 ? '&' : '?') + 'tab=album')]);
   }
 }
 

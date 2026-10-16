@@ -90,7 +90,8 @@ function handleEvent_(ev) {
   if (ev.type === 'join') {
     if (source.type === 'group') {
       if (!prop_('GROUP_ID')) setProp_('GROUP_ID', source.groupId);
-      reply_(ev.replyToken, [text_('招待ありがとうございます！\n\n' + helpText_())]);
+      // グループには短いあいさつだけ（使い方は1対1のトークで）
+      reply_(ev.replyToken, [text_('招待ありがとうございます！' + CONFIG.CLUB_NAME + 'のBotです。\n使い方は、Botを友だち追加して、1対1のトークで「ヘルプ」と送ってください。')]);
     }
     return;
   }

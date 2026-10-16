@@ -76,7 +76,8 @@ test('Bot: 登録とポータルのリンク（グループでも出してよい
   const gas = setupClub();
   const r1 = gas.line(dm('U1'), '登録 山田たろう 3年 山田はなこ 1年');
   assert.ok(r1.includes('山田たろう（3年）'), r1);
-  const r2 = gas.line(group('U1'), 'ポータル');
+  assert.strictEqual(gas.line(group('U1'), 'ポータル'), '', 'グループには返さない');
+  const r2 = gas.privateTo('U1');
   assert.ok(r2.includes('https://kahokuss.github.io/portal/'), r2);
   assert.ok(!/k=/.test(r2), '個人キーは出さない');
   const children = gas.rows('子ども');
@@ -377,7 +378,8 @@ test('Bot: グループでの個人的なコマンドは、送った人にだけ
   gas.notFriends.add('U2');
   const r = gas.line(group('U2'), '登録 鈴木けんた 5年');
   assert.ok(r.includes('友だち追加'), '友だちでない人には、グループで案内だけ');
-  assert.ok(gas.line(group('U3'), 'ポータル').includes('kahokuss.github.io'), 'ポータルはグループに返す');
+  assert.strictEqual(gas.line(group('U3'), 'ヘルプ'), '', 'ヘルプもグループには返さない');
+  assert.ok(gas.privateTo('U3').includes('Botの使い方'), 'ヘルプは本人にだけ');
 });
 
 test('一斉通知: 役員がLINEグループに送れる。通数が足りなければ送らない', () => {
@@ -419,7 +421,8 @@ test('写真: アルバムはポータルで見る。前の版の行も出る。
   assert.strictEqual(st.photos.length, 1);
   assert.ok(gas.files[mine.id].trashed, 'ドライブではゴミ箱へ');
   assert.ok(gas.ctx.api(kAdmin, 'bootstrap').photoFolderUrl);
-  const r = gas.line(group('U3'), '写真');
+  gas.line(group('U3'), '写真');
+  const r = gas.privateTo('U3');
   assert.ok(r.includes('kahokuss.github.io/portal/?tab=album') && !r.includes('drive.google'), r);
 });
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {

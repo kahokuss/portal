@@ -25,7 +25,7 @@ function helpText_() {
     '写真 … アルバム（ポータル）のリンク',
     '',
     '📷 グループに送った写真は自動で保存され、ポータルの「写真」で大会・練習ごとに見られます。',
-    '🔒 「ポータル」「写真」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
+    '🔒 Botの返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
   ].join('\n');
 }
 
@@ -52,8 +52,8 @@ function parseCommand_(text) {
   return { name: name, args: (m[2] || '').trim() };
 }
 
-/** グループで送られても、みんなに見せる返事（ほかは送った人にだけ返す） */
-const PUBLIC_COMMANDS = ['portal', 'photos'];
+/** グループで送られても、みんなに見せる返事。いまはなし（Botの返事はすべて、送った人にだけ届ける） */
+const PUBLIC_COMMANDS = [];
 
 function handleText_(ev) {
   const cmd = parseCommand_(ev.message.text);
@@ -103,7 +103,7 @@ function handleRegister_(ev, args) {
  * ポータルのリンクはみんな同じ。開くと LINE ログインがあり、グループのメンバーだけが入れるので、グループに出してよい。
  */
 function handlePortal_(ev) {
-  reply_(ev.replyToken, [
+  respond_(ev, [
     text_('🏃 ' + CONFIG.CLUB_NAME + ' ポータル\n' + portalUrl_() + '\n\n開くと「LINEでログイン」が出ます。' + CONFIG.CLUB_NAME + 'のLINEグループのメンバーだけが見られます。'),
   ]);
 }

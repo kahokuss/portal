@@ -199,7 +199,7 @@ function helpText_() {
     '写真 … アルバム（ポータル）のリンク',
     '',
     '📷 グループに送った写真は自動で保存され、ポータルの「写真」で大会・練習ごとに見られます。',
-    '🔒 「ポータル」「写真」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
+    '🔒 Botの返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
   ].join('\n');
 }
 
@@ -226,8 +226,8 @@ function parseCommand_(text) {
   return { name: name, args: (m[2] || '').trim() };
 }
 
-/** グループで送られても、みんなに見せる返事（ほかは送った人にだけ返す） */
-const PUBLIC_COMMANDS = ['portal', 'photos'];
+/** グループで送られても、みんなに見せる返事。いまはなし（Botの返事はすべて、送った人にだけ届ける） */
+const PUBLIC_COMMANDS = [];
 
 function handleText_(ev) {
   const cmd = parseCommand_(ev.message.text);
@@ -277,7 +277,7 @@ function handleRegister_(ev, args) {
  * ポータルのリンクはみんな同じ。開くと LINE ログインがあり、グループのメンバーだけが入れるので、グループに出してよい。
  */
 function handlePortal_(ev) {
-  reply_(ev.replyToken, [
+  respond_(ev, [
     text_('🏃 ' + CONFIG.CLUB_NAME + ' ポータル\n' + portalUrl_() + '\n\n開くと「LINEでログイン」が出ます。' + CONFIG.CLUB_NAME + 'のLINEグループのメンバーだけが見られます。'),
   ]);
 }
@@ -328,7 +328,7 @@ const CONFIG = {
   // ポータルを使っている人が、まだクラブのLINEグループにいるかを何時間ごとに確かめ直すか
   MEMBER_RECHECK_HOURS: 12,
 
-  // グループで送られたコマンドの返事を、送った人にだけ1対1で返すか（「ポータル」はグループに返す）
+  // グループで送られたコマンドの返事を、グループに出さず、送った人にだけ1対1で返すか
   GROUP_PRIVATE_REPLY: true,
 
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
@@ -671,7 +671,8 @@ function handleEvent_(ev) {
   if (ev.type === 'join') {
     if (source.type === 'group') {
       if (!prop_('GROUP_ID')) setProp_('GROUP_ID', source.groupId);
-      reply_(ev.replyToken, [text_('招待ありがとうございます！\n\n' + helpText_())]);
+      // グループには短いあいさつだけ（使い方は1対1のトークで）
+      reply_(ev.replyToken, [text_('招待ありがとうございます！' + CONFIG.CLUB_NAME + 'のBotです。\n使い方は、Botを友だち追加して、1対1のトークで「ヘルプ」と送ってください。')]);
     }
     return;
   }

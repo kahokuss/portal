@@ -38,7 +38,7 @@ function splitResultTokens_(args) {
 function handleResultCommand_(ev, args) {
   const userId = ev.source.userId;
   const parsed = parseResultArgs_(args, childrenOf_(userId).map((c) => c.name));
-  if (parsed.error) return reply_(ev.replyToken, [text_(parsed.error)]);
+  if (parsed.error) return respond_(ev, [text_(parsed.error)]);
 
   const event = recentEvent_(today_(), CONFIG.RESULT_EVENT_LOOKBACK_DAYS);
   appendRow_(SHEETS.RESULTS, {
@@ -56,7 +56,7 @@ function handleResultCommand_(ev, args) {
 
   let msg = '🏃 記録しました：' + parsed.child + ' ' + parsed.item + ' ' + parsed.record;
   if (event) msg += '\n（' + formatDate_(event['日付']) + ' ' + event['タイトル'] + '）';
-  reply_(ev.replyToken, [text_(msg)]);
+  respond_(ev, [text_(msg)]);
 }
 
 /** 子どもごとの記録一覧（新しい順に10件） */
@@ -75,8 +75,8 @@ function handleRecordsCommand_(ev, args) {
   const names = splitNames_(args);
   const targets = names.length ? names : childrenOf_(ev.source.userId).map((c) => c.name);
   if (!targets.length) {
-    return reply_(ev.replyToken, [text_('「記録 山田たろう」のように名前を書くか、先にお子さんを登録してください。')]);
+    return respond_(ev, [text_('「記録 山田たろう」のように名前を書くか、先にお子さんを登録してください。')]);
   }
   const results = readRows_(SHEETS.RESULTS);
-  reply_(ev.replyToken, targets.slice(0, 5).map((c) => text_(buildRecordsText_(c, results))));
+  respond_(ev, targets.slice(0, 5).map((c) => text_(buildRecordsText_(c, results))));
 }

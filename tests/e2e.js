@@ -181,6 +181,12 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-tpl="1"]');
       await a.click('#nForm button[type=submit]');
       await a.waitForSelector('#copyText');
+      await a.waitForFunction(() => document.getElementById('bcInfo').textContent.includes('今月の残り'));
+      a.once('dialog', (d) => d.accept());
+      await a.click('#bcBtn');
+      await a.idle();
+      assert.ok(gas.pushes().some((f) => f.payload.to === 'G1' && f.payload.messages[0].text.includes('集合時間の変更')), 'Botからグループに送れる');
+      await a.shot('5-broadcast');
       await p.click('[data-nav="home"]');
       await p.click('#reload');
       await p.idle();

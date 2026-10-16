@@ -172,6 +172,21 @@ function importScheduleSafely_() {
 }
 
 // ===== Commands.gs =====
+/**
+ * コマンドへの返事。1対1のトークでは、ふつうに返信する（無料）。
+ * グループで送られた個人的なコマンドは、グループには出さず、送った人だけに1対1で届ける
+ * （プッシュなので1通ぶん無料枠を使う。Botを友だち追加していない人には届かないので、そのときだけグループで案内する）。
+ */
+function respond_(ev, messages) {
+  if (!ev.privateAnswer) return reply_(ev.replyToken, messages);
+  try {
+    push_(ev.source.userId, messages);
+  } catch (err) {
+    console.warn('個別の返事に失敗（友だち追加されていない？）: ' + err);
+    reply_(ev.replyToken, [text_('お返事は、送った人だけに届くようにしています。Bot「' + CONFIG.CLUB_NAME + '」を友だち追加して、1対1のトークで送ってください。')]);
+  }
+}
+
 /** 使い方の文章（CONFIG を使うので、ファイルの読み込み順に左右されないよう関数にする） */
 function helpText_() {
   return [
@@ -184,6 +199,7 @@ function helpText_() {
     '写真 … 保存した写真フォルダのリンク',
     '',
     '📷 グループに送った写真は自動でアルバム（Googleドライブ）に保存されます。',
+    '🔒 「ポータル」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
   ].join('\n');
 }
 
@@ -210,24 +226,28 @@ function parseCommand_(text) {
   return { name: name, args: (m[2] || '').trim() };
 }
 
+/** グループで送られても、みんなに見せる返事（ほかは送った人にだけ返す） */
+const PUBLIC_COMMANDS = ['portal'];
+
 function handleText_(ev) {
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
+  ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
   switch (cmd.name) {
     case 'help':
-      return reply_(ev.replyToken, [text_(helpText_())]);
+      return respond_(ev, [text_(helpText_())]);
     case 'register':
       return handleRegister_(ev, cmd.args);
     case 'portal':
       return handlePortal_(ev);
     case 'portalHint':
-      return reply_(ev.replyToken, [text_('予定・大会のエントリー・休みの連絡は、ポータルからできます。\n' + portalUrl_())]);
+      return respond_(ev, [text_('予定・大会のエントリー・休みの連絡は、ポータルからできます。\n' + portalUrl_())]);
     case 'result':
       return handleResultCommand_(ev, cmd.args);
     case 'records':
       return handleRecordsCommand_(ev, cmd.args);
     case 'photos':
-      return reply_(ev.replyToken, [text_('📷 写真フォルダ\n' + photoFolderUrl_())]);
+      return respond_(ev, [text_('📷 写真フォルダ\n' + photoFolderUrl_())]);
   }
 }
 
@@ -236,7 +256,7 @@ function handleRegister_(ev, args) {
   const list = parseChildrenArgs_(args);
   if (!list.length) {
     const children = childrenOf_(userId);
-    return reply_(ev.replyToken, [
+    return respond_(ev, [
       text_(
         children.length
           ? '登録中のお子さん：' + children.map((c) => c.name + (c.grade ? '（' + c.grade + '年）' : '')).join('、') + '\n変更するときは「登録 名前 学年」を送り直すか、ポータルの「わが家」から直してください。'
@@ -247,7 +267,7 @@ function handleRegister_(ev, args) {
   ensureFamily_(userId, getDisplayName_(ev.source));
   saveChildren_(userId, list);
   const noGrade = list.some((c) => !c.grade);
-  reply_(ev.replyToken, [
+  respond_(ev, [
     text_('登録しました：' + list.map((c) => c.name + (c.grade ? '（' + c.grade + '年）' : '')).join('、') + (noGrade ? '\n学年はポータルの「わが家」から入れられます。' : '') +
       '\nポータル：' + portalUrl_()),
   ]);
@@ -307,6 +327,9 @@ const CONFIG = {
 
   // ポータルを使っている人が、まだクラブのLINEグループにいるかを何時間ごとに確かめ直すか
   MEMBER_RECHECK_HOURS: 12,
+
+  // グループで送られたコマンドの返事を、送った人にだけ1対1で返すか（「ポータル」はグループに返す）
+  GROUP_PRIVATE_REPLY: true,
 
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
   ABSENCE_PUSH_TO_ADMINS: true,
@@ -405,6 +428,32 @@ function getDisplayName_(source) {
 
 function text_(t) {
   return { type: 'text', text: String(t).slice(0, 5000) };
+}
+
+/**
+ * 今月のメッセージ通数（無料枠）と、グループの人数。グループに送ると人数分の通数を使う。
+ * 10分だけ覚えておく。取れなかった値は null
+ */
+function pushQuota_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('pushQuota');
+  if (hit) return JSON.parse(hit);
+  const get = (url) => {
+    try { return JSON.parse(lineFetch_(url, 'get').getContentText()); } catch (err) { console.warn(err); return null; }
+  };
+  const quota = get(LINE_API + '/message/quota');
+  const used = get(LINE_API + '/message/quota/consumption');
+  const groupId = prop_('GROUP_ID');
+  const members = groupId ? get(LINE_API + '/group/' + groupId + '/members/count') : null;
+  const limit = quota && quota.type === 'limited' ? Number(quota.value) : null;
+  const out = {
+    limit: limit,
+    used: used ? Number(used.totalUsage) : null,
+    remaining: limit !== null && used ? Math.max(0, limit - Number(used.totalUsage)) : null,
+    members: members ? Number(members.count) : null,
+  };
+  cache.put('pushQuota', JSON.stringify(out), 600);
+  return out;
 }
 
 // ===== Login.gs =====
@@ -803,6 +852,8 @@ const API_ACTIONS = {
   editEvent: { admin: true, run: editEventAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
   saveResult: { run: saveResultAction_ },
+  broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
+  broadcast: { admin: true, run: broadcastAction_ },
   deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
@@ -1455,6 +1506,26 @@ function deleteResultAction_(ctx, p) {
   return '記録を消しました';
 }
 
+// ---- LINEグループへの一斉通知（役員） ----
+
+function broadcastInfoAction_() {
+  return pushQuota_();
+}
+
+/** LINEグループに送る。グループの人数分の通数を使うので、足りないときは送らない */
+function broadcastAction_(ctx, p) {
+  const groupId = requireProp_('GROUP_ID');
+  const text = String(p.text || '').trim().slice(0, 2000);
+  if (!text) throw new Error('送る文章がありません。');
+  const q = pushQuota_();
+  if (q.remaining !== null && q.members !== null && q.remaining < q.members) {
+    throw new Error('今月のLINEの無料の通数が足りません（残り' + q.remaining + '通・グループ' + q.members + '人）。文章をコピーして、手でグループに貼ってください。');
+  }
+  push_(groupId, [text_(text)]);
+  CacheService.getScriptCache().remove('pushQuota');
+  return 'LINEグループに送りました' + (q.members ? '（' + q.members + '通ぶん）' : '');
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -1496,7 +1567,7 @@ function splitResultTokens_(args) {
 function handleResultCommand_(ev, args) {
   const userId = ev.source.userId;
   const parsed = parseResultArgs_(args, childrenOf_(userId).map((c) => c.name));
-  if (parsed.error) return reply_(ev.replyToken, [text_(parsed.error)]);
+  if (parsed.error) return respond_(ev, [text_(parsed.error)]);
 
   const event = recentEvent_(today_(), CONFIG.RESULT_EVENT_LOOKBACK_DAYS);
   appendRow_(SHEETS.RESULTS, {
@@ -1514,7 +1585,7 @@ function handleResultCommand_(ev, args) {
 
   let msg = '🏃 記録しました：' + parsed.child + ' ' + parsed.item + ' ' + parsed.record;
   if (event) msg += '\n（' + formatDate_(event['日付']) + ' ' + event['タイトル'] + '）';
-  reply_(ev.replyToken, [text_(msg)]);
+  respond_(ev, [text_(msg)]);
 }
 
 /** 子どもごとの記録一覧（新しい順に10件） */
@@ -1533,10 +1604,10 @@ function handleRecordsCommand_(ev, args) {
   const names = splitNames_(args);
   const targets = names.length ? names : childrenOf_(ev.source.userId).map((c) => c.name);
   if (!targets.length) {
-    return reply_(ev.replyToken, [text_('「記録 山田たろう」のように名前を書くか、先にお子さんを登録してください。')]);
+    return respond_(ev, [text_('「記録 山田たろう」のように名前を書くか、先にお子さんを登録してください。')]);
   }
   const results = readRows_(SHEETS.RESULTS);
-  reply_(ev.replyToken, targets.slice(0, 5).map((c) => text_(buildRecordsText_(c, results))));
+  respond_(ev, targets.slice(0, 5).map((c) => text_(buildRecordsText_(c, results))));
 }
 
 // ===== Schedule.gs =====

@@ -57,3 +57,29 @@ function getDisplayName_(source) {
 function text_(t) {
   return { type: 'text', text: String(t).slice(0, 5000) };
 }
+
+/**
+ * 今月のメッセージ通数（無料枠）と、グループの人数。グループに送ると人数分の通数を使う。
+ * 10分だけ覚えておく。取れなかった値は null
+ */
+function pushQuota_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('pushQuota');
+  if (hit) return JSON.parse(hit);
+  const get = (url) => {
+    try { return JSON.parse(lineFetch_(url, 'get').getContentText()); } catch (err) { console.warn(err); return null; }
+  };
+  const quota = get(LINE_API + '/message/quota');
+  const used = get(LINE_API + '/message/quota/consumption');
+  const groupId = prop_('GROUP_ID');
+  const members = groupId ? get(LINE_API + '/group/' + groupId + '/members/count') : null;
+  const limit = quota && quota.type === 'limited' ? Number(quota.value) : null;
+  const out = {
+    limit: limit,
+    used: used ? Number(used.totalUsage) : null,
+    remaining: limit !== null && used ? Math.max(0, limit - Number(used.totalUsage)) : null,
+    members: members ? Number(members.count) : null,
+  };
+  cache.put('pushQuota', JSON.stringify(out), 600);
+  return out;
+}

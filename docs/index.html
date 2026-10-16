@@ -179,7 +179,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "c32bc5f475";
+var BUILD = "56bc9c98c1";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -636,8 +636,24 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       (det.fee ? '参加費 ' + yen(det.fee) : '') + (det.deadline ? (det.fee ? '／' : '') + '締切 ' + md(det.deadline) : '') +
       '\n参加・不参加と種目は、ポータルから回答してください👇\n' + HOME_URL;
   }
-  function copyBox(text) { return '<div class="copybox" id="copyText">' + esc(text) + '</div><button class="btn" id="copyBtn" type="button">LINEに貼る文章をコピー</button>'; }
+  function copyBox(text, broadcast) {
+    return '<div class="copybox" id="copyText">' + esc(text) + '</div><button class="btn" id="copyBtn" type="button">LINEに貼る文章をコピー（無料）</button>' +
+      (broadcast && ST.me.admin ? '<button class="btn line" id="bcBtn" type="button">BotからLINEグループに送る</button><div class="hint" id="bcInfo">グループの人数分の通数（無料枠は月200通）を使います。</div>' : '');
+  }
   function bindCopy() {
+    var bc = document.getElementById('bcBtn');
+    if (bc) {
+      var info = document.getElementById('bcInfo'), q = null;
+      rpc('broadcastInfo', {}, function (r) {
+        q = r;
+        if (r.remaining !== null) info.textContent = '今月の残り ' + r.remaining + '通。グループに送ると' + (r.members ? r.members + '通' : '人数分の通数') + '使います。コピーして手で貼れば通数はかかりません。';
+      }, function () {});
+      bc.addEventListener('click', function () {
+        var n = q && q.members ? q.members + '通' : '人数分の通数';
+        if (!confirm('LINEグループの全員に、Botから送りますか？（' + n + 'を使います）')) return;
+        call('broadcast', { text: document.getElementById('copyText').textContent });
+      });
+    }
     var b = document.getElementById('copyBtn'); if (!b) return;
     b.addEventListener('click', function () {
       var el = document.getElementById('copyText');
@@ -648,7 +664,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function adminSaved() {
     var e = S.saved && evByKey(S.saved);
     var h = backBtn() + toastHtml();
-    if (e) h += '<section class="card"><h2>LINEグループへのお知らせ<small>手で貼るので通数はかかりません</small></h2>' + copyBox(noticeText(e)) + '</section>' +
+    if (e) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox(noticeText(e), true) + '</section>' +
       '<section class="card"><div class="row"><button class="btn ghost" data-ev="' + e.key + '" type="button">ポータルで見る</button><button class="btn ghost" id="toNew" type="button">もう1つ作る</button></div></section>';
     view.innerHTML = h;
     bindBack(); bindCopy(); bindCommon();
@@ -663,7 +679,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<form class="f" id="nForm"><label>タイトル<input id="n-title" value="' + esc(N.title) + '"></label><label>本文<textarea id="n-body">' + esc(N.body) + '</textarea></label>' +
       '<label>関係する大会（なくてもOK）<select id="n-key"><option value="">なし</option>' + races.map(function (e) { return '<option value="' + e.key + '"' + (N.key === e.key ? ' selected' : '') + '>' + md(e.date) + ' ' + esc(e.title) + '</option>'; }).join('') + '</select></label>' +
       '<button class="btn" type="submit">ホームに載せる</button></form></section>';
-    if (N.saved) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox('📢 ' + N.title + '\n' + N.body + '\n\n詳しくはポータルで👇\n' + HOME_URL) + '</section>';
+    if (N.saved) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox('📢 ' + N.title + '\n' + N.body + '\n\n詳しくはポータルで👇\n' + HOME_URL, true) + '</section>';
     if (ST.notices.length) h += '<section class="card"><h2>載せているお知らせ</h2><div class="list">' + ST.notices.map(function (n) { return '<div class="between"><span>' + md(n.date) + ' ' + esc(n.title) + '</span><button class="btn small ghost" data-ndel="' + n.id + '" type="button">消す</button></div>'; }).join('') + '</div></section>';
     view.innerHTML = h;
     bindBack(); bindCopy();

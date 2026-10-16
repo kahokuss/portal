@@ -43,6 +43,9 @@ const CONFIG = {
   // ポータルを使っている人が、まだクラブのLINEグループにいるかを何時間ごとに確かめ直すか
   MEMBER_RECHECK_HOURS: 12,
 
+  // グループで送られたコマンドの返事を、送った人にだけ1対1で返すか（「ポータル」はグループに返す）
+  GROUP_PRIVATE_REPLY: true,
+
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
   ABSENCE_PUSH_TO_ADMINS: true,
 

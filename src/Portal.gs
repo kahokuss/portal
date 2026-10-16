@@ -40,6 +40,8 @@ const API_ACTIONS = {
   editEvent: { admin: true, run: editEventAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
   saveResult: { run: saveResultAction_ },
+  broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
+  broadcast: { admin: true, run: broadcastAction_ },
   deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },

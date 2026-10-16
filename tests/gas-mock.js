@@ -120,6 +120,8 @@ function createGas(options) {
   const cache = {};
   const profiles = {};
   const members = new Set();
+  const notFriends = new Set();
+  const quotaUsed = { n: 0 };
   const files = {};
   const folders = {};
   function folder(name) {
@@ -176,6 +178,14 @@ function createGas(options) {
           const u = String(payload.id_token).replace('idtoken:', '');
           return res(200, { sub: u, name: profiles[u] || '保護者' });
         }
+        if (/\/message\/quota$/.test(url)) return res(200, { type: 'limited', value: 200 });
+        if (/\/message\/quota\/consumption$/.test(url)) return res(200, { totalUsage: quotaUsed.n });
+        if (/\/members\/count$/.test(url)) return res(200, { count: members.size });
+        if (/\/message\/push$/.test(url)) {
+          if (notFriends.has(payload.to)) { fetches[fetches.length - 1].failed = true; return res(400, { message: 'not friend' }); }
+          quotaUsed.n += payload.to === props.GROUP_ID ? members.size : 1;
+          return res(200, {});
+        }
         const gm = url.match(/\/group\/([^/]+)\/member\/([^/]+)$/);
         if (gm) return members.has(gm[2]) ? res(200, { displayName: profiles[gm[2]] || '保護者' }) : res(404, { message: 'Not found' });
         const m = url.match(/\/profile\/([^/]+)$/);
@@ -215,6 +225,8 @@ function createGas(options) {
     members,
     cache,
     files,
+    notFriends,
+    quotaUsed,
     run: (src) => ctx.__run(src),
     sheet: (name) => { const ss = spreadsheets[props.SPREADSHEET_ID]; return ss && ss.getSheetByName(name); },
     rows: (name) => { const s = gas.sheet(name); return s ? s.rows() : []; },
@@ -237,7 +249,9 @@ function createGas(options) {
       ctx.doPost({ parameter: { token: props.WEBHOOK_TOKEN }, postData: { contents: JSON.stringify({ events: [ev] }) } });
       return fetches.slice(before).filter((f) => /reply$/.test(f.url)).map((f) => f.payload.messages.map((m) => m.text).join('\n')).join('\n');
     },
-    pushes() { return fetches.filter((f) => /push$/.test(f.url)); },
+    pushes() { return fetches.filter((f) => /push$/.test(f.url) && !f.failed); },
+    /** グループで送ったときに、送った人にだけ届いた返事 */
+    privateTo(userId) { return fetches.filter((f) => /push$/.test(f.url) && !f.failed && f.payload.to === userId).map((f) => f.payload.messages.map((m) => m.text).join('\n')).join('\n'); },
     /** LINE ログインして戻ってきたことにする。ポータルのキー（または null）とエラー文を返す */
     login(userId) {
       const html = ctx.doGet({ parameter: {} }).getContent();

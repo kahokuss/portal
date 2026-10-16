@@ -317,3 +317,23 @@ function deleteResultAction_(ctx, p) {
   });
   return '記録を消しました';
 }
+
+// ---- LINEグループへの一斉通知（役員） ----
+
+function broadcastInfoAction_() {
+  return pushQuota_();
+}
+
+/** LINEグループに送る。グループの人数分の通数を使うので、足りないときは送らない */
+function broadcastAction_(ctx, p) {
+  const groupId = requireProp_('GROUP_ID');
+  const text = String(p.text || '').trim().slice(0, 2000);
+  if (!text) throw new Error('送る文章がありません。');
+  const q = pushQuota_();
+  if (q.remaining !== null && q.members !== null && q.remaining < q.members) {
+    throw new Error('今月のLINEの無料の通数が足りません（残り' + q.remaining + '通・グループ' + q.members + '人）。文章をコピーして、手でグループに貼ってください。');
+  }
+  push_(groupId, [text_(text)]);
+  CacheService.getScriptCache().remove('pushQuota');
+  return 'LINEグループに送りました' + (q.members ? '（' + q.members + '通ぶん）' : '');
+}

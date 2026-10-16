@@ -1,3 +1,18 @@
+/**
+ * コマンドへの返事。1対1のトークでは、ふつうに返信する（無料）。
+ * グループで送られた個人的なコマンドは、グループには出さず、送った人だけに1対1で届ける
+ * （プッシュなので1通ぶん無料枠を使う。Botを友だち追加していない人には届かないので、そのときだけグループで案内する）。
+ */
+function respond_(ev, messages) {
+  if (!ev.privateAnswer) return reply_(ev.replyToken, messages);
+  try {
+    push_(ev.source.userId, messages);
+  } catch (err) {
+    console.warn('個別の返事に失敗（友だち追加されていない？）: ' + err);
+    reply_(ev.replyToken, [text_('お返事は、送った人だけに届くようにしています。Bot「' + CONFIG.CLUB_NAME + '」を友だち追加して、1対1のトークで送ってください。')]);
+  }
+}
+
 /** 使い方の文章（CONFIG を使うので、ファイルの読み込み順に左右されないよう関数にする） */
 function helpText_() {
   return [
@@ -10,6 +25,7 @@ function helpText_() {
     '写真 … 保存した写真フォルダのリンク',
     '',
     '📷 グループに送った写真は自動でアルバム（Googleドライブ）に保存されます。',
+    '🔒 「ポータル」以外の返事は、グループで送っても、送った人にだけ届きます（Botを友だち追加してください）。Botとの1対1のトークで送るのがおすすめです。',
   ].join('\n');
 }
 
@@ -36,24 +52,28 @@ function parseCommand_(text) {
   return { name: name, args: (m[2] || '').trim() };
 }
 
+/** グループで送られても、みんなに見せる返事（ほかは送った人にだけ返す） */
+const PUBLIC_COMMANDS = ['portal'];
+
 function handleText_(ev) {
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
+  ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
   switch (cmd.name) {
     case 'help':
-      return reply_(ev.replyToken, [text_(helpText_())]);
+      return respond_(ev, [text_(helpText_())]);
     case 'register':
       return handleRegister_(ev, cmd.args);
     case 'portal':
       return handlePortal_(ev);
     case 'portalHint':
-      return reply_(ev.replyToken, [text_('予定・大会のエントリー・休みの連絡は、ポータルからできます。\n' + portalUrl_())]);
+      return respond_(ev, [text_('予定・大会のエントリー・休みの連絡は、ポータルからできます。\n' + portalUrl_())]);
     case 'result':
       return handleResultCommand_(ev, cmd.args);
     case 'records':
       return handleRecordsCommand_(ev, cmd.args);
     case 'photos':
-      return reply_(ev.replyToken, [text_('📷 写真フォルダ\n' + photoFolderUrl_())]);
+      return respond_(ev, [text_('📷 写真フォルダ\n' + photoFolderUrl_())]);
   }
 }
 
@@ -62,7 +82,7 @@ function handleRegister_(ev, args) {
   const list = parseChildrenArgs_(args);
   if (!list.length) {
     const children = childrenOf_(userId);
-    return reply_(ev.replyToken, [
+    return respond_(ev, [
       text_(
         children.length
           ? '登録中のお子さん：' + children.map((c) => c.name + (c.grade ? '（' + c.grade + '年）' : '')).join('、') + '\n変更するときは「登録 名前 学年」を送り直すか、ポータルの「わが家」から直してください。'
@@ -73,7 +93,7 @@ function handleRegister_(ev, args) {
   ensureFamily_(userId, getDisplayName_(ev.source));
   saveChildren_(userId, list);
   const noGrade = list.some((c) => !c.grade);
-  reply_(ev.replyToken, [
+  respond_(ev, [
     text_('登録しました：' + list.map((c) => c.name + (c.grade ? '（' + c.grade + '年）' : '')).join('、') + (noGrade ? '\n学年はポータルの「わが家」から入れられます。' : '') +
       '\nポータル：' + portalUrl_()),
   ]);

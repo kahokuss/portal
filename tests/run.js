@@ -366,6 +366,36 @@ test('前の版のシートに、新しい列の見出しが足される', () =>
   assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
 });
 
+test('Bot: グループでの個人的なコマンドは、送った人にだけ届く', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const before = gas.pushes().length;
+  assert.strictEqual(gas.line(group('U1'), '記録'), '', 'グループには返さない');
+  assert.ok(gas.privateTo('U1').includes('山田たろうさんの記録'), '本人にだけ届く');
+  assert.strictEqual(gas.line(dm('U1'), '記録').includes('山田たろうさんの記録'), true, '1対1のトークではふつうに返信（無料）');
+  assert.strictEqual(gas.pushes().length, before + 1);
+  gas.notFriends.add('U2');
+  const r = gas.line(group('U2'), '登録 鈴木けんた 5年');
+  assert.ok(r.includes('友だち追加'), '友だちでない人には、グループで案内だけ');
+  assert.ok(gas.line(group('U3'), 'ポータル').includes('kahokuss.github.io'), 'ポータルはグループに返す');
+});
+
+test('一斉通知: 役員がLINEグループに送れる。通数が足りなければ送らない', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.deepStrictEqual(plain(gas.ctx.api(kAdmin, 'broadcastInfo')), { limit: 200, used: 0, remaining: 200, members: 4 });
+  assert.throws(() => gas.ctx.api(k2, 'broadcast', { text: 'x' }), /役員だけ/);
+  const st = gas.ctx.api(kAdmin, 'broadcast', { text: '📢 明日の練習は中止です' });
+  assert.ok(st.message.includes('4通ぶん'));
+  const sent = gas.pushes().pop();
+  assert.deepStrictEqual([sent.payload.to, sent.payload.messages[0].text], ['G1', '📢 明日の練習は中止です']);
+  assert.strictEqual(gas.ctx.api(kAdmin, 'broadcastInfo').remaining, 196);
+  gas.quotaUsed.n = 198;
+  gas.cache.pushQuota && delete gas.cache.pushQuota;
+  assert.throws(() => gas.ctx.api(kAdmin, 'broadcast', { text: 'x' }), /足りません/);
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

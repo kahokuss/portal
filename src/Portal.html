@@ -219,7 +219,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('busy').hidden = false;
     rpc(action, payload, function (st) {
         document.getElementById('busy').hidden = true;
-        ST = st;
+        ST = fillDefaults(st);
         if (st.message) { S.toast = '✅ ' + st.message; S.toastErr = false; }
         if (done) done(st);
         render();
@@ -232,6 +232,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         if (!ST) { view.innerHTML = '<div class="card"><div class="big">ページを開けませんでした</div><div class="sub">' + esc(msg) + '</div></div>'; return; }
         render();
       });
+  }
+  /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
+  function fillDefaults(st) {
+    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    if (!st.me.canManage) st.me.canManage = [];
+    if (!st.me.family) st.me.family = [st.me.name];
+    if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
+    if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
+    return st;
   }
   function go(tab, key) { S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false; render(); window.scrollTo(0, 0); }
 

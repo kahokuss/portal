@@ -153,10 +153,10 @@ function saveTimetableAction_(ctx, p) {
 
 // ---- 手続き（チェックリスト） ----
 
-/** 招集はだれでも（会場で助け合えるように）。ほかは役員と当番 */
+/** 招集・レーン・ナンバー・リザルトの写真はだれでも（会場で助け合えるように）。ほかは役員と当番 */
 function requireTaskRight_(ctx, key, kind) {
   if (CHOICES.TASKS.indexOf(kind) < 0) throw new Error('不明な手続きです。');
-  if (kind !== '招集') requireManager_(ctx, key);
+  if (CHOICES.OPEN_TASKS.indexOf(kind) < 0) requireManager_(ctx, key);
 }
 
 function upsertTask_(ctx, key, kind, target, fn) {
@@ -204,7 +204,7 @@ function uploadPhotoAction_(ctx, p) {
   if (kind) {
     upsertTask_(ctx, p.key, kind, String(p.target || '').slice(0, 60), (t) => {
       t['写真ID'] = splitNames_(t['写真ID']).concat([file.getId()]).join(',');
-      if (kind === 'エントリー控え' || kind === 'プログラム') t['状態'] = '済';
+      if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い') t['状態'] = '済';
     });
   }
   return '写真を保存しました';
@@ -274,4 +274,46 @@ function cancelEventAction_(ctx, p) {
     updateRow_(SHEETS.EVENTS, row);
   });
   return formatDate_(row['日付']) + '「' + row['タイトル'] + '」を中止にしました';
+}
+
+// ---- 結果（記録） ----
+
+/** 結果を入れられる人：その子の家族、役員、その大会の当番 */
+function requireResultRight_(ctx, key, child) {
+  if (ctx.admin) return;
+  if (childrenOf_(ctx.userId).some((c) => c.name === child)) return;
+  requireManager_(ctx, key);
+}
+
+function saveResultAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  const child = String(p.child || '');
+  if (!activeChildren_().some((c) => c.name === child)) throw new Error('お子さんが見つかりません。');
+  requireResultRight_(ctx, p.key, child);
+  const race = String(p.race || '').trim().slice(0, 30);
+  const record = toHalfWidth_(p.record || '').trim().replace(/\s/g, '').slice(0, 20);
+  if (!race) throw new Error('種目を選んでください。');
+  if (!record) throw new Error('記録を入れてください（例：15.21、1:01.27、3m20）。');
+  const data = {
+    eventKey: ev.eventKey, '大会・練習': ev['日付'] + ' ' + ev['タイトル'], '子ども': child, '種目': race, '記録': record,
+    '順位': String(p.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(p.round) >= 0 ? p.round : '',
+    'メモ': String(p.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
+  };
+  withLock_(() => {
+    const row = p.id ? readRows_(SHEETS.RESULTS).find((r) => r.id && r.id === p.id) : null;
+    if (row) updateRow_(SHEETS.RESULTS, Object.assign(row, data));
+    else appendRow_(SHEETS.RESULTS, Object.assign(data, { id: randomKey_().slice(0, 10) }));
+  });
+  return child + ' ' + race + ' ' + record + ' を記録しました';
+}
+
+function deleteResultAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.RESULTS).find((r) => r.id && r.id === p.id);
+    if (!row) throw new Error('記録が見つかりません。');
+    requireResultRight_(ctx, row.eventKey, row['子ども']);
+    clearRow_(SHEETS.RESULTS, row);
+  });
+  return '記録を消しました';
 }

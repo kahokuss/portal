@@ -108,7 +108,7 @@ async function openPortal(browser, gas, userId, name) {
       await a.fill('#d-meetPlace', '正面スタンド下');
       await a.click('[data-set="target|4年生以上"]');
       await a.click('[data-tog="races|100m"]');
-      await a.click('[data-tog="races|走り幅跳び"]');
+      await a.click('[data-tog="races|走幅跳"]');
       await a.click('[data-set="fee|500"]');
       await a.fill('#d-meetTime', '750');
       await a.press('#d-meetTime', 'Tab');
@@ -117,7 +117,7 @@ async function openPortal(browser, gas, userId, name) {
       const row = gas.rows('大会').find((r) => r['集合場所'] === '正面スタンド下');
       assert.strictEqual(row['集合時刻'], '7:50');
       assert.strictEqual(row['対象'], '4年生以上');
-      assert.strictEqual(row['種目'], '100m,走り幅跳び');
+      assert.strictEqual(row['種目'], '100m,走幅跳');
     });
 
     // ---- 保護者 ----
@@ -131,11 +131,11 @@ async function openPortal(browser, gas, userId, name) {
       await p.idle();
       await p.click('[data-kid="鈴木けんた"] [data-race="100m"]');
       await p.idle();
-      await p.click('[data-kid="鈴木けんた"] [data-race="走り幅跳び"]');
+      await p.click('[data-kid="鈴木けんた"] [data-race="走幅跳"]');
       await p.idle();
       const e = gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた');
       assert.strictEqual(e['回答'], '参加');
-      assert.strictEqual(e['種目'], '100m,走り幅跳び');
+      assert.strictEqual(e['種目'], '100m,走幅跳');
       const text = await p.textContent('#view');
       assert.ok(text.includes('参加費 ¥500 未払い'));
       await p.shot('1-entry');
@@ -232,11 +232,15 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('.ev:has-text("秋季記録会")');
       await p.click('[data-et="タイムテーブル"]');
       await p.click('#ttEdit');
-      await p.fill('#ttIn', '10:30 5・6年男子 100m 2組 招集10:00\n11:20 4年女子 100m 招集10:50\n13:00 6年男子 走り幅跳び 招集 12:30');
+      await p.fill('#ttIn', '10:30 5・6年男子 100m 2組 招集10:00\n11:20 4年女子 100m 招集10:50\n13:00 6年男子 走り幅跳び 招集 12:30\n13:10 予選 小学4.5.6年混合4X100mR 招集12:40\n8部 2km（小学生4～6年の男子） スタート9：30');
       await p.click('#ttPaste button[type=submit]');
       assert.strictEqual(await p.inputValue('[data-tt="0|group"]'), '5・6年男子');
       assert.strictEqual(await p.inputValue('[data-tt="0|call"]'), '10:00');
       assert.strictEqual(await p.inputValue('[data-tt="2|race"]'), '走り幅跳び');
+      assert.deepStrictEqual(await Promise.all(['start', 'race', 'group', 'heat', 'call'].map((k) => p.inputValue('[data-tt="3|' + k + '"]'))), ['13:10', '4X100mR', '4.5.6年混合', '予選', '12:40']);
+      assert.deepStrictEqual(await Promise.all(['start', 'race', 'group', 'memo'].map((k) => p.inputValue('[data-tt="4|' + k + '"]'))), ['9:30', '2km', '4~6年男子', '8部']);
+      await p.click('[data-ttdel="4"]');
+      await p.click('[data-ttdel="3"]');
       await p.shot('5-tt-edit');
       await p.click('#ttSave');
       await p.idle();
@@ -258,6 +262,38 @@ async function openPortal(browser, gas, userId, name) {
       assert.strictEqual(prog['状態'], '済');
       assert.ok((await p.textContent('#view')).includes('招集1/2'.replace('1/2', '')));
       await p.shot('7-tasks');
+    });
+    await step('保護者: レーンとナンバーを入れ、結果を記録すると自己ベストが出る', async () => {
+      await p.click('[data-et="タイムテーブル"]');
+      p.once('dialog', (d) => d.accept('186'));
+      await p.click('[data-bib="鈴木けんた"]');
+      await p.idle();
+      p.once('dialog', (d) => d.accept('2組 5レーン'));
+      await p.click('[data-lane^="鈴木けんた|"] >> nth=0');
+      await p.idle();
+      const text = await p.textContent('#view');
+      assert.ok(text.includes('186') && text.includes('2組 5レーン'), text);
+      await p.click('[data-et="結果"]');
+      await p.click('[data-rrace="100m"]');
+      await p.click('[data-rround="予選"]');
+      await p.fill('#rs-rec', '15.21');
+      await p.click('#resForm button[type=submit]');
+      await p.idle();
+      await p.click('[data-rround="決勝"]');
+      await p.fill('#rs-rec', '14.98');
+      await p.fill('#rs-place', '2');
+      await p.click('#resForm button[type=submit]');
+      await p.idle();
+      assert.strictEqual(gas.rows('結果').length, 2);
+      const t2 = await p.textContent('#view');
+      assert.ok(/14\.98\s*2位\s*自己ベスト/.test(t2), t2);
+      await p.shot('8-results');
+      await p.click('[data-nav="family"]');
+      assert.ok((await p.textContent('#view')).includes('100m 14.98'));
+      await p.click('[data-nav="events"]');
+      await p.click('.ev:has-text("秋季記録会")');
+      await p.click('[data-et="手続き"]');
+      assert.ok((await p.textContent('#view')).includes('大会に払う合計'));
     });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');

@@ -283,6 +283,27 @@ test('大会の日: タイムテーブル・招集・手続きの写真', () => 
   assert.strictEqual(st.photos.length, 2, '写真だけならだれでも上げられる');
 });
 
+test('結果: その子の家族・役員・当番だけが入れられ、LINEで入れた分も出る', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  let st = gas.ctx.api(k2, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '１５．２１', round: '予選', place: '3位' });
+  assert.deepStrictEqual([st.results[0].record, st.results[0].place, st.results[0].round], ['15.21', '3', '予選']);
+  assert.throws(() => gas.ctx.api(k3, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '1' }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k3, 'deleteResult', { id: st.results[0].id }), /当番の人だけ/);
+  gas.ctx.api(kAdmin, 'saveResult', { key: race.key, child: '鈴木けんた', race: '走り幅跳び', record: '3m20' });
+  gas.line(dm('U2'), '結果 100m 14.9秒');
+  st = gas.ctx.api(k3, 'bootstrap');
+  assert.strictEqual(st.results.length, 3, 'メンバーはみんな見られる');
+  st = gas.ctx.api(k2, 'deleteResult', { id: st.results[0].id });
+  assert.strictEqual(st.results.length, 2);
+  st = gas.ctx.api(k3, 'setTask', { key: race.key, kind: 'ナンバー', target: '鈴木けんた', memo: '186' });
+  assert.strictEqual(st.tasks[0].memo, '186', 'ナンバーはだれでも入れられる');
+  assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: '参加費支払い', target: '', done: true }), /当番の人だけ/);
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

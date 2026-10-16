@@ -51,6 +51,7 @@ function handleResultCommand_(ev, args) {
     'メモ': parsed.note,
     userId: userId,
     '表示名': getDisplayName_(ev.source),
+    id: randomKey_().slice(0, 10),
   });
 
   let msg = '🏃 記録しました：' + parsed.child + ' ' + parsed.item + ' ' + parsed.record;

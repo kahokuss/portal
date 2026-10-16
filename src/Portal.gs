@@ -39,6 +39,8 @@ const API_ACTIONS = {
   savePractices: { admin: true, run: savePracticesAction_ },
   editEvent: { admin: true, run: editEventAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
+  saveResult: { run: saveResultAction_ },
+  deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },
@@ -133,6 +135,13 @@ function buildState_(ctx) {
     .filter((x) => x['ファイルID'] && inRange[x.eventKey])
     .map((x) => ({ id: x['ファイルID'], key: x.eventKey, by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE' }));
 
+  // 記録はクラブの子どもの分をすべて（自己ベストを出すため）。LINEの「結果」コマンドで入れた分も入る
+  const kidNames = {};
+  children.forEach((c) => (kidNames[c.name] = true));
+  const results = readRows_(SHEETS.RESULTS)
+    .filter((x) => kidNames[x['子ども']] && x['記録'])
+    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'] }));
+
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
@@ -158,7 +167,8 @@ function buildState_(ctx) {
     timetable: timetable,
     tasks: tasks,
     photos: photos,
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    results: results,
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
 

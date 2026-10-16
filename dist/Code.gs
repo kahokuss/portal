@@ -321,12 +321,15 @@ const CONFIG = {
 
 /** 大会の種目・持ち物・会場の候補（ポータルの入力補助に使います） */
 const CHOICES = {
-  RACES: ['100m', '50m', '走り幅跳び', 'ボール投げ', '1000m', 'リレー', '2km', '駅伝'],
+  RACES: ['50m', '100m', '80mH', '800m', '1000m', '走幅跳', '走高跳', 'ジャベボール投', 'リレー', '1km', '2km', '駅伝'],
   ITEMS: ['ユニフォーム', 'アスリートビブス', '弁当', '水筒', '帽子', 'レジャーシート', 'ベンチコート', 'タオル', '着替え', '雨具'],
   TARGETS: ['全員', '3年生以上', '4年生以上', '希望者'],
   ABSENCE_REASONS: ['体調不良', '家の都合', '学校行事', 'その他'],
   // 大会の手続き（チェックリスト）の種類
-  TASKS: ['エントリー控え', 'プログラム', '招集', 'リレー予選', 'リレー決勝'],
+  TASKS: ['エントリー控え', '参加費支払い', 'プログラム', '招集', 'リレー予選', 'リレー決勝', 'レーン', 'ナンバー', 'リザルト'],
+  // だれでも報告できる手続き（会場で助け合えるように）。ほかは役員と当番だけ
+  OPEN_TASKS: ['招集', 'レーン', 'ナンバー', 'リザルト'],
+  ROUNDS: ['予選', '準決勝', '決勝', 'タイムレース'],
 };
 
 function prop_(key) {
@@ -799,6 +802,8 @@ const API_ACTIONS = {
   savePractices: { admin: true, run: savePracticesAction_ },
   editEvent: { admin: true, run: editEventAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
+  saveResult: { run: saveResultAction_ },
+  deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },
@@ -893,6 +898,13 @@ function buildState_(ctx) {
     .filter((x) => x['ファイルID'] && inRange[x.eventKey])
     .map((x) => ({ id: x['ファイルID'], key: x.eventKey, by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE' }));
 
+  // 記録はクラブの子どもの分をすべて（自己ベストを出すため）。LINEの「結果」コマンドで入れた分も入る
+  const kidNames = {};
+  children.forEach((c) => (kidNames[c.name] = true));
+  const results = readRows_(SHEETS.RESULTS)
+    .filter((x) => kidNames[x['子ども']] && x['記録'])
+    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'] }));
+
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
@@ -918,7 +930,8 @@ function buildState_(ctx) {
     timetable: timetable,
     tasks: tasks,
     photos: photos,
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    results: results,
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
 
@@ -1277,10 +1290,10 @@ function saveTimetableAction_(ctx, p) {
 
 // ---- 手続き（チェックリスト） ----
 
-/** 招集はだれでも（会場で助け合えるように）。ほかは役員と当番 */
+/** 招集・レーン・ナンバー・リザルトの写真はだれでも（会場で助け合えるように）。ほかは役員と当番 */
 function requireTaskRight_(ctx, key, kind) {
   if (CHOICES.TASKS.indexOf(kind) < 0) throw new Error('不明な手続きです。');
-  if (kind !== '招集') requireManager_(ctx, key);
+  if (CHOICES.OPEN_TASKS.indexOf(kind) < 0) requireManager_(ctx, key);
 }
 
 function upsertTask_(ctx, key, kind, target, fn) {
@@ -1328,7 +1341,7 @@ function uploadPhotoAction_(ctx, p) {
   if (kind) {
     upsertTask_(ctx, p.key, kind, String(p.target || '').slice(0, 60), (t) => {
       t['写真ID'] = splitNames_(t['写真ID']).concat([file.getId()]).join(',');
-      if (kind === 'エントリー控え' || kind === 'プログラム') t['状態'] = '済';
+      if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い') t['状態'] = '済';
     });
   }
   return '写真を保存しました';
@@ -1400,6 +1413,48 @@ function cancelEventAction_(ctx, p) {
   return formatDate_(row['日付']) + '「' + row['タイトル'] + '」を中止にしました';
 }
 
+// ---- 結果（記録） ----
+
+/** 結果を入れられる人：その子の家族、役員、その大会の当番 */
+function requireResultRight_(ctx, key, child) {
+  if (ctx.admin) return;
+  if (childrenOf_(ctx.userId).some((c) => c.name === child)) return;
+  requireManager_(ctx, key);
+}
+
+function saveResultAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  const child = String(p.child || '');
+  if (!activeChildren_().some((c) => c.name === child)) throw new Error('お子さんが見つかりません。');
+  requireResultRight_(ctx, p.key, child);
+  const race = String(p.race || '').trim().slice(0, 30);
+  const record = toHalfWidth_(p.record || '').trim().replace(/\s/g, '').slice(0, 20);
+  if (!race) throw new Error('種目を選んでください。');
+  if (!record) throw new Error('記録を入れてください（例：15.21、1:01.27、3m20）。');
+  const data = {
+    eventKey: ev.eventKey, '大会・練習': ev['日付'] + ' ' + ev['タイトル'], '子ども': child, '種目': race, '記録': record,
+    '順位': String(p.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(p.round) >= 0 ? p.round : '',
+    'メモ': String(p.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
+  };
+  withLock_(() => {
+    const row = p.id ? readRows_(SHEETS.RESULTS).find((r) => r.id && r.id === p.id) : null;
+    if (row) updateRow_(SHEETS.RESULTS, Object.assign(row, data));
+    else appendRow_(SHEETS.RESULTS, Object.assign(data, { id: randomKey_().slice(0, 10) }));
+  });
+  return child + ' ' + race + ' ' + record + ' を記録しました';
+}
+
+function deleteResultAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.RESULTS).find((r) => r.id && r.id === p.id);
+    if (!row) throw new Error('記録が見つかりません。');
+    requireResultRight_(ctx, row.eventKey, row['子ども']);
+    clearRow_(SHEETS.RESULTS, row);
+  });
+  return '記録を消しました';
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -1454,6 +1509,7 @@ function handleResultCommand_(ev, args) {
     'メモ': parsed.note,
     userId: userId,
     '表示名': getDisplayName_(ev.source),
+    id: randomKey_().slice(0, 10),
   });
 
   let msg = '🏃 記録しました：' + parsed.child + ' ' + parsed.item + ' ' + parsed.record;
@@ -1621,7 +1677,7 @@ const SHEETS = {
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
-  RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名'] },
+  RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド'] },
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },

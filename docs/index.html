@@ -120,6 +120,41 @@ form.f, .f { display: grid; gap: 8px; }
 .childrow { display: grid; grid-template-columns: minmax(0, 1fr) 6.5em 32px; gap: 6px; align-items: center; }
 .icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; font: inherit; cursor: pointer; }
 .empty { padding: 24px 8px; text-align: center; color: var(--muted); }
+.top .acts { margin-left: auto; flex: none; display: flex; gap: 6px; }
+.top .acts .btn { white-space: nowrap; text-decoration: none; }
+.btn.line { background: #06c755; color: #fff; border: 0; }
+.childrow { grid-template-columns: minmax(0, 1fr) 5.4em 4.4em 32px; }
+.choice.duty button { display: grid; text-align: center; line-height: 1.3; padding: 4px 10px; border-radius: 12px; }
+.choice.duty button small { font-size: 10.5px; opacity: .8; font-weight: 400; }
+.att { display: grid; gap: 4px; }
+.att .g { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.att .g > b { font-size: 11.5px; color: var(--muted); width: 2.6em; flex: none; }
+.tt { display: flex; gap: 10px; align-items: flex-start; }
+.tt-time { flex: none; width: 3.4em; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.tt .main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.tt-kids { display: grid; gap: 4px; }
+.tt-kids > span { justify-content: space-between; }
+.callt { color: var(--track); }
+.tte { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); }
+.tte:first-child { border-top: 0; }
+.tte .w2 { grid-column: span 2; }
+.tte .w3 { grid-column: span 3; }
+.tte input { font: inherit; font-size: 13px; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; min-width: 0; width: 100%; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.thumb { border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; aspect-ratio: 1; background: var(--surface-2); cursor: pointer; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.upl { display: inline-block; }
+.viewer { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 20; display: grid; place-items: center; padding: 12px; }
+.viewer img { max-width: 100%; max-height: calc(100vh - 80px); border-radius: 8px; }
+.viewer button { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.cal .wd { font-size: 11px; color: var(--muted); }
+.cal button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 6px 0 4px; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cal button small { display: block; font-size: 9px; color: var(--muted); height: 10px; }
+.cal button[aria-pressed="true"] { background: var(--field); border-color: var(--field); color: #fff; font-weight: 700; }
+.cal button[aria-pressed="true"] small { color: #fff; }
+.cal button:disabled { opacity: .35; cursor: not-allowed; }
+.banner { background: var(--track-soft); border-color: transparent; }
 </style>
 </head>
 <body>
@@ -128,7 +163,7 @@ form.f, .f { display: grid; gap: 8px; }
     <div class="top">
       <div class="logo" aria-hidden="true">SS</div>
       <div><h1 id="clubName">ポータル</h1><div class="me" id="me"></div></div>
-      <button class="btn small ghost reload" id="reload" type="button" hidden>更新</button>
+      <div class="acts"><button class="btn small ghost" id="reload" type="button" hidden>更新</button><a class="btn small line" id="toLine" href="https://line.me/R/nv/chat" target="_top">LINEへ</a></div>
     </div>
     <main class="view" id="view"><div class="empty">読み込んでいます…</div></main>
     <nav class="nav" id="nav" aria-label="メニュー" hidden></nav>
@@ -227,10 +262,25 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       }).join('') + '</div></section>';
     }
 
+    var md0 = myDuties()[0], mdE = md0 && evByKey(md0.key);
+    if (mdE && diff(ST.today, mdE.date) <= 14) {
+      h += '<section class="card banner"><h2>わが家の当番<small>' + (mdE.date === ST.today ? '今日' : 'あと' + diff(ST.today, mdE.date) + '日') + '</small></h2><button class="ev" type="button" data-ev="' + mdE.key + '"><span class="main"><span class="big">' + md(mdE.date) + ' ' + esc(md0.type) + '当番</span><br><span class="sub">' + esc(mdE.title) + (mdE.place ? '・' + esc(mdE.place) : '') + '</span></span>›</button></section>';
+    }
+    var today = upcoming(function (e) { return isRace(e) && e.date <= addDays(ST.today, 1); }).filter(function (e) { return myCalls(e).length; })[0];
+    if (today) {
+      var calls = myCalls(today);
+      h += '<section class="card banner"><h2>' + (today.date === ST.today ? '今日' : '明日') + 'の大会<small>' + esc(today.title) + '</small></h2><div class="list">' + calls.map(function (c) {
+        return '<div class="between"><span><b>' + esc(c.r.start || '') + '</b> ' + esc(c.k.name) + '・' + esc(c.r.race) + ' <span class="sub">' + (c.r.call ? '招集 ' + esc(c.r.call) : '') + '</span></span>' + (c.done ? '<span class="pill p-ok">招集OK</span>' : '') + '</div>';
+      }).join('') + '</div><button class="btn small" type="button" data-gott="' + today.key + '">タイムテーブル・招集 ›</button></section>';
+    }
     var np = upcoming(function (e) { return !isRace(e); })[0];
     var practices = upcoming(function (e) { return !isRace(e); }).slice(0, 8);
     h += '<section class="card"><h2>次の練習' + (np ? '<small>' + (diff(ST.today, np.date) === 0 ? '今日' : diff(ST.today, np.date) === 1 ? '明日' : 'あと' + diff(ST.today, np.date) + '日') + '</small>' : '') + '</h2>';
-    if (np) h += '<div class="big">' + when(np) + '</div>' + (np.place ? '<div class="sub">📍 ' + esc(np.place) + '</div>' : '');
+    if (np) {
+      var off = absentOn(np.date);
+      h += '<button class="ev" type="button" data-ev="' + np.key + '"><span class="main"><span class="big">' + when(np) + '</span>' + (np.place ? '<br><span class="sub">📍 ' + esc(np.place) + '</span>' : '') + '</span>›</button>' +
+        '<div class="sub">休み：' + (off.length ? off.map(function (a) { return esc(a.child); }).join('・') + '（' + off.length + '人）' : 'いまのところなし') + (dutyOf(np.key).length ? '　当番：' + esc(dutyText(np.key)) : '') + '</div>';
+    }
     else h += '<div class="sub">カレンダーに練習の予定がありません</div>';
     if (ST.me.children.length) {
       h += '<div class="between"><span class="sub">お休みするときは</span><button class="btn small" id="absBtn" type="button">休みを連絡する</button></div>';
@@ -295,6 +345,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function bindCommon() {
     on('[data-ev]', function () { S.tab = 'events'; S.event = this.dataset.ev; S.etab = '概要'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-entry]', function () { S.tab = 'events'; S.event = this.dataset.entry; S.etab = 'エントリー'; S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('[data-gott]', function () { S.tab = 'events'; S.event = this.dataset.gott; S.etab = 'タイムテーブル'; S.ttf = ''; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-tab]', function () { go(this.dataset.tab); });
   }
 
@@ -310,7 +361,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       if (m !== month) { if (open) h += '</div></section>'; month = m; open = true; h += '<div class="month">' + Number(m.slice(5)) + '月</div><section class="card"><div class="list">'; }
       var cls = (e.date < ST.today ? ' past' : '') + (e.cancelled ? ' cancel' : '');
       h += '<button class="ev' + cls + '" type="button" data-ev="' + e.key + '"><div class="date' + (isRace(e) ? ' race' : '') + '"><b>' + d(e.date).getUTCDate() + '</b><span>' + WD[d(e.date).getUTCDay()] + '</span></div>' +
-        '<div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + typePill(e) + (e.cancelled ? ' <span class="pill p-gray">中止</span>' : '') + ' ' + (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') + '〜 ' : '') + esc(e.place || '') + '</div></div>›</button>';
+        '<div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + typePill(e) + (e.cancelled ? ' <span class="pill p-gray">中止</span>' : '') +
+        (!e.cancelled && e.date >= ST.today && absentOn(e.date).length && !isRace(e) ? ' <span class="pill p-warn">休み' + absentOn(e.date).length + '</span>' : '') +
+        (dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; }) ? ' <span class="pill p-race">当番</span>' : '') +
+        ' ' + (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') + '〜 ' : '') + esc(e.place || '') + '</div></div>›</button>';
     });
     if (open) h += '</div></section>'; else h += '<div class="card empty">予定がありません</div>';
     h += '<div class="hint">予定はクラブのGoogleカレンダーから取り込んでいます。</div>';
@@ -325,14 +379,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<section class="card"><div class="row">' + typePill(e) + (det && det.target ? '<span class="pill p-gray">' + esc(det.target) + '</span>' : '') + (e.cancelled ? '<span class="pill p-gray">中止</span>' : past ? '<span class="pill p-gray">終了</span>' : '') + '</div>' +
       '<div class="big">' + esc(e.title) + '</div><div class="sub">' + when(e) + (e.place ? '　📍 ' + esc(e.place) : '') + '</div>' + (isRace(e) && ST.me.children.length ? '<div class="row">' + myStatus(e) + '</div>' : '') + '</section>';
     if (!isRace(e)) {
-      h += toastHtml() + '<section class="card"><div class="sub">練習の予定です。お休みするときはホームの「休みを連絡する」からどうぞ。</div>' +
-        (ST.me.admin ? '<button class="btn small ghost" data-type="大会" type="button">この予定を大会として扱う</button>' : '') + '</section>';
+      h += toastHtml() + (e.cancelled ? '' : attendCard(e)) + dutyCard(e) +
+        '<section class="card"><div class="sub">お休みするときはホームの「休みを連絡する」からどうぞ。</div>' +
+        (ST.me.admin ? '<button class="btn small ghost" data-type="大会" type="button" style="justify-self:start">この予定を大会として扱う</button>' : '') + '</section>' +
+        (ST.me.admin && !e.cancelled ? eventEditCard(e) : '');
       view.innerHTML = h;
       on('#back', function () { S.event = null; S.toast = ''; render(); });
       on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
+      bindDuty(e); bindEventEdit(e);
       return;
     }
-    var tabs = ['概要', 'エントリー'];
+    var tabs = ['概要', 'エントリー', 'タイムテーブル', '手続き', '写真'];
     h += '<div class="tabs" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + t + '</button>'; }).join('') + '</div>' + toastHtml();
     if (S.etab === '概要') {
       if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + (ST.me.admin ? '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button><button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button></div>' : '') + '</section>';
@@ -342,11 +399,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
           (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl>' + (ST.me.admin ? '<button class="btn small ghost" id="editRace" type="button">案内を直す</button>' : '') + '</section>';
       }
+      h += dutyCard(e);
     }
     if (S.etab === 'エントリー') h += entryHtml(e);
+    if (S.etab === 'タイムテーブル') h += timetableHtml(e);
+    if (S.etab === '手続き') h += tasksHtml(e);
+    if (S.etab === '写真') h += photosTab(e);
     view.innerHTML = h;
-    on('#back', function () { S.event = null; S.toast = ''; render(); });
-    on('[data-et]', function () { S.etab = this.dataset.et; S.toast = ''; render(); });
+    bindDuty(e);
+    if (S.etab === 'タイムテーブル') bindTimetable(e);
+    if (S.etab === '手続き') { bindTasks(e); bindTimetable(e); }
+    if (S.etab === '写真') bindPhotos(e);
+    on('#back', function () { S.event = null; S.toast = ''; S.ttDraft = null; S.relay = null; render(); });
+    on('[data-et]', function () { S.etab = this.dataset.et; S.toast = ''; S.ttDraft = null; S.relay = null; render(); });
     on('#editRace', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
     bindEntry(e);
@@ -400,20 +465,23 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   // ---- わが家 ----
   function family() {
-    var rows = S.kidsDraft || (S.kidsDraft = ST.me.children.map(function (c) { return { name: c.name, grade: c.grade }; }));
-    if (!rows.length) rows.push({ name: '', grade: 0 });
+    var rows = S.kidsDraft || (S.kidsDraft = ST.me.children.map(function (c) { return { name: c.name, grade: c.grade, sex: c.sex }; }));
+    if (!rows.length) rows.push({ name: '', grade: 0, sex: '' });
     var h = toastHtml() + '<section class="card"><h2>お子さん<small>学年は4月に上げてください</small></h2><form class="f" id="kidsForm">' + rows.map(function (c, i) {
       return '<div class="childrow"><input data-kn="' + i + '" value="' + esc(c.name) + '" placeholder="例：山田たろう" aria-label="名前"><select data-kg="' + i + '" aria-label="学年"><option value="0">学年</option>' +
         [1, 2, 3, 4, 5, 6].map(function (g) { return '<option value="' + g + '"' + (c.grade === g ? ' selected' : '') + '>' + g + '年</option>'; }).join('') + '</select>' +
+        '<select data-ks="' + i + '" aria-label="男女"><option value="">男女</option>' + ['男', '女'].map(function (x) { return '<option' + (c.sex === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
         '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
     }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' +
-      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。きょうだいやご両親で同じ子を登録しても大丈夫です。</div></form></section>' +
+      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() +
       '<section class="card"><h2>ログイン</h2><div class="sub">' + esc(ST.me.name) + 'さんのLINEでログインしています。このページは' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。家族のスマホで使うときは、ログアウトしてからそれぞれのLINEでログインしてください。</div><button class="btn small ghost" id="logout" type="button" style="justify-self:start">ログアウト</button></section>';
     view.innerHTML = h;
     view.querySelectorAll('[data-kn]').forEach(function (el) { el.addEventListener('input', function () { rows[+this.dataset.kn].name = this.value; }); });
     view.querySelectorAll('[data-kg]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.kg].grade = +this.value; }); });
+    view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
+    bindFamilyCard(); bindCommon();
     on('[data-kdel]', function () { rows.splice(+this.dataset.kdel, 1); render(); });
-    on('#kidAdd', function () { rows.push({ name: '', grade: 0 }); render(); });
+    on('#kidAdd', function () { rows.push({ name: '', grade: 0, sex: '' }); render(); });
     on('#logout', function () { clearKey(); ST = null; showLogin('ログアウトしました。'); });
     document.getElementById('kidsForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -427,7 +495,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'saved') return adminSaved();
     if (S.admin === 'notice') return adminNotice();
     if (S.admin === 'absences') return adminAbsences();
-    var items = [['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'], ['absences', '休みの連絡を見る', '日にちごとの一覧と確認']];
+    if (S.admin === 'practice') return adminPractice();
+    if (S.admin === 'duty') return adminDuty();
+    if (S.admin === 'notify') return adminNotify();
+    if (S.admin === 'sheet') return adminSheet();
+    var items = [['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
+      ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'],
+      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ']];
     view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>';
     on('[data-go]', function () { S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
@@ -605,6 +679,446 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
   }
 
+  // ---- 当番・出欠・大会の日の共通 ----
+  function famName(id) { var f = ST.families.find(function (x) { return x.id === id; }); return f ? f.label : '（家族の登録なし）'; }
+  function dutyOf(key) { return ST.duties.filter(function (x) { return x.key === key; }); }
+  function dutyText(key) { return dutyOf(key).map(function (x) { return famName(x.fam); }).join('、'); }
+  function absentOn(date) { return ST.absences.filter(function (a) { return a.date === date; }); }
+  function byGrade(a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); }
+  function canManage(key) { return ST.me.canManage.indexOf(key) >= 0; }
+  function dutyType(e) { return isRace(e) ? '大会' : '練習'; }
+  /** 家族の、この1年の当番の回数と前回（exceptKey の予定は数えない） */
+  function dutyHistory(fam, type, exceptKey) {
+    var r = { last: '', next: '', count: 0 };
+    ST.duties.forEach(function (x) {
+      if (x.fam !== fam || x.type !== type || x.key === exceptKey) return;
+      if (x.date < ST.today) { if (x.date >= addDays(ST.today, -365)) r.count++; if (x.date > r.last) r.last = x.date; }
+      else if (!r.next || x.date < r.next) r.next = x.date;
+    });
+    return r;
+  }
+  function myDuties() { return ST.duties.filter(function (x) { return x.fam === ST.me.fam && x.date >= ST.today; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
+  function tkey(t) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? pad(+m[1]) + ':' + m[2] : '99:99'; }
+  function tsub(t, min) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})$/); if (!m) return ''; var x = Math.max(0, +m[1] * 60 + +m[2] - min); return Math.floor(x / 60) + ':' + pad(x % 60); }
+  function nowHM() { var x = new Date(Date.now() + 9 * 3600000); return pad(x.getUTCHours()) + ':' + pad(x.getUTCMinutes()); }
+  function minutesUntil(t) { var a = tkey(t).split(':'), b = nowHM().split(':'); return (+a[0] * 60 + +a[1]) - (+b[0] * 60 + +b[1]); }
+  function taskOf(key, kind, target) { return ST.tasks.find(function (t) { return t.key === key && t.kind === kind && t.target === target; }); }
+
+  function dutyCard(e) {
+    var type = dutyType(e), list = dutyOf(e.key);
+    var h = '<section class="card"><h2>' + type + '当番' + (list.length ? '' : '<small>まだ決まっていません</small>') + '</h2>';
+    if (list.length) h += '<div class="row">' + list.map(function (x) { return '<span class="pill ' + (x.fam === ST.me.fam ? 'p-race' : 'p-gray') + '">🏠 ' + esc(famName(x.fam)) + (x.fam === ST.me.fam ? '（わが家）' : '') + '</span>'; }).join(' ') + '</div>';
+    if (ST.me.admin && !e.cancelled) {
+      var fams = ST.families.map(function (f) { var r = dutyHistory(f.id, type, e.key); r.f = f; r.on = list.some(function (x) { return x.fam === f.id; }); return r; })
+        .sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : a.count - b.count; });
+      h += fams.length ? '<div class="lbl">タップで当番にする・外す（前回から日がたっている順）</div><div class="choice duty">' + fams.map(function (x) {
+        return '<button type="button" data-duty="' + esc(x.f.id) + '" data-on="' + (x.on ? '' : '1') + '" aria-pressed="' + x.on + '">' + esc(x.f.label) + '<small>' + (x.last ? '前回 ' + md(x.last) : '前回なし') + '・' + x.count + '回' + (x.next && x.next !== e.date ? '・次 ' + md(x.next) : '') + '</small></button>';
+      }).join('') + '</div>' : '<div class="hint">お子さんを登録した家族がここに出ます。</div>';
+    }
+    return h + '</section>';
+  }
+  function bindDuty(e) { on('[data-duty]', function () { call('setDuty', { key: e.key, fam: this.dataset.duty, on: !!this.dataset.on }); }); }
+
+  function attendCard(e) {
+    var off = absentOn(e.date).map(function (a) { return a.child; }), kids = ST.kids.slice().sort(byGrade), groups = {};
+    kids.forEach(function (k) { (groups[k.grade] = groups[k.grade] || []).push(k); });
+    var h = '<section class="card"><h2>出欠<small>出席予定 ' + kids.filter(function (k) { return off.indexOf(k.name) < 0; }).length + '人・休み ' + off.length + '人</small></h2><div class="att">';
+    Object.keys(groups).sort(function (a, b) { return b - a; }).forEach(function (g) {
+      h += '<div class="g"><b>' + (+g ? g + '年' : '学年?') + '</b>' + groups[g].map(function (k) { var x = off.indexOf(k.name) >= 0; return '<span class="pill ' + (x ? 'p-warn' : 'p-ok') + '">' + esc(k.name) + (x ? ' 休み' : '') + '</span>'; }).join('') + '</div>';
+    });
+    return h + '</div>' + (kids.length ? '' : '<div class="sub">お子さんの登録がまだありません。</div>') + '<div class="hint">休みの連絡があった子だけ「休み」になります。理由は本人と役員だけに見えます。</div></section>';
+  }
+
+  function eventEditCard(e) {
+    var st = e.start === '終日' ? '' : e.start.replace(/^0/, ''), en = (e.end || '').replace(/^0/, '');
+    return '<section class="card"><h2>予定を直す<small>役員</small></h2><form class="f" id="evEdit"><label>タイトル<input id="ee-title" value="' + esc(e.title) + '"></label>' +
+      '<div class="two"><label>日付<input type="date" id="ee-date" value="' + e.date + '"></label><label>場所<input id="ee-place" value="' + esc(e.place || '') + '"></label></div>' +
+      '<div class="two"><label>始まり<input id="ee-start" inputmode="numeric" placeholder="1700 → 17:00" value="' + esc(st) + '"></label><label>終わり<input id="ee-end" inputmode="numeric" value="' + esc(en) + '"></label></div>' +
+      '<div class="quick">' + ST.choices.practiceTimes.map(function (t) { return '<button type="button" data-pt="' + t[0] + '|' + t[1] + '">' + t[0] + '〜' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="row"><button class="btn" type="submit">直す</button><button class="btn ghost" id="evCancel" type="button">中止にする</button></div>' +
+      '<div class="hint">Googleカレンダーも直ります。中止にするとカレンダーから消え、ポータルには「中止」と残ります。LINEグループへの連絡は「お知らせ」からどうぞ。</div></form></section>';
+  }
+  function bindEventEdit(e) {
+    var f = document.getElementById('evEdit'); if (!f) return;
+    on('[data-pt]', function () { var t = this.dataset.pt.split('|'); document.getElementById('ee-start').value = t[0]; document.getElementById('ee-end').value = t[1]; });
+    f.addEventListener('submit', function (x) {
+      x.preventDefault();
+      call('editEvent', { key: e.key, title: val('ee-title'), date: val('ee-date'), place: val('ee-place'), start: fmtTime(val('ee-start')), end: fmtTime(val('ee-end')) });
+    });
+    on('#evCancel', function () { if (confirm(md(e.date) + '「' + e.title + '」を中止にしますか？')) call('cancelEvent', { key: e.key }); });
+  }
+  function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+
+  // ---- タイムテーブル ----
+  function groupMatch(g, k) {
+    g = toHalf(g || '');
+    var sex = /男女|混合/.test(g) ? '' : /男/.test(g) ? '男' : /女/.test(g) ? '女' : '';
+    if (sex && k.sex && sex !== k.sex) return false;
+    var grades = [], m, r = g.match(/([1-6])\s*[~〜\-－・,、]\s*([1-6])\s*年/);
+    if (/低学年/.test(g)) grades = [1, 2, 3];
+    if (/中学年/.test(g)) grades = [3, 4];
+    if (/高学年/.test(g)) grades = [4, 5, 6];
+    if (r) { for (var i = +r[1]; i <= +r[2]; i++) grades.push(i); }
+    else { var re = /([1-6])\s*年/g; while ((m = re.exec(g))) grades.push(+m[1]); }
+    return !grades.length || !k.grade || grades.indexOf(k.grade) >= 0;
+  }
+  function raceMatch(row, x) { var r = toHalf(row.race); return x.races.some(function (q) { q = toHalf(q); return r === q || r.indexOf(q) >= 0 || q.indexOf(r) >= 0; }); }
+  function rowKids(e, row) { return ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && raceMatch(row, x) && groupMatch(row.group, k); }).sort(byGrade); }
+  function ttRows(e) { return ST.timetable.filter(function (r) { return r.key === e.key; }).sort(function (a, b) { return tkey(a.start) < tkey(b.start) ? -1 : tkey(a.start) > tkey(b.start) ? 1 : 0; }); }
+  function callBtn(e, row, k) {
+    var t = taskOf(e.key, '招集', k.name + '|' + row.id), done = t && t.done;
+    return '<button type="button" class="btn small ' + (done ? 'ok' : 'ghost') + '" data-call="' + esc(k.name + '|' + row.id) + '" data-done="' + (done ? '' : '1') + '"' + (done && t.by ? ' title="' + esc(t.by) + 'さん"' : '') + '>' + (done ? '招集OK ✓' : '招集した') + '</button>';
+  }
+  /** わが家の子の、まだ招集が済んでいない種目（時刻順） */
+  function myCalls(e) {
+    var out = [];
+    ttRows(e).forEach(function (r) {
+      rowKids(e, r).forEach(function (k) {
+        if (myNames().indexOf(k.name) < 0) return;
+        var t = taskOf(e.key, '招集', k.name + '|' + r.id);
+        out.push({ r: r, k: k, done: !!(t && t.done) });
+      });
+    });
+    return out;
+  }
+  function ttItem(e, r, kids) {
+    var warm = r.warm || tsub(r.call, ST.choices.warmMinutes);
+    var h = '<div class="tt"><div class="tt-time">' + esc(r.start || '—') + '</div><div class="main"><div class="ttl">' + esc(r.race) + ' <span class="sub">' + esc([r.group, r.heat].filter(Boolean).join(' ')) + '</span></div>' +
+      '<div class="sub">' + (warm ? 'アップ ' + esc(warm) + (r.warm ? '' : '頃') + '　' : '') + (r.call ? '<b class="callt">招集 ' + esc(r.call) + '</b>' : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
+    if (kids.length) h += '<div class="tt-kids">' + kids.map(function (k) { return '<span class="row"><span>' + esc(k.name) + (k.grade ? ' <span class="sub">' + k.grade + '年</span>' : '') + '</span>' + callBtn(e, r, k) + '</span>'; }).join('') + '</div>';
+    return h + '</div></div>';
+  }
+  function timetableHtml(e) {
+    if (S.ttDraft) return ttEditor(e);
+    var rows = ttRows(e), mine = ST.me.children, f = S.ttf || (mine.length ? 'わが家' : '全部'), h = '';
+    if (canManage(e.key)) h += '<button class="btn small ghost" id="ttEdit" type="button" style="justify-self:start">' + (rows.length ? '✎ タイムテーブルを直す' : '＋ タイムテーブルを入れる') + '</button>';
+    if (!rows.length) return h + '<section class="card"><div class="sub">タイムテーブルはまだ入っていません。プログラムが出たら、役員か当番の人が入れます。</div></section>';
+    var filters = (mine.length ? ['わが家'] : []).concat(['全部', '1年', '2年', '3年', '4年', '5年', '6年']);
+    h += '<div class="tabs" role="group" aria-label="しぼりこみ">' + filters.map(function (x) { return '<button type="button" data-ttf="' + x + '" aria-pressed="' + (f === x) + '">' + x + '</button>'; }).join('') + '</div>';
+    if (f === 'わが家') {
+      if (e.date === ST.today) {
+        var next = myCalls(e).filter(function (c) { return !c.done && c.r.call; })[0];
+        if (next) { var m = minutesUntil(next.r.call); h += '<section class="card banner"><h2>次の招集</h2><div class="big">' + esc(next.r.call) + '　' + esc(next.k.name) + '・' + esc(next.r.race) + '</div><div class="sub">' + (m >= 0 ? 'あと' + m + '分' : m > -60 ? '時刻を過ぎています' : '') + '</div></section>'; }
+      }
+      mine.forEach(function (k) {
+        var x = entryOf(e.key, k.name), list = rows.filter(function (r) { return rowKids(e, r).some(function (y) { return y.name === k.name; }); });
+        h += '<section class="card"><h2>' + esc(k.name) + '<small>' + (k.grade ? k.grade + '年' : '') + (k.sex ? k.sex === '男' ? '男子' : '女子' : '') + '</small></h2>';
+        if (!list.length) h += '<div class="sub">' + (x && x.join === '参加' ? '出る種目がタイムテーブルに見つかりません。学年・性別（わが家）と種目を確かめてください。' : 'この大会にはエントリーしていません。') + '</div>';
+        else h += '<div class="list">' + list.map(function (r) { return ttItem(e, r, [k]); }).join('') + '</div>';
+        h += '</section>';
+      });
+    } else {
+      var g = f === '全部' ? 0 : +f[0];
+      var list = rows.filter(function (r) { return !g || groupMatch(r.group, { grade: g, sex: '' }); });
+      h += '<section class="card"><div class="list">' + (list.length ? list.map(function (r) { return ttItem(e, r, rowKids(e, r).filter(function (k) { return !g || k.grade === g; })); }).join('') : '<div class="sub">この学年の種目はありません。</div>') + '</div></section>';
+    }
+    return h + '<div class="hint">アップの時刻は目安です（空欄のときは招集の' + ST.choices.warmMinutes + '分前）。「招集した」は、会場にいる人ならだれが押してもかまいません。</div>';
+  }
+  function bindTimetable(e) {
+    on('[data-ttf]', function () { S.ttf = this.dataset.ttf; render(); });
+    on('#ttEdit', function () { S.ttDraft = ttRows(e).map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }; }); if (!S.ttDraft.length) S.ttDraft.push(blankTT()); S.toast = ''; render(); });
+    on('[data-call]', function () { call('setTask', { key: e.key, kind: '招集', target: this.dataset.call, done: !!this.dataset.done }); });
+    bindTTEditor(e);
+  }
+  function blankTT() { return { id: '', start: '', race: '', group: '', heat: '', call: '', warm: '', memo: '' }; }
+  /** プログラムの文章を1行ずつ読み取る（AIは使わない） */
+  function parseTT(raw) {
+    var T = '(\\d{1,2})[:：時](\\d{2})';
+    return toHalf(raw).split('\n').map(function (line) {
+      var l = ' ' + line.trim() + ' ', r = blankTT(), m;
+      if (!line.trim()) return null;
+      if ((m = l.match(new RegExp('招集\\s*' + T)))) { r.call = +m[1] + ':' + m[2]; l = l.replace(m[0], ' '); }
+      if ((m = l.match(new RegExp('アップ\\s*' + T)))) { r.warm = +m[1] + ':' + m[2]; l = l.replace(m[0], ' '); }
+      if ((m = l.match(new RegExp(T)))) { r.start = +m[1] + ':' + m[2]; l = l.replace(m[0], ' '); }
+      if ((m = l.match(/(\d+)\s*組/))) { r.heat = m[1] + '組'; l = l.replace(m[0], ' '); }
+      if ((m = l.match(/(低学年|中学年|高学年|[1-6](?:\s*[~〜\-・]\s*[1-6])?\s*年生?)\s*(男子|女子|男女|混合)?|(男子|女子|男女混合|混合)/))) { r.group = m[0].replace(/\s/g, '').replace('年生', '年'); l = l.replace(m[0], ' '); }
+      var t = l.match(/[^\s]*(?:\d+\s*m|走|跳|投|リレー|ハードル|メドレー|駅伝)[^\s]*/);
+      var known = ST.choices.races.slice().sort(function (a, b) { return b.length - a.length; }).filter(function (x) { return l.indexOf(x) >= 0; })[0];
+      r.race = t ? t[0].replace(/\s/g, '') : known || '';
+      return r.race ? r : null;
+    }).filter(Boolean);
+  }
+  function ttEditor(e) {
+    var D = S.ttDraft, others = ST.events.filter(function (x) { return x.key !== e.key && ST.timetable.some(function (r) { return r.key === x.key; }); });
+    var h = '<button class="link" id="ttBack" type="button">‹ タイムテーブルに戻る（保存しない）</button>' +
+      '<section class="card"><h2>プログラムから貼り付け</h2><form class="f" id="ttPaste"><textarea id="ttIn" placeholder="1行に1種目。例：&#10;10:30 5年男子 100m 2組 招集10:00&#10;11:00 3年女子 走り幅跳び 招集10:30"></textarea><button class="btn" type="submit">読み取って下に足す</button>' +
+      '<div class="hint">時刻・学年・男子／女子・種目・組・「招集」「アップ」の時刻を読み取ります（AIは使いません）。読み取れなかったところは手で直してください。</div></form>' +
+      (others.length ? '<div class="lbl">前の大会からコピー</div><div class="quick">' + others.map(function (x) { return '<button type="button" data-ttcopy="' + x.key + '">' + md(x.date) + ' ' + esc(x.title) + '</button>'; }).join('') + '</div>' : '') + '</section>' +
+      '<section class="card"><h2>タイムテーブル<small>' + D.length + '件</small></h2><div>' + D.map(function (r, i) {
+        function inp(k, ph, cls, num) { return '<input class="' + cls + '" data-tt="' + i + '|' + k + '" value="' + esc(r[k]) + '" placeholder="' + ph + '" aria-label="' + ph + '"' + (num ? ' inputmode="numeric"' : '') + (k === 'race' ? ' list="raceList"' : '') + '>'; }
+        return '<div class="tte">' + inp('start', '開始', '', 1) + inp('race', '種目', 'w2') + inp('group', '区分（5年男子）', 'w2') + inp('heat', '組', '') +
+          inp('call', '招集', '', 1) + inp('warm', 'アップ', '', 1) + inp('memo', 'メモ', 'w3') + '<button class="icon-btn" type="button" data-ttdel="' + i + '" aria-label="この行を消す">×</button></div>';
+      }).join('') + '</div><datalist id="raceList">' + ST.choices.races.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+      '<button class="btn small ghost" id="ttAdd" type="button" style="justify-self:start">＋ 1行足す</button><button class="btn" id="ttSave" type="button">保存する</button>' +
+      '<div class="hint">時刻は「1030」と入れると10:30になります。区分に学年や男子・女子を入れると、その子のタイムテーブルに出ます。アップは空でもOK（招集の' + ST.choices.warmMinutes + '分前を目安に出します）。</div></section>';
+    return h;
+  }
+  function bindTTEditor(e) {
+    if (!S.ttDraft) return;
+    var D = S.ttDraft;
+    view.querySelectorAll('[data-tt]').forEach(function (el) {
+      el.addEventListener('input', function () { var p = this.dataset.tt.split('|'); D[+p[0]][p[1]] = this.value; });
+      if (el.inputMode === 'numeric') el.addEventListener('blur', function () { var p = this.dataset.tt.split('|'); D[+p[0]][p[1]] = this.value = fmtTime(this.value); });
+    });
+    on('#ttBack', function () { S.ttDraft = null; S.toast = ''; render(); });
+    on('[data-ttdel]', function () { D.splice(+this.dataset.ttdel, 1); render(); });
+    on('#ttAdd', function () { D.push(blankTT()); render(); });
+    on('[data-ttcopy]', function () {
+      var k = this.dataset.ttcopy;
+      ST.timetable.filter(function (r) { return r.key === k; }).forEach(function (r) { D.push({ id: '', start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }); });
+      removeBlank(D); S.toast = '✅ コピーしました。時刻を確かめてください'; S.toastErr = false; render();
+    });
+    var pf = document.getElementById('ttPaste');
+    if (pf) pf.addEventListener('submit', function (x) {
+      x.preventDefault();
+      var rows = parseTT(val('ttIn'));
+      rows.forEach(function (r) { D.push(r); });
+      removeBlank(D);
+      S.toast = rows.length ? '✅ ' + rows.length + '行を読み取りました。下で確かめてから保存してください' : '読み取れる行がありませんでした'; S.toastErr = !rows.length;
+      render();
+    });
+    on('#ttSave', function () { call('saveTimetable', { key: e.key, rows: D.filter(function (r) { return String(r.race).trim(); }) }, function (st) { if (st.message) S.ttDraft = null; }); });
+  }
+  function removeBlank(D) { for (var i = D.length - 1; i >= 0; i--) if (!D[i].race && !D[i].start && !D[i].group && !D[i].call) D.splice(i, 1); }
+
+  // ---- 手続き（チェックリスト）と写真 ----
+  function photoBtn(kind, target, label) { return '<label class="btn small ghost upl">📷 ' + (label || '写真を付ける') + '<input type="file" accept="image/*" data-upl="' + esc(kind + '|' + target) + '" hidden></label>'; }
+  function photosHtml(ids) { return ids.length ? '<div class="thumbs">' + ids.map(function (id) { return '<button class="thumb" type="button" data-photo="' + esc(id) + '"><img data-src="' + esc(id) + '" alt="写真"></button>'; }).join('') + '</div>' : ''; }
+  function whoWhen(t) { return t && t.by ? '<div class="hint">' + esc(t.by) + 'さん・' + esc(String(t.at).slice(5, 16).replace('-', '/')) + '</div>' : ''; }
+  function taskCard(e, kind, title, hint, man) {
+    var t = taskOf(e.key, kind, '') || { done: false, photos: [] };
+    var h = '<section class="card"><h2>' + title + (t.done ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' + whoWhen(t) + photosHtml(t.photos);
+    if (man) h += '<div class="row">' + photoBtn(kind, '') + '<button class="btn small ' + (t.done ? 'ghost' : 'ok') + '" type="button" data-task="' + kind + '|" data-done="' + (t.done ? '' : '1') + '">' + (t.done ? '済を取り消す' : '済にする') + '</button></div><div class="hint">' + hint + '</div>';
+    else if (!t.done) h += '<div class="hint">' + hint + '（役員・当番の人が付けます）</div>';
+    return h + '</section>';
+  }
+  function relayRunners(e) {
+    var joined = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
+    var relay = joined.filter(function (k) { return entryOf(e.key, k.name).races.some(function (r) { return /リレー/.test(r); }); });
+    return (relay.length ? relay : joined).sort(byGrade);
+  }
+  function relayCard(e, kind, man) {
+    var teams = ST.tasks.filter(function (t) { return t.key === e.key && t.kind === kind; }), R = S.relay && S.relay.kind === kind ? S.relay : null;
+    var h = '<section class="card"><h2>' + kind + 'のメンバー報告<small>' + teams.filter(function (t) { return t.done; }).length + '/' + teams.length + 'チーム報告済み</small></h2>';
+    teams.forEach(function (t) {
+      h += '<div class="kid"><div class="between"><b>' + esc(t.target) + '</b>' + (t.done ? '<span class="pill p-ok">報告済み</span>' : '<span class="pill p-warn">まだ</span>') + '</div><div class="sub">' + esc(t.memo) + '</div>' + whoWhen(t) + photosHtml(t.photos) +
+        (man ? '<div class="row"><button class="btn small ' + (t.done ? 'ghost' : 'ok') + '" type="button" data-task="' + kind + '|' + esc(t.target) + '" data-done="' + (t.done ? '' : '1') + '">' + (t.done ? '報告を取り消す' : '報告した') + '</button><button class="btn small ghost" type="button" data-relayedit="' + esc(t.target) + '" data-kind="' + kind + '">メンバーを直す</button>' + photoBtn(kind, t.target, 'オーダー用紙') + '</div>' : '') + '</div>';
+    });
+    if (!teams.length && !man) h += '<div class="sub">まだ報告はありません。</div>';
+    if (man && R) {
+      var runners = relayRunners(e);
+      h += '<form class="f" id="relayForm"><label>チーム名<input id="rl-name" value="' + esc(R.name) + '" placeholder="例：Aチーム、5・6年男子"' + (R.old ? ' readonly' : '') + '></label><div class="two">' + [0, 1, 2, 3].map(function (i) {
+        return '<label>' + (i + 1) + '走<select data-rl="' + i + '"><option value="">—</option>' + runners.map(function (k) { return '<option' + (R.runners[i] === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</select></label>';
+      }).join('') + '</div><label>補欠・メモ<input id="rl-memo" value="' + esc(R.extra) + '"></label><div class="row"><button class="btn" type="submit">保存する</button><button class="btn ghost" type="button" id="rlCancel">やめる</button></div></form>';
+    } else if (man) h += '<button class="btn small ghost" type="button" data-relayadd="' + kind + '" style="justify-self:start">＋ チームを足す</button>';
+    return h + '</section>';
+  }
+  function tasksHtml(e) {
+    var man = canManage(e.key), det = e.detail || {}, h = '';
+    if (!man) h += '<div class="hint">手続きは役員と、この大会の当番の人が進めます。招集の「招集した」はだれでも押せます。</div>';
+    h += taskCard(e, 'エントリー控え', '① エントリーの提出', '申込書やWeb申込の完了画面を写真で残しておくと安心です。', man);
+    var joined = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; }), paid = joined.filter(function (k) { return entryOf(e.key, k.name).paid; });
+    if (det.fee) h += '<section class="card"><h2>② 参加費の集金' + (paid.length === joined.length && joined.length ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">' + paid.length + '/' + joined.length + '人</span>') + '</h2><button class="link" type="button" data-et="エントリー">エントリーの一覧で確かめる ›</button></section>';
+    h += taskCard(e, 'プログラム', '③ プログラム・組み合わせ', 'プログラムや番組編成が出たら写真を載せ、「タイムテーブル」に時刻を入れてください。', man);
+    var pairs = [];
+    ttRows(e).forEach(function (r) { rowKids(e, r).forEach(function (k) { pairs.push({ r: r, k: k }); }); });
+    pairs.sort(function (a, b) { return tkey(a.r.call) < tkey(b.r.call) ? -1 : 1; });
+    var done = pairs.filter(function (p) { var t = taskOf(e.key, '招集', p.k.name + '|' + p.r.id); return t && t.done; }).length;
+    h += '<section class="card"><h2>④ 招集<small>' + done + '/' + pairs.length + '</small></h2>' + (pairs.length ? '<div class="list">' + pairs.map(function (p) {
+      return '<div class="between"><span><b class="callt">' + esc(p.r.call || '—') + '</b> ' + esc(p.k.name) + ' <span class="sub">' + esc(p.r.race + ' ' + (p.r.group || '') + ' ' + (p.r.heat || '')) + '</span></span>' + callBtn(e, p.r, p.k) + '</div>';
+    }).join('') + '</div>' : '<div class="sub">タイムテーブルを入れると、エントリーした子の招集の一覧がここに出ます。</div>') + '</section>';
+    h += relayCard(e, 'リレー予選', man) + relayCard(e, 'リレー決勝', man);
+    return h;
+  }
+  function bindTasks(e) {
+    on('[data-task]', function () { var p = this.dataset.task, i = p.indexOf('|'); call('setTask', { key: e.key, kind: p.slice(0, i), target: p.slice(i + 1), done: !!this.dataset.done }); });
+    on('[data-relayadd]', function () { S.relay = { kind: this.dataset.relayadd, name: '', runners: [], extra: '' }; render(); });
+    on('[data-relayedit]', function () {
+      var t = taskOf(e.key, this.dataset.kind, this.dataset.relayedit), runners = [], extra = [];
+      String(t.memo || '').split('／').forEach(function (x) { var m = x.match(/^([1-4])走\s*(.*)$/); if (m) runners[+m[1] - 1] = m[2].trim(); else if (x.trim()) extra.push(x.replace(/^補欠・メモ\s*/, '').trim()); });
+      S.relay = { kind: t.kind, name: t.target, old: t.target, runners: runners, extra: extra.join(' ') }; render();
+    });
+    on('#rlCancel', function () { S.relay = null; render(); });
+    var f = document.getElementById('relayForm');
+    if (f) f.addEventListener('submit', function (x) {
+      x.preventDefault();
+      var R = S.relay, name = val('rl-name').trim();
+      if (!name) { S.toast = 'チーム名を入れてください。'; S.toastErr = true; render(); return; }
+      var parts = [0, 1, 2, 3].map(function (i) { var v = view.querySelector('[data-rl="' + i + '"]').value; return v ? (i + 1) + '走 ' + v : ''; }).filter(Boolean);
+      if (val('rl-memo').trim()) parts.push('補欠・メモ ' + val('rl-memo').trim());
+      call('setTask', { key: e.key, kind: R.kind, target: name, memo: parts.join('／') }, function () { S.relay = null; });
+    });
+    bindPhotos(e);
+  }
+  function photosTab(e) {
+    var list = ST.photos.filter(function (p) { return p.key === e.key; });
+    return '<section class="card"><h2>写真<small>' + list.length + '枚</small></h2>' + (list.length ? photosHtml(list.map(function (p) { return p.id; })) : '<div class="sub">まだ写真はありません。LINEグループに送った写真も、ここに出ます。</div>') +
+      '<div class="row">' + photoBtn('', '', '写真を上げる') + '</div><div class="hint">このページと同じく、LINEグループのメンバーだけが見られます。</div></section>';
+  }
+
+  var PHOTO = {};
+  function loadThumbs() {
+    view.querySelectorAll('img[data-src]').forEach(function (img) {
+      var id = img.dataset.src;
+      if (PHOTO['t' + id]) { img.src = PHOTO['t' + id]; return; }
+      if (PHOTO['w' + id]) return;
+      PHOTO['w' + id] = 1;
+      rpc('photo', { id: id, thumb: true }, function (r) { PHOTO['t' + id] = r.data; view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r.data; }); }, function () { delete PHOTO['w' + id]; });
+    });
+  }
+  function showPhoto(id) {
+    var box = document.createElement('div');
+    box.className = 'viewer';
+    box.innerHTML = '<img alt="写真"><button class="btn small ghost" type="button">閉じる</button>';
+    box.querySelector('img').src = PHOTO['f' + id] || PHOTO['t' + id] || '';
+    box.addEventListener('click', function () { box.remove(); });
+    document.body.appendChild(box);
+    if (!PHOTO['f' + id]) rpc('photo', { id: id }, function (r) { PHOTO['f' + id] = r.data; box.querySelector('img').src = r.data; }, function () {});
+  }
+  /** スマホの大きな写真は、送る前に小さくする（長い辺1600px） */
+  function readImage(file, done) {
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () {
+      var s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      done(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); done(null); };
+    img.src = url;
+  }
+  function bindPhotos(e) {
+    on('[data-photo]', function () { showPhoto(this.dataset.photo); });
+    view.querySelectorAll('[data-upl]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var p = this.dataset.upl, i = p.indexOf('|'), file = this.files && this.files[0];
+        if (!file) return;
+        document.getElementById('busy').hidden = false;
+        readImage(file, function (data) {
+          if (!data) { document.getElementById('busy').hidden = true; S.toast = '⚠ 写真を読み込めませんでした'; S.toastErr = true; render(); return; }
+          call('uploadPhoto', { key: e.key, kind: p.slice(0, i), target: p.slice(i + 1), data: data });
+        });
+      });
+    });
+    loadThumbs();
+  }
+
+  // ---- 管理：予定をつくる・当番表・休みの通知・スプレッドシート ----
+  function places(type) {
+    var seen = {}, out = [];
+    ST.events.slice().reverse().forEach(function (e) { if (e.place && (type ? dutyType(e) === type : true) && !seen[e.place]) { seen[e.place] = 1; out.push(e.place); } });
+    return out.slice(0, 6);
+  }
+  function adminPractice() {
+    var P = S.prac || (S.prac = { month: ST.today.slice(0, 7), dates: [], start: ST.choices.practiceTimes[0][0], end: ST.choices.practiceTimes[0][1], title: '練習', place: places('練習')[0] || '' });
+    var y = +P.month.slice(0, 4), m = +P.month.slice(5, 7), first = P.month + '-01', days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = d(first).getUTCDay();
+    var has = {};
+    ST.events.forEach(function (e) { if (!e.cancelled) has[e.date] = (has[e.date] ? has[e.date] + '・' : '') + (isRace(e) ? '大会' : '練'); });
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>練習の予定をつくる<small>日にちをタップ（いくつでも）</small></h2>' +
+      '<div class="between"><button class="btn small ghost" type="button" data-mon="-1">‹ 前の月</button><b>' + y + '年' + m + '月</b><button class="btn small ghost" type="button" data-mon="1">次の月 ›</button></div>' +
+      '<div class="cal">' + WD.map(function (w, i) { return '<button type="button" class="wd" data-wd="' + i + '" style="border:0;background:none;color:var(--muted);font-size:11px">' + w + '</button>'; }).join('');
+    for (var i = 0; i < lead; i++) h += '<span></span>';
+    for (var n = 1; n <= days; n++) {
+      var ds = P.month + '-' + pad(n);
+      h += '<button type="button" data-day="' + ds + '" aria-pressed="' + (P.dates.indexOf(ds) >= 0) + '"' + (ds < ST.today ? ' disabled' : '') + '>' + n + '<small>' + (has[ds] ? esc(has[ds]) : '') + '</small></button>';
+    }
+    h += '</div><div class="hint">曜日を押すと、その月のその曜日をまとめて選べます。小さい字は、もう入っている予定です。</div>' +
+      '<form class="f" id="pracForm"><div class="lbl">時間</div><div class="quick">' + ST.choices.practiceTimes.map(function (t) { return '<button type="button" data-ptime="' + t[0] + '|' + t[1] + '">' + t[0] + '〜' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="two"><label>始まり<input id="pr-start" inputmode="numeric" value="' + esc(P.start) + '"></label><label>終わり<input id="pr-end" inputmode="numeric" value="' + esc(P.end) + '"></label></div>' +
+      '<div class="two"><label>タイトル<input id="pr-title" value="' + esc(P.title) + '"></label><label>場所<input id="pr-place" value="' + esc(P.place) + '"></label></div>' +
+      (places('練習').length ? '<div class="quick">' + places('練習').map(function (x) { return '<button type="button" data-pplace="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' : '') +
+      '<button class="btn" type="submit">' + (P.dates.length ? P.dates.length + '日分をカレンダーに入れる' : '日にちを選んでください') + '</button>' +
+      '<div class="hint">選んだ日にちが、クラブのGoogleカレンダーとポータルに入ります。大会は「大会・記録会をつくる」からどうぞ。たくさんの予定をPCで入れるときは「スプレッドシートで入れる」が便利です。</div></form></section>';
+    view.innerHTML = h;
+    bindBack();
+    function keep() { P.start = val('pr-start'); P.end = val('pr-end'); P.title = val('pr-title'); P.place = val('pr-place'); }
+    on('[data-mon]', function () { keep(); var t = new Date(Date.UTC(y, m - 1 + +this.dataset.mon, 1)); P.month = t.toISOString().slice(0, 7); render(); });
+    on('[data-day]', function () { keep(); var ds = this.dataset.day, i = P.dates.indexOf(ds); if (i >= 0) P.dates.splice(i, 1); else P.dates.push(ds); render(); });
+    on('[data-wd]', function () {
+      keep();
+      var wd = +this.dataset.wd, list = [];
+      for (var n = 1; n <= days; n++) { var ds = P.month + '-' + pad(n); if (d(ds).getUTCDay() === wd && ds >= ST.today) list.push(ds); }
+      var all = list.every(function (x) { return P.dates.indexOf(x) >= 0; });
+      list.forEach(function (x) { var i = P.dates.indexOf(x); if (all && i >= 0) P.dates.splice(i, 1); if (!all && i < 0) P.dates.push(x); });
+      render();
+    });
+    on('[data-ptime]', function () { keep(); var t = this.dataset.ptime.split('|'); P.start = t[0]; P.end = t[1]; render(); });
+    on('[data-pplace]', function () { keep(); P.place = this.dataset.pplace; render(); });
+    document.getElementById('pracForm').addEventListener('submit', function (x) {
+      x.preventDefault(); keep();
+      if (!P.dates.length) { S.toast = '日にちを選んでください。'; S.toastErr = true; render(); return; }
+      call('savePractices', { dates: P.dates, start: fmtTime(P.start), end: fmtTime(P.end), title: P.title, place: P.place }, function () { P.dates = []; });
+    });
+  }
+
+  function adminDuty() {
+    var type = S.dutyType || '練習', A = S.auto || (S.auto = { days: 30, per: 1 });
+    var fams = ST.families.map(function (f) { var r = dutyHistory(f.id, type); r.f = f; return r; }).sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : a.count - b.count; });
+    var h = backBtn() + toastHtml() + '<div class="tabs" role="group" aria-label="当番の種類">' + ['練習', '大会'].map(function (t) { return '<button type="button" data-dt="' + t + '" aria-pressed="' + (type === t) + '">' + t + '当番</button>'; }).join('') + '</div>' +
+      '<section class="card"><h2>' + type + '当番の順番<small>前回から日がたっている順</small></h2>' + (fams.length ? '<div class="tbl-wrap"><table><thead><tr><th>家族</th><th>前回</th><th>1年の回数</th><th>次</th></tr></thead><tbody>' + fams.map(function (x) {
+        return '<tr' + (x.f.id === ST.me.fam ? ' class="hl"' : '') + '><td>' + esc(x.f.label) + '</td><td>' + (x.last ? md(x.last) : '—') + '</td><td>' + x.count + '回</td><td>' + (x.next ? md(x.next) : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="sub">お子さんを登録した家族がまだいません。</div>') +
+      '<div class="hint">' + (type === '大会' ? '大会当番は1家族年2回くらいが目安です。' : '') + '練習当番と大会当番は別々に数えます。</div></section>' +
+      '<section class="card"><h2>まだ当番のいない' + type + 'に、順番に入れる</h2><div class="lbl">どこまで</div><div class="choice">' + [14, 30, 60, 90].map(function (n) { return '<button type="button" data-adays="' + n + '" aria-pressed="' + (A.days === n) + '">' + n + '日先まで</button>'; }).join('') + '</div>' +
+      '<div class="lbl">1回に</div><div class="choice">' + [1, 2, 3].map(function (n) { return '<button type="button" data-aper="' + n + '" aria-pressed="' + (A.per === n) + '">' + n + '家族</button>'; }).join('') + '</div>' +
+      '<button class="btn" type="button" id="autoDuty">自動で入れる</button><div class="hint">入れたあとも、予定を開いて家族をタップすれば入れかえられます。</div></section>';
+    var list = upcoming(function (e) { return dutyType(e) === type; }).slice(0, 30);
+    h += '<section class="card"><h2>これからの' + type + '</h2>' + (list.length ? '<div class="list">' + list.map(function (e) {
+      return '<button class="ev" type="button" data-ev="' + e.key + '"><div class="date' + (isRace(e) ? ' race' : '') + '"><b>' + d(e.date).getUTCDate() + '</b><span>' + WD[d(e.date).getUTCDay()] + '</span></div><div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + (dutyOf(e.key).length ? '🏠 ' + esc(dutyText(e.key)) : '<span class="pill p-warn">当番なし</span>') + '</div></div>›</button>';
+    }).join('') + '</div>' : '<div class="sub">予定がありません。</div>') + '</section>';
+    view.innerHTML = h;
+    bindBack(); bindCommon();
+    on('[data-dt]', function () { S.dutyType = this.dataset.dt; render(); });
+    on('[data-adays]', function () { A.days = +this.dataset.adays; render(); });
+    on('[data-aper]', function () { A.per = +this.dataset.aper; render(); });
+    on('#autoDuty', function () { call('autoDuty', { type: type, days: A.days, per: A.per }); });
+  }
+
+  function adminNotify() {
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>休みの連絡をLINEで受け取る人</h2><div class="list">' + ST.parents.map(function (p) {
+      return '<div class="between"><span>' + esc(p.name) + (p.admin ? ' <span class="pill p-gray">役員</span>' : '') + '</span><button class="btn small ' + (p.notify ? 'ok' : 'ghost') + '" type="button" data-notify="' + esc(p.id) + '" data-on="' + (p.notify ? '' : '1') + '">' + (p.notify ? '受け取る' : '受け取らない') + '</button></div>';
+    }).join('') + '</div><div class="hint">ここで「受け取る」にした人と、その日の練習当番の家族に、BotからLINEが届きます（Botを友だち追加している人だけ）。1人に1通ずつ、LINEの無料の通数（月200通）を使います。だれが休みかは、ポータルの出欠でだれでも見られます。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-notify]', function () { call('setNotify', { userId: this.dataset.notify, on: !!this.dataset.on }); });
+  }
+
+  function adminSheet() {
+    var h = backBtn() + '<section class="card"><h2>PCでまとめて入れる（スプレッドシート）</h2>' +
+      '<div class="sub">クラブ共用アカウントのスプレッドシートの<b>「予定入力」</b>シートに1行ずつ書くと、すぐGoogleカレンダーとポータルに入ります。Excelのようにコピー＆貼り付けでまとめて入れられます。</div>' +
+      (ST.sheetUrl ? '<a class="btn" href="' + esc(ST.sheetUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">スプレッドシートを開く</a>' : '') +
+      '<div class="tbl-wrap"><table><thead><tr><th>列</th><th>書き方</th></tr></thead><tbody>' +
+      [['日付', '2026-10-20、10/20、10月20日'], ['開始・終了', '17:00、1700、17時半（空なら終日）'], ['タイトル', '練習、秋季記録会など'], ['場所', 'なくてもOK'], ['種別', '練習・大会・記録会（空ならタイトルで判断）'], ['削除', '○ を入れるとカレンダーから消える'], ['状態など', '自動で入ります。さわらないでください']].map(function (r) { return '<tr><td>' + r[0] + '</td><td style="white-space:normal">' + r[1] + '</td></tr>'; }).join('') +
+      '</tbody></table></div><div class="hint">「状態」の列に ✅ が付けば入っています。⚠ のときは書き方を直してください。ポータルで作った予定や、もともとカレンダーにあった予定は、このシートには出ません（ポータルかカレンダーで直してください）。スプレッドシートは共用アカウントでログインして開いてください。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+  }
+
+  // ---- わが家：家族をまとめる ----
+  function familyCard() {
+    var h = '<section class="card"><h2>家族<small>' + ST.me.family.length + '人でつかっています</small></h2><div class="sub">' + ST.me.family.map(function (n) { return esc(n) + 'さん'; }).join('・') + '</div>';
+    if (S.invite) {
+      h += '<div class="copybox" id="copyText">' + esc(CLUB + 'のポータルで、家族の登録をまとめます。下のリンクを開いてLINEでログインしてください（招待番号 ' + S.invite.code + '）\n' + S.invite.url) + '</div><button class="btn" id="copyBtn" type="button">家族に送る文章をコピー</button>' +
+        '<div class="hint">夫婦の1対1のトークなどに貼ってください。番号は' + S.invite.hours + '時間、1回だけ使えます。</div>';
+    } else h += '<button class="btn small" id="invite" type="button" style="justify-self:start">家族を招待する（夫婦で共有）</button><div class="hint">家族になると、お子さんの登録・エントリー・当番が共通になります。それぞれのLINEでログインできます。</div>';
+    h += '<form class="f" id="joinForm"><label>家族から招待番号をもらったとき<input id="joinCode" inputmode="numeric" maxlength="6" placeholder="6けたの番号"></label><button class="btn small ghost" type="submit" style="justify-self:start">家族になる</button></form>';
+    if (ST.me.family.length > 1) h += '<button class="link" id="leaveFam" type="button">家族のまとまりから外れる</button>';
+    var mine = myDuties();
+    if (mine.length) h += '<div class="lbl">わが家の当番</div><div class="list">' + mine.map(function (x) { var e = evByKey(x.key); return e ? '<button class="ev" type="button" data-ev="' + e.key + '"><span><b>' + md(e.date) + '</b> ' + esc(x.type) + '当番・' + esc(e.title) + '</span>›</button>' : ''; }).join('') + '</div>';
+    return h + '</section>';
+  }
+  function bindFamilyCard() {
+    on('#invite', function () {
+      var b = this; b.disabled = true;
+      rpc('inviteFamily', {}, function (r) { S.invite = r; render(); }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
+    });
+    bindCopy();
+    var f = document.getElementById('joinForm');
+    if (f) f.addEventListener('submit', function (x) { x.preventDefault(); call('joinFamily', { code: val('joinCode') }, function () { S.kidsDraft = null; }); });
+    on('#leaveFam', function () { if (confirm('家族のまとまりから外れますか？　お子さんの登録は、ほかの家族の人に残ります。')) call('leaveFamily', {}, function () { S.kidsDraft = null; }); });
+  }
+
   // ---- ナビ ----
   var ICONS = {
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
@@ -652,14 +1166,25 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rpc('loginUrl', {}, function (r) { window.top.location.href = r.url; }, function (err) { b.textContent = 'LINEでログイン'; showLogin(err.message); });
     });
   }
+  // 家族の招待リンク（?join=番号）で開いたときは、ログインのあとで家族になる
+  var JOIN = 'clubPortalJoin';
+  function pendingJoin() {
+    var code = ''; try { code = localStorage.getItem(JOIN) || ''; localStorage.removeItem(JOIN); } catch (e) {}
+    if (code && confirm('家族の招待番号 ' + code + ' で、家族の登録をまとめますか？')) call('joinFamily', { code: code }, function () { S.tab = 'family'; S.kidsDraft = null; });
+  }
   function start() {
     if (KEY) saveKey(KEY);
     else KEY = loadKey();
-    if (KEY) call('bootstrap');   // ログイン直後、または前回のログインが残っているとき（再読み込みで期限切れの表示が出ても、保存したキーで開く）
+    if (KEY) call('bootstrap', null, pendingJoin);   // ログイン直後、または前回のログインが残っているとき（再読み込みで期限切れの表示が出ても、保存したキーで開く）
     else showLogin(LOGIN_ERROR);
   }
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
+  if (q.get('join')) {
+    try { localStorage.setItem(JOIN, q.get('join').replace(/\D/g, '').slice(0, 6)); } catch (e) {}
+    q.delete('join');
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+  }
   if (API_URL && (q.get('code') || q.get('error'))) {
     history.replaceState(null, '', location.pathname);
     if (q.get('error')) { LOGIN_ERROR = 'LINEログインがキャンセルされました。'; start(); }
@@ -668,7 +1193,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rpc('login', { code: q.get('code'), state: q.get('state') }, function (r) { KEY = r.key; start(); }, function (err) {
         // 再読み込みなどで同じ code をもう一度使ったときは、保存してあるキーで開く
         KEY = loadKey();
-        if (KEY) call('bootstrap'); else showLogin(err.message);
+        if (KEY) call('bootstrap', null, pendingJoin); else showLogin(err.message);
       });
     }
   } else {

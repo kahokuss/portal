@@ -3,15 +3,19 @@
  * どのシートも1行目が見出しで、2行目以降がデータ。値はすべて文字列で保存する。
  */
 const SHEETS = {
-  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認'] },
-  CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時'] },
+  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知'] },
+  CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },
-  PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL'] },
+  PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名'] },
+  TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
+  TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
+  DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
+  SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };
 
 let ss__ = null;
@@ -29,15 +33,28 @@ function sheet_(def) {
     sh.getRange(1, 1, sh.getMaxRows(), def.headers.length).setNumberFormat('@');
     sh.getRange(1, 1, 1, def.headers.length).setValues([def.headers]).setFontWeight('bold');
     sh.setFrozenRows(1);
+  } else if (!headersChecked__[def.name]) {
+    // 前の版で作ったシートに、あとから増えた列の見出しを足す（列は右端に足すだけなので、今のデータはずれない）
+    const width = Math.max(sh.getLastColumn(), 1);
+    const have = sh.getRange(1, 1, 1, width).getValues()[0].map(String);
+    const missing = def.headers.filter((h) => have.indexOf(h) < 0);
+    if (missing.length && def.headers.slice(0, have.filter(Boolean).length).every((h, i) => h === have[i])) {
+      const from = have.filter(Boolean).length + 1;
+      sh.getRange(1, from, sh.getMaxRows(), missing.length).setNumberFormat('@');
+      sh.getRange(1, from, 1, missing.length).setValues([missing]).setFontWeight('bold');
+    }
   }
+  headersChecked__[def.name] = true;
   return sh;
 }
+
+const headersChecked__ = {};
 
 /** 手入力で日付や時刻に自動変換されたセルも文字列に戻す */
 function cellToString_(v, header) {
   if (v instanceof Date) {
     if (header.indexOf('日時') >= 0) return fmt_(v, 'yyyy-MM-dd HH:mm:ss');
-    if (header === '開始' || header === '終了' || header === '記録' || header === '集合時刻') return fmt_(v, 'H:mm');
+    if (['開始', '終了', '記録', '集合時刻', '招集', 'アップ'].indexOf(header) >= 0) return fmt_(v, 'H:mm');
     return fmt_(v, 'yyyy-MM-dd');
   }
   return v === null || v === undefined ? '' : String(v);
@@ -107,6 +124,20 @@ function isAdmin_(family) {
   return !!family && /^(○|◯|〇|o|yes|true|1|役員)$/i.test(String(family['役員']).trim());
 }
 
+/** 家族のまとまり（夫婦など）。まとめていない人は userId がそのまま家族ID */
+function famIdOf_(family) {
+  return family['家族ID'] || family.userId;
+}
+
+/** 同じ家族の保護者の userId（自分も入る） */
+function familyMembers_(userId, families) {
+  const rows = families || readRows_(SHEETS.FAMILIES);
+  const me = rows.find((f) => f.userId === userId);
+  if (!me) return [userId];
+  const id = famIdOf_(me);
+  return rows.filter((f) => famIdOf_(f) === id).map((f) => f.userId);
+}
+
 /** 家族の行を用意する（なければ作る）。表示名が分かれば更新する */
 function ensureFamily_(userId, displayName) {
   return withLock_(() => {
@@ -140,7 +171,7 @@ function portalKeyFor_(userId, displayName, renew) {
 function activeChildren_() {
   return readRows_(SHEETS.CHILDREN)
     .filter((c) => c['名前'] && splitNames_(c['保護者userId']).length)
-    .map((c) => ({ name: c['名前'], grade: Number(c['学年']) || 0, parents: splitNames_(c['保護者userId']), _row: c._row }));
+    .map((c) => ({ name: c['名前'], grade: Number(c['学年']) || 0, sex: c['性別'] === '男' || c['性別'] === '女' ? c['性別'] : '', parents: splitNames_(c['保護者userId']), _row: c._row }));
 }
 
 function childrenOf_(userId) {
@@ -158,15 +189,16 @@ function allChildren_() {
  */
 function saveChildren_(userId, list) {
   withLock_(() => {
+    // 家族をまとめていれば、夫婦のどちらが直しても両方の子どもとして登録される
+    const members = familyMembers_(userId);
     const rows = readRows_(SHEETS.CHILDREN);
     const names = list.map((c) => c.name);
     rows.forEach((row) => {
       const parents = splitNames_(row['保護者userId']);
-      const i = parents.indexOf(userId);
       const keep = names.indexOf(row['名前']) >= 0;
-      if (i >= 0 && !keep) {
-        parents.splice(i, 1);
-        row['保護者userId'] = parents.join(',');
+      const rest = parents.filter((u) => members.indexOf(u) < 0);
+      if (!keep && rest.length !== parents.length) {
+        row['保護者userId'] = rest.join(',');
         row['更新日時'] = now_();
         updateRow_(SHEETS.CHILDREN, row);
       }
@@ -175,14 +207,66 @@ function saveChildren_(userId, list) {
       const row = rows.find((r) => r['名前'] === c.name);
       if (row) {
         const parents = splitNames_(row['保護者userId']);
-        if (parents.indexOf(userId) < 0) parents.push(userId);
+        members.forEach((u) => { if (parents.indexOf(u) < 0) parents.push(u); });
         row['保護者userId'] = parents.join(',');
         if (c.grade) row['学年'] = String(c.grade);
+        if (c.sex !== undefined) row['性別'] = c.sex;
         row['更新日時'] = now_();
         updateRow_(SHEETS.CHILDREN, row);
       } else {
-        appendRow_(SHEETS.CHILDREN, { '名前': c.name, '学年': c.grade ? String(c.grade) : '', '保護者userId': userId, '更新日時': now_() });
+        appendRow_(SHEETS.CHILDREN, { '名前': c.name, '学年': c.grade ? String(c.grade) : '', '保護者userId': members.join(','), '性別': c.sex || '', '更新日時': now_() });
       }
+    });
+  });
+}
+
+/**
+ * userId の人を、inviterId の人の家族に入れる。おたがいの子どもは両方の子どもになる。
+ * 当番の記録も新しい家族IDに付け替える。
+ */
+function joinFamily_(userId, inviterId) {
+  withLock_(() => {
+    const families = readRows_(SHEETS.FAMILIES);
+    const me = families.find((f) => f.userId === userId);
+    const inviter = families.find((f) => f.userId === inviterId);
+    if (!me || !inviter) throw new Error('家族が見つかりません。');
+    const newId = famIdOf_(inviter);
+    const oldId = famIdOf_(me);
+    if (inviter['家族ID'] !== newId) { inviter['家族ID'] = newId; updateRow_(SHEETS.FAMILIES, inviter); }
+    if (oldId !== newId) {
+      me['家族ID'] = newId;
+      me['更新日時'] = now_();
+      updateRow_(SHEETS.FAMILIES, me);
+      readRows_(SHEETS.DUTIES).filter((d) => d['家族ID'] === oldId).forEach((d) => { d['家族ID'] = newId; updateRow_(SHEETS.DUTIES, d); });
+    }
+    const members = families.filter((f) => famIdOf_(f) === newId).map((f) => f.userId);
+    readRows_(SHEETS.CHILDREN).forEach((row) => {
+      const parents = splitNames_(row['保護者userId']);
+      if (!parents.some((u) => members.indexOf(u) >= 0)) return;
+      const all = parents.concat(members.filter((u) => parents.indexOf(u) < 0));
+      if (all.length === parents.length) return;
+      row['保護者userId'] = all.join(',');
+      row['更新日時'] = now_();
+      updateRow_(SHEETS.CHILDREN, row);
+    });
+  });
+}
+
+/** 家族のまとまりから外れる。登録した子どもは、ほかの家族の人の子どもとして残る */
+function leaveFamily_(userId) {
+  withLock_(() => {
+    const families = readRows_(SHEETS.FAMILIES);
+    const me = families.find((f) => f.userId === userId);
+    if (!me || famIdOf_(me) === userId) return;
+    const others = families.filter((f) => f.userId !== userId && famIdOf_(f) === famIdOf_(me));
+    me['家族ID'] = '';
+    me['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, me);
+    readRows_(SHEETS.CHILDREN).forEach((row) => {
+      const parents = splitNames_(row['保護者userId']);
+      if (parents.indexOf(userId) < 0 || !others.some((f) => parents.indexOf(f.userId) >= 0)) return;
+      row['保護者userId'] = parents.filter((u) => u !== userId).join(',');
+      updateRow_(SHEETS.CHILDREN, row);
     });
   });
 }

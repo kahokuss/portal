@@ -93,7 +93,7 @@ test('ポータル: 予定の取り込み・エントリー・締切・集金', 
 
   let st = gas.ctx.api(kParent, 'bootstrap');
   assert.strictEqual(st.me.admin, false);
-  assert.deepStrictEqual(plain(st.me.children), [{ name: '鈴木けんた', grade: 5 }]);
+  assert.deepStrictEqual(plain(st.me.children), [{ name: '鈴木けんた', grade: 5, sex: '' }]);
   const race = st.events.find((e) => e.title === '秋季記録会');
   assert.strictEqual(race.type, '大会', '予定名から大会と判断');
   assert.strictEqual(st.events.filter((e) => e.type === '練習').length, 2);
@@ -171,9 +171,178 @@ test('ポータル: わが家で子どもを直す・両親で同じ子を登録
   assert.strictEqual(gas.rows('子ども').length, 1);
   assert.strictEqual(gas.rows('子ども')[0]['保護者userId'], 'U1,U4');
   let st = gas.ctx.api(k, 'saveChildren', { children: [{ name: '山田たろう', grade: 4 }, { name: '山田はなこ', grade: 1 }] });
-  assert.deepStrictEqual(plain(st.me.children), [{ name: '山田たろう', grade: 4 }, { name: '山田はなこ', grade: 1 }]);
+  assert.deepStrictEqual(plain(st.me.children), [{ name: '山田たろう', grade: 4, sex: '' }, { name: '山田はなこ', grade: 1, sex: '' }]);
   st = gas.ctx.api(k, 'saveChildren', { children: [{ name: '山田はなこ', grade: 1 }] });
   assert.deepStrictEqual(st.kids.map((c) => c.name), ['山田たろう', '山田はなこ'], 'もう一人の親が登録しているので残る');
+});
+
+test('家族: 招待番号で夫婦をまとめると、子どもの登録が共通になる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const k1 = gas.login('U1').key;
+  const k4 = gas.login('U4').key;
+  const inv = gas.ctx.api(k1, 'inviteFamily');
+  assert.ok(/^\d{6}$/.test(inv.code) && inv.url.includes('?join=' + inv.code));
+  assert.throws(() => gas.ctx.api(k1, 'joinFamily', { code: inv.code }), /自分の招待番号/);
+  assert.throws(() => gas.ctx.api(k4, 'joinFamily', { code: '000000' }), /違うか/);
+  let st = gas.ctx.api(k4, 'joinFamily', { code: inv.code });
+  assert.ok(st.message.includes('山田さんと同じ家族'));
+  assert.deepStrictEqual(st.me.children.map((c) => c.name), ['山田たろう'], '相手の子どもが見える');
+  assert.deepStrictEqual(plain(st.me.family).sort(), ['山田', '山田（父）'].sort());
+  assert.throws(() => gas.ctx.api(k4, 'joinFamily', { code: inv.code }), /違うか/, '番号は1回だけ');
+  st = gas.ctx.api(k4, 'saveChildren', { children: [{ name: '山田たろう', grade: 3, sex: '男' }, { name: '山田はなこ', grade: 1, sex: '女' }] });
+  st = gas.ctx.api(k1, 'bootstrap');
+  assert.deepStrictEqual(plain(st.me.children), [{ name: '山田たろう', grade: 3, sex: '男' }, { name: '山田はなこ', grade: 1, sex: '女' }], 'もう一人が足した子も見える');
+  assert.strictEqual(st.families.length, 1);
+  assert.strictEqual(st.families[0].label, '山田たろう・山田はなこ');
+  st = gas.ctx.api(k4, 'leaveFamily');
+  assert.strictEqual(st.me.children.length, 0);
+  assert.strictEqual(gas.ctx.api(k1, 'bootstrap').me.children.length, 2);
+});
+
+test('休みの通知: 受け取る係とその日の練習当番だけに届く。出欠はみんなに見える', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 2年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kAdmin, 'bootstrap');
+  const prac = st.events.find((e) => e.date === '2026-10-15');
+  gas.ctx.api(kAdmin, 'setDuty', { key: prac.key, fam: 'U3', on: true });
+  gas.ctx.api(k2, 'reportAbsence', { child: '鈴木けんた', date: '2026-10-15', reason: '体調不良' });
+  assert.deepStrictEqual(gas.pushes().map((f) => f.payload.to).sort(), ['U1', 'U3'], '役員と、その日の当番');
+  gas.ctx.api(kAdmin, 'setNotify', { userId: 'U1', on: false });
+  gas.ctx.api(k2, 'reportAbsence', { child: '鈴木けんた', date: '2026-10-17', reason: '体調不良' });
+  assert.strictEqual(gas.pushes().length, 2, '受け取りをやめた役員と、当番でない日は届かない');
+  assert.throws(() => gas.ctx.api(k2, 'setNotify', { userId: 'U2', on: true }), /役員だけ/);
+  st = gas.ctx.api(k3, 'bootstrap');
+  assert.deepStrictEqual(st.absences.map((a) => a.child), ['鈴木けんた', '鈴木けんた']);
+  assert.strictEqual(st.duties[0].fam, 'U3');
+});
+
+test('当番: 前回から日がたっている家族から順に自動で入れる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 2年');
+  const kAdmin = gas.login('U1').key;
+  gas.login('U2'); gas.login('U3');
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kAdmin, 'bootstrap');
+  const race = st.events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kAdmin, 'setDuty', { key: race.key, fam: 'U2', on: true });
+  gas.sheet('当番'); appendDuty(gas, 'old', '2026-09-01', '練習', 'U1');
+  st = gas.ctx.api(kAdmin, 'autoDuty', { type: '練習', days: 30, per: 1 });
+  const prac = st.duties.filter((d) => d.type === '練習' && d.key !== 'old').sort((a, b) => (a.date < b.date ? -1 : 1));
+  assert.deepStrictEqual(prac.map((d) => d.fam), ['U3', 'U2'], '練習当番は試合当番と別に数え、まだの家族から（9/1に入った山田家は後回し）');
+  st = gas.ctx.api(kAdmin, 'autoDuty', { type: '練習', days: 30, per: 1 });
+  assert.ok(st.message.includes('全部入っています'));
+  assert.strictEqual(st.duties.find((d) => d.key === race.key).type, '大会');
+});
+function appendDuty(gas, key, date, type, fam) { gas.run(`appendRow_(SHEETS.DUTIES, { eventKey: ${JSON.stringify(key)}, '日付': ${JSON.stringify(date)}, '種類': ${JSON.stringify(type)}, '家族ID': ${JSON.stringify(fam)} })`); }
+
+test('大会の日: タイムテーブル・招集・手続きの写真', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 2年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kAdmin, 'bootstrap');
+  const race = st.events.find((e) => e.title === '秋季記録会');
+  assert.throws(() => gas.ctx.api(k2, 'saveTimetable', { key: race.key, rows: [] }), /当番の人だけ/);
+  gas.ctx.api(kAdmin, 'setDuty', { key: race.key, fam: 'U2', on: true });
+  st = gas.ctx.api(k2, 'saveTimetable', { key: race.key, rows: [{ start: '1030', race: '100m', group: '5年男子', heat: '2組', call: '10:00' }, { start: '11:00', race: '走り幅跳び', group: '3年', call: '1030' }, { race: '' }] });
+  assert.strictEqual(st.timetable.length, 2);
+  assert.deepStrictEqual([st.timetable[0].start, st.timetable[0].call], ['10:30', '10:00']);
+  assert.deepStrictEqual(plain(st.me.canManage), [race.key]);
+  const id = st.timetable[0].id;
+  st = gas.ctx.api(k2, 'saveTimetable', { key: race.key, rows: [Object.assign({}, st.timetable[0], { call: '9:55' })] });
+  assert.strictEqual(st.timetable.length, 1);
+  assert.strictEqual(st.timetable[0].id, id, '直しても同じ行');
+
+  st = gas.ctx.api(k3, 'setTask', { key: race.key, kind: '招集', target: '鈴木けんた|' + id, done: true });
+  assert.strictEqual(st.tasks[0].done, true, '招集はだれでも報告できる');
+  assert.strictEqual(st.tasks[0].by, '佐藤');
+  assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: 'リレー予選', target: 'A', memo: 'x' }), /当番の人だけ/);
+  st = gas.ctx.api(k2, 'setTask', { key: race.key, kind: 'リレー決勝', target: 'Aチーム', memo: '1走:鈴木けんた', done: true });
+  assert.strictEqual(st.tasks.length, 2);
+
+  const img = 'data:image/jpeg;base64,' + Buffer.from('jpegdata').toString('base64');
+  st = gas.ctx.api(k2, 'uploadPhoto', { key: race.key, kind: 'プログラム', target: '', data: img });
+  const prog = st.tasks.find((t) => t.kind === 'プログラム');
+  assert.ok(prog.done && prog.photos.length === 1, 'プログラムの写真を付けると済');
+  assert.strictEqual(st.photos.length, 1);
+  const got = gas.ctx.api(k3, 'photo', { id: prog.photos[0] });
+  assert.strictEqual(got.data, img, 'メンバーは写真を見られる');
+  gas.files.secret = { getBlob: () => ({ getContentType: () => 'text/plain', getBytes: () => [] }) };
+  assert.throws(() => gas.ctx.api(k3, 'photo', { id: 'secret' }), /見つかりません/, 'ほかのドライブのファイルは出さない');
+  assert.throws(() => gas.ctx.api(k3, 'uploadPhoto', { key: race.key, data: 'data:text/html;base64,AAAA' }), /読み込めません/);
+  st = gas.ctx.api(k3, 'uploadPhoto', { key: race.key, data: img });
+  assert.strictEqual(st.photos.length, 2, '写真だけならだれでも上げられる');
+});
+
+test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const k = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(k, 'savePractices', { dates: ['2026-10-27', '2026-10-29', '2026-10-27'], start: '17:00', end: '18:30', title: '練習', place: '第二小学校' });
+  assert.ok(st.message.includes('2日分'));
+  const ev = st.events.find((e) => e.date === '2026-10-27');
+  assert.deepStrictEqual([ev.start, ev.end, ev.type, ev.place], ['17:00', '18:30', '練習', '第二小学校']);
+  st = gas.ctx.api(k, 'editEvent', { key: ev.key, date: '2026-10-28', start: '18:00', end: '19:30', title: '練習', place: '河北中' });
+  const moved = st.events.find((e) => e.key === ev.key);
+  assert.deepStrictEqual([moved.date, moved.start, moved.place], ['2026-10-28', '18:00', '河北中']);
+  st = gas.ctx.api(k, 'cancelEvent', { key: ev.key });
+  assert.strictEqual(st.events.find((e) => e.key === ev.key).cancelled, true);
+  gas.ctx.api(k, 'refresh');
+  assert.strictEqual(gas.rows('予定').find((r) => r.eventKey === ev.key)['状態'], '中止', '同期しても中止のまま');
+});
+
+test('予定入力シート: PCで書いた行がカレンダーに入る', () => {
+  const gas = setupClub();
+  assert.strictEqual(gas.run("parseDateCell_('10/20(火)')"), '2026-10-20');
+  assert.strictEqual(gas.run("parseDateCell_('2月3日')"), '2027-02-03', '年を省くと近い先の日付');
+  assert.strictEqual(gas.run("parseDateCell_('2026/2/30')"), '');
+  assert.strictEqual(gas.run("parseTimeCell_('１８時半')"), '18:30');
+  assert.strictEqual(gas.run("parseTimeCell_('1700')"), '17:00');
+  assert.strictEqual(gas.run("parseTimeCell_('あさ')"), null);
+  const add = (o) => gas.run('appendRow_(SHEETS.SCHEDULE_INPUT, ' + JSON.stringify(o) + ')');
+  add({ '日付': '10/27', '開始': '1700', '終了': '18:30', 'タイトル': '練習', '場所': '第二小学校' });
+  add({ '日付': '11/15', 'タイトル': '市民マラソン', '種別': '大会' });
+  add({ '日付': 'あした', 'タイトル': '練習' });
+  assert.strictEqual(gas.run('importScheduleSheet_()'), 2);
+  let rows = gas.rows('予定入力');
+  assert.ok(rows[0]['状態'].startsWith('✅'));
+  assert.strictEqual(rows[0]['日付'], '2026-10-27', '日付の書き方をそろえる');
+  assert.ok(rows[2]['状態'].includes('日付が読めません'));
+  const ce = gas.calendar.events.find((e) => e.title === '練習' && e.location === '第二小学校' && !e.allDay && gas.ctx.Utilities.formatDate(e.start, '', 'yyyy-MM-dd') === '2026-10-27');
+  assert.ok(ce, 'カレンダーに入った');
+  assert.ok(gas.calendar.events.find((e) => e.title === '市民マラソン').allDay, '時刻なしは終日');
+  assert.strictEqual(gas.rows('予定').find((r) => r['タイトル'] === '市民マラソン')['種別'], '大会');
+  assert.strictEqual(gas.run('importScheduleSheet_()'), 0, '変わっていなければ何もしない');
+  gas.sheet('予定入力').data[1][1] = '18:00';
+  gas.sheet('予定入力').data[1][2] = '19:30';
+  assert.strictEqual(gas.run('importScheduleSheet_()'), 1);
+  assert.strictEqual(gas.ctx.Utilities.formatDate(ce.start, '', 'HH:mm'), '18:00', '書きかえるとカレンダーも直る');
+  gas.sheet('予定入力').data[1][6] = '○';
+  gas.run('importScheduleSheet_()');
+  assert.ok(!gas.calendar.events.includes(ce), '削除に○でカレンダーから消える');
+  assert.strictEqual(gas.rows('予定入力')[0]['状態'], '削除しました');
+});
+
+test('前の版のシートに、新しい列の見出しが足される', () => {
+  const gas = createGas();
+  gas.init();
+  const sh = gas.sheet('家族');
+  sh.data[0] = sh.data[0].slice(0, 6);
+  sh.data.push(['U9', '古い人', '', '', '', '']);
+  gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k])");
+  gas.run('readRows_(SHEETS.FAMILIES)');
+  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知']);
+  assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
 });
 
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {

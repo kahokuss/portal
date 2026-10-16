@@ -10,8 +10,13 @@ function api(key, action, payload) {
   const handler = API_ACTIONS[action];
   if (!handler) throw new Error('不明な操作です: ' + action);
   if (handler.admin && !isAdmin_(family)) throw new Error('この操作は役員だけができます。');
-  const ctx = { family: family, userId: family.userId, name: family['表示名'] || '保護者', admin: isAdmin_(family) };
+  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family) };
   const message = handler.run(ctx, payload || {});
+  // 写真などは、画面の状態ではなく結果だけを返す
+  if (handler.raw) return message;
+  // 家族をまとめた・外れたときは、家族IDが変わっている
+  const fresh = findFamily_(ctx.userId);
+  if (fresh) ctx.famId = famIdOf_(fresh);
   const state = buildState_(ctx);
   if (message) state.message = message;
   return state;
@@ -19,8 +24,21 @@ function api(key, action, payload) {
 
 const API_ACTIONS = {
   bootstrap: { run: () => { syncIfStale_(); } },
-  refresh: { run: () => { syncCalendar_(); } },
+  refresh: { run: () => { importScheduleSafely_(); syncCalendar_(); } },
   saveChildren: { run: saveChildrenAction_ },
+  inviteFamily: { raw: true, run: inviteFamilyAction_ },
+  joinFamily: { run: joinFamilyAction_ },
+  leaveFamily: { run: (ctx) => { leaveFamily_(ctx.userId); return '家族のまとまりから外れました'; } },
+  setNotify: { admin: true, run: setNotifyAction_ },
+  setDuty: { admin: true, run: setDutyAction_ },
+  autoDuty: { admin: true, run: autoDutyAction_ },
+  saveTimetable: { run: saveTimetableAction_ },
+  setTask: { run: setTaskAction_ },
+  uploadPhoto: { run: uploadPhotoAction_ },
+  photo: { raw: true, run: photoAction_ },
+  savePractices: { admin: true, run: savePracticesAction_ },
+  editEvent: { admin: true, run: editEventAction_ },
+  cancelEvent: { admin: true, run: cancelEventAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },
@@ -93,21 +111,86 @@ function buildState_(ctx) {
     .map((n) => ({ id: n.id, date: n['日付'], title: n['タイトル'], body: n['本文'], key: n.eventKey, by: n['作成者'] }));
 
   const children = activeChildren_();
+  const familyRows = readRows_(SHEETS.FAMILIES);
+  const families = familiesList_(familyRows, children);
+  const myFam = families.find((f) => f.id === ctx.famId);
+  const inRange = {};
+  events.forEach((e) => (inRange[e.key] = true));
+
+  // 当番は、前回からどれくらいたったかを見るために1年分を渡す
+  const duties = readRows_(SHEETS.DUTIES)
+    .filter((x) => x.eventKey && x['日付'] >= addDays_(today, -400))
+    .map((x) => ({ key: x.eventKey, date: x['日付'], type: x['種類'], fam: x['家族ID'] }));
+
+  const raceKeysAll = Object.keys(raceKeys);
+  const timetable = readRows_(SHEETS.TIMETABLE)
+    .filter((x) => x.id && raceKeys[x.eventKey])
+    .map((x) => ({ id: x.id, key: x.eventKey, start: x['開始'], race: x['種目'], group: x['区分'], heat: x['組'], call: x['招集'], warm: x['アップ'], memo: x['メモ'] }));
+  const tasks = readRows_(SHEETS.TASKS)
+    .filter((x) => x.id && raceKeys[x.eventKey])
+    .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
+  const photos = readRows_(SHEETS.PHOTOS)
+    .filter((x) => x['ファイルID'] && inRange[x.eventKey])
+    .map((x) => ({ id: x['ファイルID'], key: x.eventKey, by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE' }));
+
+  const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
     today: today,
     me: {
       name: ctx.name,
       admin: ctx.admin,
-      children: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => ({ name: c.name, grade: c.grade })),
+      fam: ctx.famId,
+      canManage: raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId)),
+      notify: wantsAbsenceNotice_(me),
+      family: myFam ? myFam.parents : [ctx.name],
+      children: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     },
-    kids: children.map((c) => ({ name: c.name, grade: c.grade })),
+    kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
+    families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
+    sheetUrl: ctx.admin ? ss_().getUrl() : '',
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f) })) : [],
     events: events,
     entries: entries,
     absences: absences,
     notices: notices,
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE },
+    duties: duties,
+    timetable: timetable,
+    tasks: tasks,
+    photos: photos,
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
+}
+
+/**
+ * 子どものいる家族の一覧（当番表に使う）。名前は「子どもの名前」で表す。
+ * @return {{id: string, label: string, parents: string[], userIds: string[]}[]}
+ */
+function familiesList_(familyRows, children) {
+  const byId = {};
+  familyRows.forEach((f) => {
+    const id = famIdOf_(f);
+    const x = byId[id] || (byId[id] = { id: id, parents: [], userIds: [], kids: [] });
+    x.parents.push(f['表示名'] || '保護者');
+    x.userIds.push(f.userId);
+  });
+  children.forEach((c) => {
+    Object.keys(byId).forEach((id) => {
+      const x = byId[id];
+      if (c.parents.some((u) => x.userIds.indexOf(u) >= 0) && x.kids.indexOf(c) < 0) x.kids.push(c);
+    });
+  });
+  return Object.keys(byId).map((id) => byId[id]).filter((x) => x.kids.length)
+    .map((x) => ({ id: x.id, label: x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name).join('・'), parents: x.parents, userIds: x.userIds }))
+    .sort((a, b) => (a.label < b.label ? -1 : 1));
+}
+
+/** 休みの連絡をLINEで受け取るか。「休み通知」が ○ の人、または役員（× にした人を除く） */
+function wantsAbsenceNotice_(f) {
+  const v = String(f['休み通知'] || '').trim();
+  if (/^(○|◯|〇|o|1|true)$/i.test(v)) return true;
+  if (/^(×|x|0|false)$/i.test(v)) return false;
+  return isAdmin_(f);
 }
 
 // ---- 操作 ----
@@ -119,7 +202,7 @@ function requireMyChild_(ctx, name) {
 
 function saveChildrenAction_(ctx, p) {
   const list = (p.children || [])
-    .map((c) => ({ name: String(c.name || '').trim().slice(0, 30), grade: Math.max(0, Math.min(6, Number(c.grade) || 0)) }))
+    .map((c) => ({ name: String(c.name || '').trim().slice(0, 30), grade: Math.max(0, Math.min(6, Number(c.grade) || 0)), sex: c.sex === '男' || c.sex === '女' ? c.sex : '' }))
     .filter((c) => c.name);
   saveChildren_(ctx.userId, list);
   return list.length ? '登録しました：' + list.map((c) => c.name).join('、') : '登録を消しました';
@@ -170,17 +253,26 @@ function reportAbsenceAction_(ctx, p) {
   withLock_(() => {
     appendRow_(SHEETS.ABSENCES, { id: randomKey_().slice(0, 10), '日付': p.date, '子ども': p.child, '理由': reason, 'メモ': memo, '連絡者userId': ctx.userId, '連絡者': ctx.name, '確認': '', '確認者': '', '日時': now_() });
   });
-  if (CONFIG.ABSENCE_PUSH_TO_ADMINS) notifyAdmins_('🏃 休みの連絡\n' + formatDate_(p.date) + ' ' + p.child + '（' + reason + '）' + (memo ? '\n' + memo : '') + '\n連絡：' + ctx.name + 'さん', ctx.userId);
+  if (CONFIG.ABSENCE_PUSH_TO_ADMINS) notifyAbsence_(p.date, '🏃 休みの連絡\n' + formatDate_(p.date) + ' ' + p.child + '（' + reason + '）' + (memo ? '\n' + memo : '') + '\n連絡：' + ctx.name + 'さん', ctx.userId);
   return formatDate_(p.date) + ' ' + p.child + 'のお休みを連絡しました';
 }
 
-/** 役員に1対1でLINEを送る（Botを友だち追加している役員にだけ届く） */
-function notifyAdmins_(text, exceptUserId) {
-  readRows_(SHEETS.FAMILIES).filter((f) => isAdmin_(f) && f.userId !== exceptUserId).forEach((f) => {
+/**
+ * 休みの連絡を、受け取る係の人（役員など）と、その日の練習の当番の家族に、1対1のLINEで送る。
+ * Botを友だち追加している人にだけ届く。1人につき1通、無料枠の通数を使う。
+ */
+function absenceRecipients_(date) {
+  const families = readRows_(SHEETS.FAMILIES);
+  const dutyFams = readRows_(SHEETS.DUTIES).filter((d) => d['日付'] === date && d['種類'] === '練習').map((d) => d['家族ID']);
+  return families.filter((f) => wantsAbsenceNotice_(f) || dutyFams.indexOf(famIdOf_(f)) >= 0).map((f) => f.userId);
+}
+
+function notifyAbsence_(date, text, exceptUserId) {
+  absenceRecipients_(date).filter((u) => u !== exceptUserId).forEach((u) => {
     try {
-      push_(f.userId, [text_(text)]);
+      push_(u, [text_(text)]);
     } catch (err) {
-      console.warn('役員への通知に失敗: ' + f['表示名'] + ' ' + err);
+      console.warn('休みの通知に失敗: ' + u + ' ' + err);
     }
   });
 }

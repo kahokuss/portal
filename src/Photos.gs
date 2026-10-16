@@ -43,6 +43,8 @@ function handleImage_(ev) {
     '表示名': displayName,
     'ファイル名': fileName,
     URL: file.getUrl(),
+    'ファイルID': file.getId(),
+    '種類': 'LINE',
   });
 }
 

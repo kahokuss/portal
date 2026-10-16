@@ -187,6 +187,81 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await p.textContent('#view')).includes('集合時間の変更'));
       await p.shot('4-home');
     });
+    await step('役員: カレンダーで日にちをタップして練習をまとめてつくる', async () => {
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="practice"]');
+      await a.click('[data-day="2026-10-27"]');
+      await a.click('[data-day="2026-10-29"]');
+      await a.click('[data-ptime="18:00|19:30"]');
+      await a.fill('#pr-place', '河北中学校');
+      assert.ok((await a.textContent('#pracForm button[type=submit]')).includes('2日分'));
+      await a.shot('5-practice');
+      await a.click('#pracForm button[type=submit]');
+      await a.idle();
+      const made = gas.calendar.events.filter((e) => e.location === '河北中学校');
+      assert.strictEqual(made.length, 2);
+      assert.strictEqual(gas.ctx.Utilities.formatDate(made[0].start, '', 'HH:mm'), '18:00');
+    });
+    await step('役員: 練習当番を自動で入れ、大会当番をタップで決める', async () => {
+      await a.click('#aBack');
+      await a.click('[data-go="duty"]');
+      await a.click('#autoDuty');
+      await a.idle();
+      assert.ok(gas.rows('当番').filter((d) => d['種類'] === '練習').length >= 5);
+      await a.shot('6-duty');
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("秋季記録会")');
+      await a.click('[data-duty="U2"]');
+      await a.idle();
+      assert.ok(gas.rows('当番').some((d) => d['種類'] === '大会' && d['家族ID'] === 'U2'));
+    });
+    await step('役員: 練習の出欠（だれが休みか）が見える', async () => {
+      await a.click('#back');
+      await a.click('.ev:has-text("通常練習") >> nth=1');
+      const text = await a.textContent('#view');
+      assert.ok(text.includes('鈴木けんた 休み'), text);
+      assert.ok(text.includes('練習当番'));
+      await a.shot('7-practice-detail');
+    });
+    await step('大会当番: プログラムを貼り付けてタイムテーブルを入れる', async () => {
+      await p.click('[data-nav="home"]');
+      await p.click('#reload');
+      await p.idle();
+      assert.ok((await p.textContent('#view')).includes('わが家の当番'), 'ホームに当番のお知らせ');
+      await p.click('[data-nav="events"]');
+      await p.click('.ev:has-text("秋季記録会")');
+      await p.click('[data-et="タイムテーブル"]');
+      await p.click('#ttEdit');
+      await p.fill('#ttIn', '10:30 5・6年男子 100m 2組 招集10:00\n11:20 4年女子 100m 招集10:50\n13:00 6年男子 走り幅跳び 招集 12:30');
+      await p.click('#ttPaste button[type=submit]');
+      assert.strictEqual(await p.inputValue('[data-tt="0|group"]'), '5・6年男子');
+      assert.strictEqual(await p.inputValue('[data-tt="0|call"]'), '10:00');
+      assert.strictEqual(await p.inputValue('[data-tt="2|race"]'), '走り幅跳び');
+      await p.shot('5-tt-edit');
+      await p.click('#ttSave');
+      await p.idle();
+      assert.strictEqual(gas.rows('タイムテーブル').length, 3);
+      const text = await p.textContent('#view');
+      assert.ok(text.includes('招集 10:00') && text.includes('アップ 9:30頃'), text);
+      assert.ok(!text.includes('4年女子'), 'わが家の子の種目だけ');
+      await p.shot('6-tt-mine');
+    });
+    await step('保護者: 招集を報告し、プログラムの写真を付ける', async () => {
+      await p.click('[data-call^="鈴木けんた|"] >> nth=0');
+      await p.idle();
+      assert.ok(gas.rows('手続き').some((t) => t['種類'] === '招集' && t['状態'] === '済'));
+      await p.click('[data-et="手続き"]');
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+      await p.setInputFiles('[data-upl="プログラム|"]', { name: 'program.png', mimeType: 'image/png', buffer: png });
+      await p.waitForSelector('.thumb img[src^="data:image"]');
+      const prog = gas.rows('手続き').find((t) => t['種類'] === 'プログラム');
+      assert.strictEqual(prog['状態'], '済');
+      assert.ok((await p.textContent('#view')).includes('招集1/2'.replace('1/2', '')));
+      await p.shot('7-tasks');
+    });
+    await step('上のバーに「LINEへ」ボタンがある', async () => {
+      assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
+    });
     await step('再読み込みしても、ログインしたまま開ける', async () => {
       await p.reload();
       await p.waitForSelector('#nav:not([hidden])');
@@ -247,6 +322,26 @@ async function openPortal(browser, gas, userId, name) {
       if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pages-home.png'), fullPage: true });
       assert.deepStrictEqual(errs, []);
       await g.close();
+    });
+    await step('家族: 招待番号を入れると、夫婦で子どもの登録が共通になる', async () => {
+      await p.close();
+      const p2 = await openPortal(browser, gas, keys.parent, 'parent2');
+      await p2.click('[data-nav="family"]');
+      await p2.click('#invite');
+      await p2.waitForSelector('#copyText');
+      const text = await p2.textContent('#copyText');
+      const code = text.match(/招待番号 (\d{6})/)[1];
+      assert.ok(text.includes('https://kahokuss.github.io/portal/?join=' + code));
+      await p2.shot('family-invite');
+      const s3 = await openPortal(browser, gas, 'U3', 'sato');
+      await s3.click('[data-nav="family"]');
+      await s3.fill('#joinCode', code);
+      await s3.click('#joinForm button[type=submit]');
+      await s3.idle();
+      assert.ok((await s3.textContent('#me')).includes('鈴木けんた'));
+      assert.ok((await s3.textContent('#view')).includes('鈴木さん'));
+      a.errors.push(...p2.errors, ...s3.errors);
+      await p2.close(); await s3.close();
     });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);

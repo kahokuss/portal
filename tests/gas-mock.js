@@ -53,6 +53,7 @@ class Sheet {
     if (r + (nr || 1) - 1 > this.maxRows) throw new Error('範囲がシートの外です');
     return new Range(this, r, c, nr, nc);
   }
+  getLastColumn() { return Math.max(0, ...this.data.map((r) => (r || []).length)); }
   getLastRow() {
     for (let i = this.data.length; i > 0; i--) if ((this.data[i - 1] || []).some((v) => v !== '' && v !== undefined)) return i;
     return 0;
@@ -89,13 +90,16 @@ class CalEvent {
   getLocation() { return this.location || ''; }
   setTitle(t) { this.title = t; return this; }
   setLocation(l) { this.location = l; return this; }
-  setAllDayDate(d) { this.start = d; this.end = new Date(d.getTime() + 86400000); return this; }
+  setAllDayDate(d) { this.start = d; this.end = new Date(d.getTime() + 86400000); this.allDay = true; return this; }
+  setTime(s, e) { this.start = s; this.end = e; this.allDay = false; return this; }
+  deleteEvent() { this.cal.events = this.cal.events.filter((x) => x !== this); }
 }
 
 class Calendar {
   constructor() { this.events = []; this.seq = 0; }
   add(o) { const e = new CalEvent(this, Object.assign({ id: 'cal' + (++this.seq) + '@google.com' }, o)); this.events.push(e); return e; }
   getEvents(start, end) { return this.events.filter((e) => e.start < end && e.end > start).sort((a, b) => a.start - b.start); }
+  createEvent(title, start, end, opt) { return this.add({ title, start, end, location: (opt && opt.location) || '' }); }
   createAllDayEvent(title, date, opt) { return this.add({ title, start: date, end: new Date(date.getTime() + 86400000), allDay: true, location: (opt && opt.location) || '' }); }
   getEventById(id) { return this.events.find((e) => e.id === id) || null; }
 }
@@ -116,6 +120,24 @@ function createGas(options) {
   const cache = {};
   const profiles = {};
   const members = new Set();
+  const files = {};
+  const folders = {};
+  function folder(name) {
+    if (folders[name]) return folders[name];
+    const f = folders[name] = {
+      name,
+      getUrl: () => 'https://drive.google.com/drive/folders/' + encodeURIComponent(name),
+      getFoldersByName: (n) => { const list = folders[name + '/' + n] ? [folders[name + '/' + n]] : []; return { hasNext: () => list.length > 0, next: () => list.shift() }; },
+      createFolder: (n) => folder(name + '/' + n),
+      createFile: (blob) => {
+        const id = 'file' + (Object.keys(files).length + 1);
+        const bytes = blob.getBytes ? blob.getBytes() : [];
+        files[id] = { id, folder: name, name: blob.name, getId: () => id, getUrl: () => 'https://drive.google.com/file/d/' + id, getBlob: () => ({ getContentType: () => blob.getContentType(), getBytes: () => bytes }), getThumbnail: () => null };
+        return files[id];
+      },
+    };
+    return f;
+  }
 
   const ctx = {
     console: { log() {}, warn() {}, error: (...a) => ctx.__errors.push(a.join(' ')) },
@@ -133,6 +155,9 @@ function createGas(options) {
       getUuid: () => crypto.randomUUID(),
       computeDigest: (alg, s) => Array.from(crypto.createHash('md5').update(s, 'utf8').digest()).map((b) => (b > 127 ? b - 256 : b)),
       DigestAlgorithm: { MD5: 'MD5' },
+      base64Decode: (s) => Array.from(Buffer.from(s, 'base64')),
+      base64Encode: (b) => Buffer.from(b.map((x) => x & 0xff)).toString('base64'),
+      newBlob: (bytes, type, name) => ({ bytes, type, name, getContentType: () => type, getBytes: () => bytes, setName(n) { this.name = n; return this; } }),
       Charset: { UTF_8: 'UTF-8' },
     },
     CalendarApp: { getCalendarById: (id) => (id === props.CALENDAR_ID ? calendar : null) },
@@ -172,7 +197,10 @@ function createGas(options) {
         return t;
       },
     },
-    DriveApp: { getFolderById: () => ({ getUrl: () => 'https://drive.google.com/drive/folders/TEST' }) },
+    DriveApp: {
+      getFolderById: () => folder('写真'),
+      getFileById: (id) => { if (!files[id]) throw new Error('no file ' + id); return files[id]; },
+    },
   };
   vm.createContext(ctx);
   const code = fs.readdirSync(SRC).filter((f) => f.endsWith('.gs')).sort().map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n;\n');
@@ -186,6 +214,7 @@ function createGas(options) {
     profiles,
     members,
     cache,
+    files,
     run: (src) => ctx.__run(src),
     sheet: (name) => { const ss = spreadsheets[props.SPREADSHEET_ID]; return ss && ss.getSheetByName(name); },
     rows: (name) => { const s = gas.sheet(name); return s ? s.rows() : []; },

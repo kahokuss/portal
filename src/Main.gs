@@ -110,6 +110,7 @@ function handleEvent_(ev) {
 
 /** 毎日トリガーで実行：カレンダーの予定を取り込む */
 function dailyJob() {
+  importScheduleSafely_();
   syncCalendar_();
 }
 
@@ -151,6 +152,12 @@ function setup() {
     .filter((t) => t.getHandlerFunction() === 'dailyJob')
     .forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('dailyJob').timeBased().everyDays(1).atHour(CONFIG.DAILY_HOUR).create();
+
+  // スプレッドシートの「予定入力」シートを書きかえたら、すぐカレンダーに入れる
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'onScheduleSheetEdit')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('onScheduleSheetEdit').forSpreadsheet(ss_()).onEdit().create();
 
   syncCalendar_();
 

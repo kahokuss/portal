@@ -1,0 +1,70 @@
+/**
+ * 設定値。クラブの運用に合わせてここを書き換えてください。
+ *
+ * 秘密の値（アクセストークンなど）はコードに書かず、
+ * 「プロジェクトの設定 > スクリプト プロパティ」に保存します。
+ *   LINE_CHANNEL_ACCESS_TOKEN … LINE Developers で発行したチャネルアクセストークン（必須）
+ *   CALENDAR_ID               … 練習・大会を登録する Google カレンダーの ID（必須）
+ *   SPREADSHEET_ID            … setup() が自動で作成・保存します
+ *   PHOTO_FOLDER_ID           … setup() が自動で作成・保存します
+ *   WEBHOOK_TOKEN             … setup() が自動で作成・保存します
+ *   GROUP_ID                  … Bot をグループに招待すると自動で保存されます
+ *   LINE_LOGIN_CHANNEL_ID     … LINE ログインのチャネル ID（ポータルのログインに使う・必須）
+ *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
+ */
+const CONFIG = {
+  TIMEZONE: 'Asia/Tokyo',
+  CLUB_NAME: '河北SS',
+
+  // ポータルの画面の場所（GitHub Pages）。
+  // 空のときは Apps Script のウェブアプリの画面を使う
+  PORTAL_URL: 'https://kahokuss.github.io/portal/',
+
+  // カレンダーから取り込む範囲（今日から何日前〜何日先まで）
+  SYNC_DAYS_BEFORE: 60,
+  SYNC_DAYS_AHEAD: 180,
+  // ポータルを開いたとき、前回の同期から何分たっていたらカレンダーを読み直すか
+  SYNC_INTERVAL_MINUTES: 10,
+  // 毎日カレンダーを同期する時刻
+  DAILY_HOUR: 5,
+
+  // カレンダーの予定名にこの言葉が入っていたら「大会」として扱う（ポータルで変更もできます）
+  RACE_KEYWORDS: /大会|記録会|競技会|選手権|マラソン|駅伝|ロードレース|リレー/,
+  // 大会を作るとき、エントリー締切を何日前に自動で入れるか
+  DEADLINE_DAYS_BEFORE: 10,
+
+  // ポータルを使っている人が、まだクラブのLINEグループにいるかを何時間ごとに確かめ直すか
+  MEMBER_RECHECK_HOURS: 12,
+
+  // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
+  ABSENCE_PUSH_TO_ADMINS: true,
+
+  // グループに投稿された写真をすべてドライブに保存するか
+  SAVE_ALL_PHOTOS: true,
+  // 写真を何日前までの予定に紐づけるか（大会の翌日に写真を上げる場合など）
+  PHOTO_EVENT_LOOKBACK_DAYS: 2,
+  // 結果を何日前までの予定に紐づけるか
+  RESULT_EVENT_LOOKBACK_DAYS: 7,
+};
+
+/** 大会の種目・持ち物・会場の候補（ポータルの入力補助に使います） */
+const CHOICES = {
+  RACES: ['100m', '50m', '走り幅跳び', 'ボール投げ', '1000m', 'リレー', '2km', '駅伝'],
+  ITEMS: ['ユニフォーム', 'アスリートビブス', '弁当', '水筒', '帽子', 'レジャーシート', 'ベンチコート', 'タオル', '着替え', '雨具'],
+  TARGETS: ['全員', '3年生以上', '4年生以上', '希望者'],
+  ABSENCE_REASONS: ['体調不良', '家の都合', '学校行事', 'その他'],
+};
+
+function prop_(key) {
+  return PropertiesService.getScriptProperties().getProperty(key);
+}
+
+function setProp_(key, value) {
+  PropertiesService.getScriptProperties().setProperty(key, value);
+}
+
+function requireProp_(key) {
+  const value = prop_(key);
+  if (!value) throw new Error('スクリプト プロパティ ' + key + ' が設定されていません');
+  return value;
+}

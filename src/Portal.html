@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+:root {
+  --bg: #e9eef0; --surface: #ffffff; --surface-2: #f3f6f7; --fg: #182328; --muted: #5f7079; --line: #d6dfe3;
+  --track: #c4512f; --track-soft: #f6e1d9; --field: #237a55; --field-soft: #dcefe5; --sky: #2f6fae; --sky-soft: #dde9f5;
+  --warn: #a8660b; --warn-soft: #f8ead2;
+  --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
+  --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1518; --surface: #182126; --surface-2: #1f2a30; --fg: #e4ebee; --muted: #94a5ad; --line: #2d3a40;
+    --track: #ec8566; --track-soft: #3f2219; --field: #4cc28c; --field-soft: #163527; --sky: #6aa7e3; --sky-soft: #172b3f;
+    --warn: #e5a54a; --warn-soft: #3a2a12; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.6;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.app { max-width: 520px; margin: 0 auto; display: grid; gap: 10px; }
+.frame { background: var(--surface-2); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; min-height: calc(100vh - 24px); }
+.top { background: var(--surface); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.logo { width: 36px; height: 36px; border-radius: 10px; background: var(--track); display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 13px; flex: none; }
+.top h1 { font-family: var(--font-display); font-size: 1.05rem; margin: 0; line-height: 1.3; }
+.top .me { font-size: 11.5px; color: var(--muted); }
+.top > div:not(.logo) { min-width: 0; flex: 1; }
+.top .me { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top .reload { margin-left: auto; flex: none; white-space: nowrap; }
+.view { flex: 1; padding: 12px; display: grid; gap: 12px; align-content: start; }
+.nav { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: sticky; bottom: 0; }
+.nav.admin { grid-template-columns: repeat(4, 1fr); }
+.nav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 8px 0 7px; cursor: pointer; display: grid; justify-items: center; gap: 2px; }
+.nav button svg { width: 22px; height: 22px; }
+.nav button[aria-current="page"] { color: var(--track); font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-size: .95rem; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card h2 small { font-family: var(--font-body); font-weight: 400; font-size: 11.5px; color: var(--muted); }
+.big { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; line-height: 1.35; }
+.sub { color: var(--muted); font-size: 12.5px; }
+.hint { font-size: 11.5px; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; line-height: 1.7; white-space: nowrap; }
+.p-race { background: var(--track-soft); color: var(--track); }
+.p-prac { background: var(--sky-soft); color: var(--sky); }
+.p-ok { background: var(--field-soft); color: var(--field); }
+.p-warn { background: var(--warn-soft); color: var(--warn); }
+.p-gray { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.btn { border: 0; border-radius: 10px; padding: 8px 14px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; background: var(--track); color: #fff; }
+.btn.ghost { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+.btn.small { padding: 4px 10px; font-size: 12px; border-radius: 8px; }
+.btn.ok { background: var(--field); }
+.btn:disabled { opacity: .5; cursor: wait; }
+.link { border: 0; background: none; color: var(--sky); font: inherit; cursor: pointer; padding: 0; justify-self: start; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+.list { display: grid; }
+.list > * { padding: 8px 0; border-top: 1px solid var(--line); }
+.list > *:first-child { border-top: 0; padding-top: 0; }
+.notice .t { font-weight: 700; }
+.notice .b { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
+.date { flex: none; width: 46px; text-align: center; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); padding: 3px 0; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.date b { display: block; font-size: 15px; }
+.date span { font-size: 10.5px; color: var(--muted); }
+.date.race { background: var(--track-soft); border-color: transparent; }
+.ev { display: flex; gap: 10px; align-items: center; background: none; border: 0; text-align: left; font: inherit; color: inherit; width: 100%; cursor: pointer; }
+.ev .main { flex: 1; min-width: 0; }
+.ev .ttl { font-weight: 700; }
+.ev.past { opacity: .55; }
+.ev.cancel .ttl { text-decoration: line-through; }
+.month { font-family: var(--font-display); font-weight: 700; color: var(--muted); font-size: 12px; margin: 4px 2px -4px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; }
+.tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-pressed="true"] { background: var(--track); border-color: var(--track); color: #fff; font-weight: 700; }
+.kv { display: grid; grid-template-columns: 4.5em 1fr; gap: 4px 10px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; white-space: pre-wrap; }
+.tbl-wrap { overflow-x: auto; margin: 0 -14px; padding: 0 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+tr.hl td { background: var(--track-soft); }
+.kid { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
+.choice { display: flex; gap: 6px; flex-wrap: wrap; }
+.choice button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.choice button[aria-pressed="true"] { background: var(--field); border-color: var(--field); color: #fff; font-weight: 700; }
+.choice button.no[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); }
+.choice button:disabled { opacity: .45; cursor: not-allowed; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.stat { background: var(--surface-2); border-radius: 10px; padding: 6px 8px; display: grid; }
+.stat b { font-family: var(--font-display); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 11px; color: var(--muted); }
+form.f, .f { display: grid; gap: 8px; }
+.f label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.f select, .f input, .f textarea { font: inherit; font-size: 14px; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; min-width: 0; }
+.f textarea { min-height: 90px; resize: vertical; font-size: 13.5px; }
+.f .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.f .lbl { font-size: 12px; color: var(--muted); margin-bottom: -4px; }
+.f input::placeholder, .f textarea::placeholder { color: var(--muted); opacity: .7; }
+.filled { background: var(--field-soft) !important; border-color: var(--field) !important; }
+.quick { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.quick button { border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 1px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.toast { background: var(--field-soft); color: var(--field); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; font-weight: 700; }
+.toast.err { background: var(--track-soft); color: var(--track); }
+.copybox { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 12.5px; user-select: all; }
+.menu { display: grid; gap: 8px; }
+.menu button { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 14px; padding: 10px 12px; font: inherit; cursor: pointer; }
+.menu b { display: block; font-size: 14px; }
+.menu span.d { font-size: 12px; color: var(--muted); }
+.busy { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--surface); padding: 6px 14px; border-radius: 999px; font-size: 12.5px; z-index: 10; }
+.childrow { display: grid; grid-template-columns: minmax(0, 1fr) 6.5em 32px; gap: 6px; align-items: center; }
+.icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; font: inherit; cursor: pointer; }
+.empty { padding: 24px 8px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="frame">
+    <div class="top">
+      <div class="logo" aria-hidden="true">SS</div>
+      <div><h1 id="clubName">ポータル</h1><div class="me" id="me"></div></div>
+      <button class="btn small ghost reload" id="reload" type="button" hidden>更新</button>
+    </div>
+    <main class="view" id="view"><div class="empty">読み込んでいます…</div></main>
+    <nav class="nav" id="nav" aria-label="メニュー" hidden></nav>
+  </div>
+</div>
+<div class="busy" id="busy" hidden>保存しています…</div>
+<script>
+var KEY = <?!= JSON.stringify(key) ?>;
+var LOGIN_URL = <?!= JSON.stringify(login) ?>;
+var LOGIN_ERROR = <?!= JSON.stringify(error) ?>;
+var HOME_URL = <?!= JSON.stringify(home) ?>;
+var CLUB = <?!= JSON.stringify(club) ?>;
+// GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
+var API_URL = <?!= JSON.stringify(apiUrl) ?>;
+document.getElementById('clubName').textContent = CLUB + ' ポータル';
+(function () {
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+  var ST = null;
+  var S = { tab: 'home', event: null, etab: '概要', toast: '', toastErr: false, absForm: false, onlyRace: false, admin: 'menu', draft: null, filled: {}, saved: null, notice: null };
+  var view = document.getElementById('view');
+
+  // ---- 共通 ----
+  function d(s) { var p = s.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])); }
+  function md(s) { var x = d(s); return (x.getUTCMonth() + 1) + '/' + x.getUTCDate() + '(' + WD[x.getUTCDay()] + ')'; }
+  function diff(a, b) { return Math.round((d(b) - d(a)) / 86400000); }
+  function addDays(s, n) { return new Date(d(s).getTime() + n * 86400000).toISOString().slice(0, 10); }
+  function esc(s) { return String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function yen(n) { return '¥' + Number(n || 0).toLocaleString('ja-JP'); }
+  function pad(n) { return ('0' + n).slice(-2); }
+  function toHalf(s) { return String(s).replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xfee0); }).replace(/　/g, ' '); }
+  function fmtTime(s) { s = toHalf(String(s)).trim().replace('時', ':').replace('分', ''); var m = s.match(/^(\d{1,2})[:.]?(\d{2})$/); return m ? (+m[1]) + ':' + m[2] : s; }
+  function on(sel, fn) { view.querySelectorAll(sel).forEach(function (el) { el.addEventListener('click', fn); }); }
+  function when(e) { return md(e.date) + (e.start && e.start !== '終日' ? ' ' + e.start.replace(/^0/, '') + (e.end ? '〜' + e.end.replace(/^0/, '') : '') : ''); }
+  function isRace(e) { return e.type !== '練習'; }
+  function typePill(e) { return '<span class="pill ' + (isRace(e) ? 'p-race' : 'p-prac') + '">' + esc(e.type) + '</span>'; }
+  function evByKey(k) { return ST.events.find(function (e) { return e.key === k; }); }
+  function kidInfo(n) { return ST.kids.find(function (k) { return k.name === n; }) || { name: n, grade: 0 }; }
+  function myNames() { return ST.me.children.map(function (c) { return c.name; }); }
+  function inTarget(target, grade) { var m = String(target || '').match(/([1-6])年生?以上/); return !m || !grade || grade >= Number(m[1]); }
+  function entryOf(key, child) { return ST.entries.find(function (x) { return x.key === key && x.child === child; }); }
+  function toastHtml() { return S.toast ? '<div class="toast' + (S.toastErr ? ' err' : '') + '">' + esc(S.toast) + '</div>' : ''; }
+
+  /** サーバーを呼ぶ。Apps Script の画面なら google.script.run、GitHub Pages の画面なら fetch で */
+  function rpc(action, payload, ok, ng) {
+    if (!API_URL) {
+      google.script.run.withSuccessHandler(ok).withFailureHandler(ng).api(KEY, action, payload || {});
+      return;
+    }
+    // text/plain で送ると、ブラウザの事前確認（CORS のプリフライト）なしで Apps Script に届く
+    fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, key: KEY, payload: payload || {} }) })
+      .then(function (r) { return r.json(); })
+      .then(function (res) { if (res.error) ng(new Error(res.error)); else ok(res.ok); })
+      .catch(function () { ng(new Error('通信できませんでした。電波のよいところで「更新」を押してください。')); });
+  }
+  function call(action, payload, done) {
+    document.getElementById('busy').hidden = false;
+    rpc(action, payload, function (st) {
+        document.getElementById('busy').hidden = true;
+        ST = st;
+        if (st.message) { S.toast = '✅ ' + st.message; S.toastErr = false; }
+        if (done) done(st);
+        render();
+      }, function (err) {
+        document.getElementById('busy').hidden = true;
+        var msg = String((err && err.message) || err).replace(/^(Exception|Error):\s*/, '');
+        if (/ログインが切れ|グループのメンバーではない/.test(msg)) { clearKey(); ST = null; showLogin(msg); return; }
+        S.toast = '⚠ ' + msg;
+        S.toastErr = true;
+        if (!ST) { view.innerHTML = '<div class="card"><div class="big">ページを開けませんでした</div><div class="sub">' + esc(msg) + '</div></div>'; return; }
+        render();
+      });
+  }
+  function go(tab, key) { S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false; render(); window.scrollTo(0, 0); }
+
+  function upcoming(filter) { return ST.events.filter(function (e) { return !e.cancelled && e.date >= ST.today && filter(e); }); }
+  function myStatus(e) {
+    var det = e.detail || {};
+    return ST.me.children.map(function (k) {
+      if (!inTarget(det.target, k.grade)) return '<span class="pill p-gray">' + esc(k.name) + '：対象外</span>';
+      var x = entryOf(e.key, k.name);
+      if (!x) return '<span class="pill p-warn">' + esc(k.name) + '：未回答</span>';
+      return '<span class="pill ' + (x.join === '参加' ? 'p-ok' : 'p-gray') + '">' + esc(k.name) + '：' + x.join + (x.races.length ? '（' + esc(x.races.join('・')) + '）' : '') + '</span>';
+    }).join(' ');
+  }
+
+  // ---- ホーム ----
+  function home() {
+    var h = toastHtml();
+    if (!ST.me.children.length) {
+      h += '<section class="card"><h2>はじめに</h2><div class="sub">お子さんの名前と学年を登録してください。</div><button class="btn" data-tab="family" type="button">お子さんを登録する</button></section>';
+    }
+    if (ST.notices.length) {
+      h += '<section class="card"><h2>お知らせ</h2><div class="list">' + ST.notices.slice(0, 3).map(function (n) {
+        return '<div class="notice"><div class="between"><span class="t">' + esc(n.title) + '</span><span class="sub">' + md(n.date) + '</span></div>' + (n.body ? '<div class="b">' + esc(n.body) + '</div>' : '') +
+          (n.key && evByKey(n.key) ? '<button class="link" data-ev="' + n.key + '" type="button">詳しく見る ›</button>' : '') + '</div>';
+      }).join('') + '</div></section>';
+    }
+
+    var np = upcoming(function (e) { return !isRace(e); })[0];
+    var practices = upcoming(function (e) { return !isRace(e); }).slice(0, 8);
+    h += '<section class="card"><h2>次の練習' + (np ? '<small>' + (diff(ST.today, np.date) === 0 ? '今日' : diff(ST.today, np.date) === 1 ? '明日' : 'あと' + diff(ST.today, np.date) + '日') + '</small>' : '') + '</h2>';
+    if (np) h += '<div class="big">' + when(np) + '</div>' + (np.place ? '<div class="sub">📍 ' + esc(np.place) + '</div>' : '');
+    else h += '<div class="sub">カレンダーに練習の予定がありません</div>';
+    if (ST.me.children.length) {
+      h += '<div class="between"><span class="sub">お休みするときは</span><button class="btn small" id="absBtn" type="button">休みを連絡する</button></div>';
+      if (S.absForm) {
+        h += '<form class="f" id="absForm"><div class="two"><label>お子さん<select id="absKid">' + ST.me.children.map(function (k) { return '<option>' + esc(k.name) + '</option>'; }).join('') + '</select></label>' +
+          '<label>日にち<select id="absDate">' + practices.map(function (p) { return '<option value="' + p.date + '">' + md(p.date) + ' ' + esc(p.title) + '</option>'; }).join('') + '<option value="other">ほかの日…</option></select></label></div>' +
+          '<label id="absOtherWrap" hidden>ほかの日<input type="date" id="absOther" min="' + ST.today + '"></label>' +
+          '<label>理由<select id="absReason">' + ST.choices.reasons.map(function (r) { return '<option>' + r + '</option>'; }).join('') + '</select></label>' +
+          '<label>ひとこと（なくてもOK）<input id="absMemo" maxlength="200"></label>' +
+          '<div class="row"><button class="btn" type="submit">連絡する</button><button class="btn ghost" type="button" id="absCancel">やめる</button></div>' +
+          '<div class="hint">グループには流れません。役員にだけ届きます。</div></form>';
+      }
+    }
+    var abs = ST.absences.filter(function (a) { return a.date >= ST.today; });
+    if (abs.length) {
+      h += '<div class="list">' + abs.map(function (a) {
+        var right = a.ack ? '<span class="pill p-ok">確認済み</span>' : '<span class="pill p-warn">未確認</span>';
+        if (ST.me.admin) right = '<button class="btn small ' + (a.ack ? 'ghost' : 'ok') + '" data-ack="' + a.id + '" type="button">' + (a.ack ? '確認済み' : '確認した') + '</button>';
+        return '<div class="between"><span>' + md(a.date) + ' <b>' + esc(a.child) + '</b> <span class="sub">' + esc(a.reason) + (a.memo ? '・' + esc(a.memo) : '') + (ST.me.admin && !a.mine ? '（' + esc(a.by) + 'さん）' : '') + '</span></span>' +
+          '<span class="row">' + right + (a.mine ? '<button class="btn small ghost" data-unabs="' + a.id + '" type="button">取消</button>' : '') + '</span></div>';
+      }).join('') + '</div>';
+    }
+    h += '</section>';
+
+    var ne = upcoming(isRace)[0];
+    h += '<section class="card"><h2>次の大会・記録会' + (ne ? '<small>あと' + diff(ST.today, ne.date) + '日</small>' : '') + '</h2>';
+    if (ne) {
+      var det = ne.detail || {};
+      h += '<button class="ev" data-ev="' + ne.key + '" type="button"><div class="date race"><b>' + d(ne.date).getUTCDate() + '</b><span>' + (d(ne.date).getUTCMonth() + 1) + '月</span></div><div class="main"><div class="ttl">' + esc(ne.title) + '</div><div class="sub">' + esc(ne.place || '') + (det.target ? '・' + esc(det.target) : '') + '</div></div>›</button>' +
+        '<div class="row">' + myStatus(ne) + '</div>' +
+        '<div class="between"><span class="sub">' + (det.deadline ? 'エントリー締切 ' + md(det.deadline) + (det.deadline >= ST.today ? '（あと' + diff(ST.today, det.deadline) + '日）' : '（締切済み）') : '参加・不参加を回答してください') + '</span><button class="btn small" data-entry="' + ne.key + '" type="button">エントリー</button></div>';
+      if (ST.me.admin) h += statsHtml(ne);
+    } else h += '<div class="sub">予定されている大会はありません</div>';
+    h += '</section>';
+    view.innerHTML = h;
+    bindCommon();
+    on('#absBtn', function () { S.absForm = !S.absForm; S.toast = ''; render(); });
+    on('#absCancel', function () { S.absForm = false; render(); });
+    var sel = document.getElementById('absDate');
+    if (sel) sel.addEventListener('change', function () { document.getElementById('absOtherWrap').hidden = this.value !== 'other'; });
+    var f = document.getElementById('absForm');
+    if (f) f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var date = document.getElementById('absDate').value;
+      if (date === 'other') date = document.getElementById('absOther').value;
+      call('reportAbsence', { child: document.getElementById('absKid').value, date: date, reason: document.getElementById('absReason').value, memo: document.getElementById('absMemo').value }, function (st) { if (st.message) S.absForm = false; });
+    });
+    on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
+    on('[data-unabs]', function () { call('cancelAbsence', { id: this.dataset.unabs }); });
+  }
+
+  function eligible(e) {
+    var det = e.detail || {};
+    return ST.kids.filter(function (k) { return inTarget(det.target, k.grade); });
+  }
+  function statsHtml(e) {
+    var all = eligible(e), joined = all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
+    var paid = joined.filter(function (k) { return entryOf(e.key, k.name).paid; }).length;
+    var none = all.filter(function (k) { return !entryOf(e.key, k.name); }).length;
+    return '<div class="stats"><div class="stat"><b>' + joined.length + '</b><span>参加</span></div><div class="stat"><b>' + none + '</b><span>未回答</span></div><div class="stat"><b>' + paid + '/' + joined.length + '</b><span>集金済み</span></div></div>';
+  }
+  function bindCommon() {
+    on('[data-ev]', function () { S.tab = 'events'; S.event = this.dataset.ev; S.etab = '概要'; S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('[data-entry]', function () { S.tab = 'events'; S.event = this.dataset.entry; S.etab = 'エントリー'; S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('[data-tab]', function () { go(this.dataset.tab); });
+  }
+
+  // ---- 予定 ----
+  function events() {
+    if (S.event) { var e = evByKey(S.event); if (e) return eventDetail(e); S.event = null; }
+    var h = toastHtml() + '<div class="tabs" role="group" aria-label="表示">' + ['すべて', '大会だけ'].map(function (t) { return '<button type="button" data-f="' + t + '" aria-pressed="' + ((S.onlyRace ? '大会だけ' : 'すべて') === t) + '">' + t + '</button>'; }).join('') + '</div>';
+    var month = '', open = false;
+    ST.events.forEach(function (e) {
+      if (S.onlyRace && !isRace(e)) return;
+      if (!S.onlyRace && !isRace(e) && e.date < addDays(ST.today, -7)) return;
+      var m = e.date.slice(0, 7);
+      if (m !== month) { if (open) h += '</div></section>'; month = m; open = true; h += '<div class="month">' + Number(m.slice(5)) + '月</div><section class="card"><div class="list">'; }
+      var cls = (e.date < ST.today ? ' past' : '') + (e.cancelled ? ' cancel' : '');
+      h += '<button class="ev' + cls + '" type="button" data-ev="' + e.key + '"><div class="date' + (isRace(e) ? ' race' : '') + '"><b>' + d(e.date).getUTCDate() + '</b><span>' + WD[d(e.date).getUTCDay()] + '</span></div>' +
+        '<div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + typePill(e) + (e.cancelled ? ' <span class="pill p-gray">中止</span>' : '') + ' ' + (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') + '〜 ' : '') + esc(e.place || '') + '</div></div>›</button>';
+    });
+    if (open) h += '</div></section>'; else h += '<div class="card empty">予定がありません</div>';
+    h += '<div class="hint">予定はクラブのGoogleカレンダーから取り込んでいます。</div>';
+    view.innerHTML = h;
+    bindCommon();
+    on('[data-f]', function () { S.onlyRace = this.dataset.f === '大会だけ'; render(); });
+  }
+
+  function eventDetail(e) {
+    var det = e.detail, past = e.date < ST.today;
+    var h = '<button class="link" id="back" type="button">‹ 予定一覧</button>' +
+      '<section class="card"><div class="row">' + typePill(e) + (det && det.target ? '<span class="pill p-gray">' + esc(det.target) + '</span>' : '') + (e.cancelled ? '<span class="pill p-gray">中止</span>' : past ? '<span class="pill p-gray">終了</span>' : '') + '</div>' +
+      '<div class="big">' + esc(e.title) + '</div><div class="sub">' + when(e) + (e.place ? '　📍 ' + esc(e.place) : '') + '</div>' + (isRace(e) && ST.me.children.length ? '<div class="row">' + myStatus(e) + '</div>' : '') + '</section>';
+    if (!isRace(e)) {
+      h += toastHtml() + '<section class="card"><div class="sub">練習の予定です。お休みするときはホームの「休みを連絡する」からどうぞ。</div>' +
+        (ST.me.admin ? '<button class="btn small ghost" data-type="大会" type="button">この予定を大会として扱う</button>' : '') + '</section>';
+      view.innerHTML = h;
+      on('#back', function () { S.event = null; S.toast = ''; render(); });
+      on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
+      return;
+    }
+    var tabs = ['概要', 'エントリー'];
+    h += '<div class="tabs" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + t + '</button>'; }).join('') + '</div>' + toastHtml();
+    if (S.etab === '概要') {
+      if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + (ST.me.admin ? '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button><button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button></div>' : '') + '</section>';
+      else {
+        h += '<section class="card"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
+          '<dt>参加費</dt><dd>' + (det.fee ? yen(det.fee) + '／人' : 'なし') + '</dd>' + (det.deadline ? '<dt>締切</dt><dd>' + md(det.deadline) + '</dd>' : '') +
+          (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
+          (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl>' + (ST.me.admin ? '<button class="btn small ghost" id="editRace" type="button">案内を直す</button>' : '') + '</section>';
+      }
+    }
+    if (S.etab === 'エントリー') h += entryHtml(e);
+    view.innerHTML = h;
+    on('#back', function () { S.event = null; S.toast = ''; render(); });
+    on('[data-et]', function () { S.etab = this.dataset.et; S.toast = ''; render(); });
+    on('#editRace', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
+    bindEntry(e);
+  }
+
+  function entryHtml(e) {
+    var det = e.detail || { races: [], target: '全員' }, closed = det.deadline && ST.today > det.deadline, locked = closed && !ST.me.admin, h = '';
+    if (ST.me.children.length && e.date >= ST.today) {
+      h += '<section class="card"><h2>わが家のエントリー' + (det.deadline ? '<small>締切 ' + md(det.deadline) + '</small>' : '') + '</h2>' + (locked ? '<div class="toast err">締切を過ぎました。変更は役員に連絡してください。</div>' : '') +
+        ST.me.children.map(function (k) {
+          if (!inTarget(det.target, k.grade)) return '<div class="kid"><b>' + esc(k.name) + '（' + k.grade + '年）</b><span class="sub">この大会の対象外です</span></div>';
+          var x = entryOf(e.key, k.name) || { join: '', races: [] }, dis = locked ? ' disabled' : '';
+          return '<div class="kid" data-kid="' + esc(k.name) + '"><div class="between"><b>' + esc(k.name) + (k.grade ? '（' + k.grade + '年）' : '') + '</b>' + (x.join === '参加' && det.fee ? '<span class="pill ' + (x.paid ? 'p-ok' : 'p-warn') + '">参加費 ' + yen(det.fee) + (x.paid ? ' 支払い済み' : ' 未払い') + '</span>' : '') + '</div>' +
+            '<div class="choice">' + ['参加', '不参加'].map(function (j) { return '<button type="button" class="' + (j === '不参加' ? 'no' : '') + '" data-join="' + j + '" aria-pressed="' + (x.join === j) + '"' + dis + '>' + j + '</button>'; }).join('') + '</div>' +
+            (x.join === '参加' && det.races.length > 1 ? '<div class="sub">出る種目</div><div class="choice">' + det.races.map(function (r) { return '<button type="button" data-race="' + esc(r) + '" aria-pressed="' + (x.races.indexOf(r) >= 0) + '"' + dis + '>' + esc(r) + '</button>'; }).join('') + '</div>' : '') + '</div>';
+        }).join('') + '</section>';
+    }
+    var all = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });
+    var joined = all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
+    var paid = joined.filter(function (k) { return entryOf(e.key, k.name).paid; });
+    var mine = myNames();
+    h += '<section class="card"><h2>みんなのエントリー<small>' + all.length + '人中</small></h2><div class="stats"><div class="stat"><b>' + joined.length + '</b><span>参加</span></div>' +
+      '<div class="stat"><b>' + all.filter(function (k) { return !entryOf(e.key, k.name); }).length + '</b><span>未回答</span></div><div class="stat"><b>' + yen(paid.length * (det.fee || 0)) + '</b><span>集金 ' + paid.length + '/' + joined.length + '人</span></div></div>' +
+      '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>学年</th><th>回答</th><th>種目</th>' + (det.fee ? '<th>集金</th>' : '') + '</tr></thead><tbody>' + all.map(function (k) {
+        var x = entryOf(e.key, k.name);
+        var pay = !det.fee || !x || x.join !== '参加' ? '' : ST.me.admin ? '<button class="btn small ' + (x.paid ? 'ok' : 'ghost') + '" data-pay="' + esc(k.name) + '" data-paid="' + (x.paid ? '' : '1') + '" type="button">' + (x.paid ? '済' : '未') + '</button>' : (x.paid ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">未</span>');
+        return '<tr class="' + (mine.indexOf(k.name) >= 0 ? 'hl' : '') + '"><td>' + esc(k.name) + '</td><td>' + (k.grade || '') + '</td><td>' + (x ? '<span class="pill ' + (x.join === '参加' ? 'p-ok' : 'p-gray') + '">' + x.join + '</span>' : '<span class="pill p-warn">未回答</span>') + '</td><td>' + esc(x ? x.races.join('・') : '') + '</td>' + (det.fee ? '<td>' + pay + '</td>' : '') + '</tr>';
+      }).join('') + '</tbody></table></div>' + (ST.me.admin && det.fee ? '<div class="hint">「未／済」を押すと集金状況を切り替えられます（役員だけ）。</div>' : '') + '</section>';
+    return h;
+  }
+  function bindEntry(e) {
+    var det = e.detail || { races: [] };
+    view.querySelectorAll('[data-kid]').forEach(function (box) {
+      var child = box.dataset.kid, x = entryOf(e.key, child) || { join: '', races: [] };
+      box.querySelectorAll('[data-join]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var races = this.dataset.join === '参加' ? (x.races.length ? x.races : det.races.length === 1 ? det.races.slice() : []) : [];
+          call('saveEntry', { key: e.key, child: child, join: this.dataset.join, races: races });
+        });
+      });
+      box.querySelectorAll('[data-race]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var races = x.races.slice(), r = this.dataset.race, i = races.indexOf(r);
+          if (i >= 0) races.splice(i, 1); else races.push(r);
+          call('saveEntry', { key: e.key, child: child, join: '参加', races: races });
+        });
+      });
+    });
+    on('[data-pay]', function () { call('setPaid', { key: e.key, child: this.dataset.pay, paid: !!this.dataset.paid }); });
+  }
+
+  // ---- わが家 ----
+  function family() {
+    var rows = S.kidsDraft || (S.kidsDraft = ST.me.children.map(function (c) { return { name: c.name, grade: c.grade }; }));
+    if (!rows.length) rows.push({ name: '', grade: 0 });
+    var h = toastHtml() + '<section class="card"><h2>お子さん<small>学年は4月に上げてください</small></h2><form class="f" id="kidsForm">' + rows.map(function (c, i) {
+      return '<div class="childrow"><input data-kn="' + i + '" value="' + esc(c.name) + '" placeholder="例：山田たろう" aria-label="名前"><select data-kg="' + i + '" aria-label="学年"><option value="0">学年</option>' +
+        [1, 2, 3, 4, 5, 6].map(function (g) { return '<option value="' + g + '"' + (c.grade === g ? ' selected' : '') + '>' + g + '年</option>'; }).join('') + '</select>' +
+        '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
+    }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' +
+      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。きょうだいやご両親で同じ子を登録しても大丈夫です。</div></form></section>' +
+      '<section class="card"><h2>ログイン</h2><div class="sub">' + esc(ST.me.name) + 'さんのLINEでログインしています。このページは' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。家族のスマホで使うときは、ログアウトしてからそれぞれのLINEでログインしてください。</div><button class="btn small ghost" id="logout" type="button" style="justify-self:start">ログアウト</button></section>';
+    view.innerHTML = h;
+    view.querySelectorAll('[data-kn]').forEach(function (el) { el.addEventListener('input', function () { rows[+this.dataset.kn].name = this.value; }); });
+    view.querySelectorAll('[data-kg]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.kg].grade = +this.value; }); });
+    on('[data-kdel]', function () { rows.splice(+this.dataset.kdel, 1); render(); });
+    on('#kidAdd', function () { rows.push({ name: '', grade: 0 }); render(); });
+    on('#logout', function () { clearKey(); ST = null; showLogin('ログアウトしました。'); });
+    document.getElementById('kidsForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      call('saveChildren', { children: rows.filter(function (c) { return c.name.trim(); }) }, function () { S.kidsDraft = null; });
+    });
+  }
+
+  // ---- 管理（役員） ----
+  function admin() {
+    if (S.admin === 'race') return adminRace();
+    if (S.admin === 'saved') return adminSaved();
+    if (S.admin === 'notice') return adminNotice();
+    if (S.admin === 'absences') return adminAbsences();
+    var items = [['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'], ['absences', '休みの連絡を見る', '日にちごとの一覧と確認']];
+    view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
+      '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>';
+    on('[data-go]', function () { S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
+  }
+  function backBtn() { return '<button class="link" id="aBack" type="button">‹ 管理メニュー</button>'; }
+  function bindBack() { on('#aBack', function () { S.admin = 'menu'; S.toast = ''; render(); }); }
+
+  function newDraft() { return { key: '', from: '', title: '', type: '大会', date: '', place: '', meetTime: '', meetPlace: '', target: '全員', fee: '', deadline: '', races: [], items: ['ユニフォーム', 'アスリートビブス', '水筒'], notes: '', autoDeadline: true }; }
+  function draftFrom(e) {
+    var det = e.detail || {};
+    return { key: e.key, from: 'edit', title: e.title, type: e.type === '練習' ? '大会' : e.type, date: e.date, place: e.place || '', meetTime: det.meetTime || '', meetPlace: det.meetPlace || '', target: det.target || '全員', fee: det.fee ? String(det.fee) : '', deadline: det.deadline || (e.detail ? '' : addDays(e.date, -ST.choices.deadlineDays)), races: (det.races || []).slice(), items: det.items ? det.items.slice() : ['ユニフォーム', 'アスリートビブス', '水筒'], notes: det.notes || '', autoDeadline: !det.deadline };
+  }
+  function pastRaces() { return ST.events.filter(function (e) { return isRace(e) && e.detail; }).slice().reverse(); }
+  function venues() {
+    var seen = {}, out = [];
+    pastRaces().forEach(function (e) { if (e.place && !seen[e.place]) { seen[e.place] = 1; out.push({ n: e.place, m: e.detail.meetPlace || '' }); } });
+    return out.slice(0, 6);
+  }
+  function parseNotice(raw) {
+    var t = toHalf(raw), r = {}, m, SEP = '\\s*[…:：・\\s]*\\s*', y = Number(ST.today.slice(0, 4)), mo = Number(ST.today.slice(5, 7));
+    function ymd(M, D) { var yy = Number(M) < mo - 2 ? y + 1 : y; return yy + '-' + pad(M) + '-' + pad(D); }
+    if ((m = t.match(/(\d{1,2})月(\d{1,2})日/))) r.date = ymd(m[1], m[2]);
+    if ((m = t.match(/\d日の(.+?)(?:について|のご案内|の案内|の連絡)/))) r.title = m[1].trim();
+    if ((m = t.match(new RegExp('集合(?:時間|時刻)?' + SEP + '(\\d{1,2})(?:時|:)(\\d{1,2})?')))) r.meetTime = +m[1] + ':' + pad(m[2] || 0);
+    if ((m = t.match(new RegExp('(?:場所|会場)' + SEP + '([^\\n(]+)(?:\\(([^)\\n]*)\\))?')))) {
+      r.place = m[1].trim();
+      var v = venues().find(function (x) { return x.n === r.place; }); if (v && v.m) r.meetPlace = v.m;
+      if (m[2]) r.notes = m[2].trim();
+    }
+    if ((m = t.match(new RegExp('(?:参加費|会費)' + SEP + '(\\d[\\d,]*)\\s*円')))) r.fee = m[1].replace(/,/g, '');
+    if ((m = t.match(new RegExp('(?:締切|締め切り|〆切)' + SEP + '(\\d{1,2})月(\\d{1,2})日')))) r.deadline = ymd(m[1], m[2]);
+    var races = ST.choices.races.filter(function (x) { return t.indexOf(x) >= 0; }); if (races.length) r.races = races;
+    if ((m = t.match(new RegExp('持ち物' + SEP + '([^\\n]+)')))) r.items = m[1].split(/[、,，・\s]+/).filter(Boolean);
+    var extra = t.split('\n').filter(function (l) { return /可です|注意|お願いします|必要です/.test(l) && !/よろしく|宜しく/.test(l) && !/場所|会場/.test(l); });
+    if (extra.length) r.notes = (r.notes ? r.notes + '\n' : '') + extra.join('\n');
+    if (r.date && !r.deadline) r.deadline = addDays(r.date, -ST.choices.deadlineDays);
+    return r;
+  }
+  function applyDraft(D, vals) { S.filled = {}; Object.keys(vals).forEach(function (k) { D[k] = vals[k]; S.filled[k] = true; }); }
+
+  function adminRace() {
+    var D = S.draft || (S.draft = newDraft());
+    var cls = function (k) { return S.filled[k] ? ' class="filled"' : ''; };
+    var h = backBtn();
+    if (D.from !== 'edit') {
+      h += '<section class="card"><h2>どこから作りますか？</h2><div class="choice">' + [['copy', '前回の大会をコピー'], ['paste', '案内文を貼り付け'], ['blank', '白紙から']].map(function (x) { return '<button type="button" data-from="' + x[0] + '" aria-pressed="' + (D.from === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      if (D.from === 'copy') {
+        var list = pastRaces();
+        h += list.length ? '<div class="list">' + list.map(function (e) {
+          return '<button class="ev" data-copy="' + e.key + '" type="button"><div class="date race"><b>' + d(e.date).getUTCDate() + '</b><span>' + (d(e.date).getUTCMonth() + 1) + '月</span></div><div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + esc(e.place || '') + '・' + esc(e.detail.target) + '</div></div>コピー</button>';
+        }).join('') + '</div><div class="hint">会場・持ち物・種目などをまとめて写します。日付だけ入れ直してください。</div>' : '<div class="sub">まだコピーできる大会がありません。</div>';
+      }
+      if (D.from === 'paste') {
+        h += '<form class="f" id="pasteForm"><textarea id="pasteIn" placeholder="LINEの案内文をそのまま貼り付けてください"></textarea><button class="btn" type="submit">読み取って下に入れる</button>' +
+          '<div class="hint">「集合時間…」「場所…」「参加費…」「持ち物…」のような書き方を読み取ります（AIは使いません）。読み取れなかった欄は手で入れてください。</div></form>';
+      }
+      h += '</section>';
+    }
+    h += toastHtml() + '<section class="card"><h2>' + (D.from === 'edit' ? '大会の案内を直す' : '大会の内容') + (Object.keys(S.filled).length ? '<small>緑の欄は自動で入りました</small>' : '') + '</h2><form class="f" id="evForm">' +
+      '<label>大会名<input id="d-title"' + cls('title') + ' value="' + esc(D.title) + '" placeholder="例：秋季記録会"></label>' +
+      '<div class="lbl">種別</div><div class="choice">' + ['大会', '記録会', '練習試合'].map(function (x) { return '<button type="button" data-set="type|' + x + '" aria-pressed="' + (D.type === x) + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<div class="two"><label>日付<input type="date" id="d-date"' + cls('date') + ' value="' + D.date + '"></label><label>集合時刻<input id="d-meetTime"' + cls('meetTime') + ' inputmode="numeric" placeholder="820 → 8:20" value="' + esc(D.meetTime) + '"></label></div>' +
+      '<div class="quick">' + ['7:30', '7:50', '8:00', '8:20', '8:30'].map(function (x) { return '<button type="button" data-set="meetTime|' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<label>会場<input id="d-place"' + cls('place') + ' value="' + esc(D.place) + '" placeholder="例：市営陸上競技場"></label>' +
+      (venues().length ? '<div class="quick">' + venues().map(function (v, i) { return '<button type="button" data-venue="' + i + '">' + esc(v.n) + '</button>'; }).join('') + '</div>' : '') +
+      '<label>集合場所<input id="d-meetPlace"' + cls('meetPlace') + ' value="' + esc(D.meetPlace) + '" placeholder="例：正面スタンド下"></label>' +
+      '<div class="lbl">対象</div><div class="choice">' + ST.choices.targets.map(function (x) { return '<button type="button" data-set="target|' + x + '" aria-pressed="' + (D.target === x) + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<div class="two"><label>参加費（円）<input id="d-fee"' + cls('fee') + ' inputmode="numeric" value="' + esc(D.fee) + '"></label><label>エントリー締切<input type="date" id="d-deadline"' + cls('deadline') + ' value="' + D.deadline + '"></label></div>' +
+      '<div class="quick">' + [500, 700, 800, 1000].map(function (x) { return '<button type="button" data-set="fee|' + x + '">' + yen(x) + '</button>'; }).join('') + '<span class="hint">　締切は日付の' + ST.choices.deadlineDays + '日前が自動で入ります</span></div>' +
+      '<div class="lbl">種目（タップで選ぶ）</div><div class="choice">' + ST.choices.races.concat(D.races.filter(function (x) { return ST.choices.races.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="races|' + esc(x) + '" aria-pressed="' + (D.races.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<div class="lbl">持ち物（タップで選ぶ）</div><div class="choice">' + ST.choices.items.concat(D.items.filter(function (x) { return ST.choices.items.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="items|' + esc(x) + '" aria-pressed="' + (D.items.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<label>注意・連絡<textarea id="d-notes"' + cls('notes') + ' placeholder="例：寒さ対策にロングタイツ可">' + esc(D.notes) + '</textarea></label>' +
+      '<button class="btn" type="submit">' + (D.from === 'edit' ? '保存する' : '保存してポータルに公開') + '</button><div class="hint">保存すると、クラブのGoogleカレンダーにも予定が入ります。</div></form></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-from]', function () { D.from = this.dataset.from; render(); });
+    on('[data-copy]', function () {
+      var src = draftFrom(evByKey(this.dataset.copy));
+      applyDraft(D, { title: src.title, type: src.type, place: src.place, meetTime: src.meetTime, meetPlace: src.meetPlace, target: src.target, fee: src.fee, races: src.races, items: src.items, notes: src.notes });
+      D.date = ''; D.deadline = ''; D.autoDeadline = true;
+      S.toast = '✅「' + src.title + '」をコピーしました。日付を入れてください'; S.toastErr = false; render();
+      document.getElementById('d-date').focus();
+    });
+    var pf = document.getElementById('pasteForm');
+    if (pf) pf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var vals = parseNotice(document.getElementById('pasteIn').value), n = Object.keys(vals).length;
+      applyDraft(D, vals);
+      S.toast = n ? '✅ ' + n + 'か所を読み取りました。緑の欄を確認してください' : '読み取れる項目がありませんでした。手で入れてください'; S.toastErr = !n;
+      render();
+    });
+    ['title', 'place', 'meetPlace', 'fee', 'notes', 'deadline'].forEach(function (k) {
+      document.getElementById('d-' + k).addEventListener('input', function () { D[k] = this.value; if (k === 'deadline') D.autoDeadline = false; });
+    });
+    document.getElementById('d-date').addEventListener('change', function () {
+      D.date = this.value;
+      if (D.date && (D.autoDeadline || !D.deadline)) { D.deadline = addDays(D.date, -ST.choices.deadlineDays); document.getElementById('d-deadline').value = D.deadline; }
+    });
+    document.getElementById('d-meetTime').addEventListener('input', function () { D.meetTime = this.value; });
+    document.getElementById('d-meetTime').addEventListener('blur', function () { D.meetTime = this.value = fmtTime(this.value); });
+    on('[data-set]', function () { var p = this.dataset.set.split('|'); D[p[0]] = p[1]; render(); });
+    on('[data-tog]', function () { var p = this.dataset.tog.split('|'), arr = D[p[0]], i = arr.indexOf(p[1]); if (i >= 0) arr.splice(i, 1); else arr.push(p[1]); render(); });
+    on('[data-venue]', function () { var v = venues()[+this.dataset.venue]; D.place = v.n; if (v.m) D.meetPlace = v.m; render(); });
+    document.getElementById('evForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!D.title.trim() || !D.date) { S.toast = '大会名と日付を入れてください。'; S.toastErr = true; render(); return; }
+      var payload = { key: D.key, title: D.title, type: D.type, date: D.date, place: D.place, meetTime: fmtTime(D.meetTime), meetPlace: D.meetPlace, target: D.target, fee: D.fee, deadline: D.deadline, races: D.races, items: D.items, notes: D.notes };
+      call('saveRace', payload, function (st) {
+        if (!st.message) return;
+        var saved = st.events.filter(function (x) { return x.title === D.title.trim() && x.date === D.date; })[0];
+        S.saved = saved ? saved.key : null; S.draft = null; S.filled = {}; S.admin = 'saved';
+      });
+    });
+  }
+  function noticeText(e) {
+    var det = e.detail || {};
+    return '📣 ' + e.title + '（' + md(e.date) + '）\n' + (det.meetTime || det.meetPlace ? '集合 ' + [det.meetTime, e.place, det.meetPlace].filter(Boolean).join(' ') + '\n' : '') +
+      (det.fee ? '参加費 ' + yen(det.fee) : '') + (det.deadline ? (det.fee ? '／' : '') + '締切 ' + md(det.deadline) : '') +
+      '\n参加・不参加と種目は、ポータルから回答してください👇\n' + HOME_URL;
+  }
+  function copyBox(text) { return '<div class="copybox" id="copyText">' + esc(text) + '</div><button class="btn" id="copyBtn" type="button">LINEに貼る文章をコピー</button>'; }
+  function bindCopy() {
+    var b = document.getElementById('copyBtn'); if (!b) return;
+    b.addEventListener('click', function () {
+      var el = document.getElementById('copyText');
+      function fallback() { var r = document.createRange(); r.selectNodeContents(el); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = '選択しました。長押しでコピーしてください'; }
+      try { navigator.clipboard.writeText(el.textContent).then(function () { b.textContent = 'コピーしました。LINEに貼り付けてください'; }, fallback); } catch (err) { fallback(); }
+    });
+  }
+  function adminSaved() {
+    var e = S.saved && evByKey(S.saved);
+    var h = backBtn() + toastHtml();
+    if (e) h += '<section class="card"><h2>LINEグループへのお知らせ<small>手で貼るので通数はかかりません</small></h2>' + copyBox(noticeText(e)) + '</section>' +
+      '<section class="card"><div class="row"><button class="btn ghost" data-ev="' + e.key + '" type="button">ポータルで見る</button><button class="btn ghost" id="toNew" type="button">もう1つ作る</button></div></section>';
+    view.innerHTML = h;
+    bindBack(); bindCopy(); bindCommon();
+    on('#toNew', function () { S.admin = 'race'; S.draft = null; S.toast = ''; render(); });
+  }
+
+  var TEMPLATES = [['練習中止', '本日の練習は中止です', '雨のため、本日の練習は中止します。'], ['集合変更', '集合時間の変更', '集合時間が〇:〇〇に変更になりました。'], ['持ち物', '持ち物のお願い', '次回の練習は〇〇を持ってきてください。']];
+  function adminNotice() {
+    var N = S.notice || (S.notice = { title: '', body: '', key: '', saved: false });
+    var races = upcoming(isRace);
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>お知らせを書く</h2><div class="lbl" style="font-size:12px;color:var(--muted)">ひな形から選ぶ</div><div class="quick">' + TEMPLATES.map(function (t, i) { return '<button type="button" data-tpl="' + i + '">' + t[0] + '</button>'; }).join('') + '</div>' +
+      '<form class="f" id="nForm"><label>タイトル<input id="n-title" value="' + esc(N.title) + '"></label><label>本文<textarea id="n-body">' + esc(N.body) + '</textarea></label>' +
+      '<label>関係する大会（なくてもOK）<select id="n-key"><option value="">なし</option>' + races.map(function (e) { return '<option value="' + e.key + '"' + (N.key === e.key ? ' selected' : '') + '>' + md(e.date) + ' ' + esc(e.title) + '</option>'; }).join('') + '</select></label>' +
+      '<button class="btn" type="submit">ホームに載せる</button></form></section>';
+    if (N.saved) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox('📢 ' + N.title + '\n' + N.body + '\n\n詳しくはポータルで👇\n' + HOME_URL) + '</section>';
+    if (ST.notices.length) h += '<section class="card"><h2>載せているお知らせ</h2><div class="list">' + ST.notices.map(function (n) { return '<div class="between"><span>' + md(n.date) + ' ' + esc(n.title) + '</span><button class="btn small ghost" data-ndel="' + n.id + '" type="button">消す</button></div>'; }).join('') + '</div></section>';
+    view.innerHTML = h;
+    bindBack(); bindCopy();
+    on('[data-tpl]', function () { var t = TEMPLATES[+this.dataset.tpl]; N.title = t[1]; N.body = t[2]; N.saved = false; render(); });
+    document.getElementById('n-title').addEventListener('input', function () { N.title = this.value; });
+    document.getElementById('n-body').addEventListener('input', function () { N.body = this.value; });
+    document.getElementById('n-key').addEventListener('change', function () { N.key = this.value; });
+    document.getElementById('nForm').addEventListener('submit', function (x) {
+      x.preventDefault();
+      if (!N.title.trim()) { S.toast = 'タイトルを入れてください。'; S.toastErr = true; render(); return; }
+      call('saveNotice', { title: N.title, body: N.body, key: N.key }, function (st) { if (st.message) N.saved = true; });
+    });
+    on('[data-ndel]', function () { call('deleteNotice', { id: this.dataset.ndel }); });
+  }
+  function adminAbsences() {
+    var list = ST.absences.slice(), h = backBtn() + toastHtml(), date = '';
+    if (!list.length) h += '<div class="card empty">休みの連絡はありません</div>';
+    list.forEach(function (a) {
+      if (a.date !== date) { if (date) h += '</div></section>'; date = a.date; h += '<section class="card"><h2>' + md(a.date) + (a.date < ST.today ? '<small>終了</small>' : '') + '</h2><div class="list">'; }
+      var k = kidInfo(a.child);
+      h += '<div class="between"><span><b>' + esc(a.child) + '</b>' + (k.grade ? '（' + k.grade + '年）' : '') + ' <span class="sub">' + esc(a.reason) + (a.memo ? '・' + esc(a.memo) : '') + '・' + esc(a.by) + 'さん</span></span>' +
+        '<button class="btn small ' + (a.ack ? 'ghost' : 'ok') + '" data-ack="' + a.id + '" type="button">' + (a.ack ? '確認済み' : '確認した') + '</button></div>';
+    });
+    if (date) h += '</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
+  }
+
+  // ---- ナビ ----
+  var ICONS = {
+    home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+    events: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    family: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+    admin: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>'
+  };
+  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['family', 'わが家'], ['admin', '管理']];
+  function renderNav() {
+    var nav = document.getElementById('nav');
+    nav.hidden = false;
+    nav.className = 'nav' + (ST.me.admin ? ' admin' : '');
+    nav.innerHTML = NAV.filter(function (n) { return n[0] !== 'admin' || ST.me.admin; }).map(function (n) {
+      return '<button type="button" data-nav="' + n[0] + '"' + (S.tab === n[0] ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n[0]] + '</svg>' + n[1] + '</button>';
+    }).join('');
+    nav.querySelectorAll('[data-nav]').forEach(function (b) { b.addEventListener('click', function () { if (this.dataset.nav === 'admin') S.admin = 'menu'; if (this.dataset.nav === 'family') S.kidsDraft = null; go(this.dataset.nav); }); });
+  }
+  function render() {
+    document.getElementById('clubName').textContent = ST.club + ' ポータル';
+    document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.admin ? '・役員' : '');
+    document.getElementById('reload').hidden = false;
+    if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
+    renderNav();
+    ({ home: home, events: events, family: family, admin: admin })[S.tab]();
+  }
+  document.getElementById('reload').addEventListener('click', function () { S.toast = ''; call('refresh'); });
+
+  // ---- ログイン ----
+  var STORE = 'clubPortalKey';
+  function saveKey(k) { try { localStorage.setItem(STORE, k); } catch (e) {} }
+  function loadKey() { try { return localStorage.getItem(STORE) || ''; } catch (e) { return ''; } }
+  function clearKey() { try { localStorage.removeItem(STORE); } catch (e) {} KEY = ''; }
+  function showLogin(msg) {
+    document.getElementById('nav').hidden = true;
+    document.getElementById('reload').hidden = true;
+    document.getElementById('me').textContent = '';
+    view.innerHTML = '<section class="card"><div class="big">ようこそ</div><div class="sub">このページは、' + esc(CLUB) + 'のLINEグループのメンバーだけが見られます。グループに入っているLINEアカウントでログインしてください。</div>' +
+      (msg ? '<div class="toast' + (/しました/.test(msg) ? '' : ' err') + '">' + esc(msg) + '</div>' : '') +
+      '<a class="btn" id="loginBtn" href="' + esc(LOGIN_URL || '#') + '" target="_top" style="text-align:center;text-decoration:none;background:#06c755">LINEでログイン</a>' +
+      '<div class="hint">LINEアプリの中で開くと、ボタンを押すだけでログインできます。</div></section>';
+    // GitHub Pages の画面では、押したときにログイン用の URL をもらう
+    if (!LOGIN_URL) document.getElementById('loginBtn').addEventListener('click', function (e) {
+      e.preventDefault();
+      var b = this; b.textContent = 'LINEに移動しています…';
+      rpc('loginUrl', {}, function (r) { window.top.location.href = r.url; }, function (err) { b.textContent = 'LINEでログイン'; showLogin(err.message); });
+    });
+  }
+  function start() {
+    if (KEY) saveKey(KEY);
+    else KEY = loadKey();
+    if (KEY) call('bootstrap');   // ログイン直後、または前回のログインが残っているとき（再読み込みで期限切れの表示が出ても、保存したキーで開く）
+    else showLogin(LOGIN_ERROR);
+  }
+  // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
+  var q = new URLSearchParams(location.search);
+  if (API_URL && (q.get('code') || q.get('error'))) {
+    history.replaceState(null, '', location.pathname);
+    if (q.get('error')) { LOGIN_ERROR = 'LINEログインがキャンセルされました。'; start(); }
+    else {
+      view.innerHTML = '<div class="empty">ログインしています…</div>';
+      rpc('login', { code: q.get('code'), state: q.get('state') }, function (r) { KEY = r.key; start(); }, function (err) {
+        // 再読み込みなどで同じ code をもう一度使ったときは、保存してあるキーで開く
+        KEY = loadKey();
+        if (KEY) call('bootstrap'); else showLogin(err.message);
+      });
+    }
+  } else {
+    start();
+  }
+})();
+</script>
+</body>
+</html>

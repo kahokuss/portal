@@ -1,0 +1,13 @@
+{
+  "name": "club-portal",
+  "private": true,
+  "description": "陸上クラブ保護者向け LINE Bot とポータル（Google Apps Script）",
+  "scripts": {
+    "test": "node tests/run.js",
+    "test:e2e": "node tests/e2e.js",
+    "push": "clasp push"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

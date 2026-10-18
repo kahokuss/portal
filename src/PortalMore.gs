@@ -192,15 +192,7 @@ function uploadPhotoAction_(ctx, p) {
   if (!ev) throw new Error('予定が見つかりません。');
   const kind = String(p.kind || '');
   if (kind) requireTaskRight_(ctx, p.key, kind);
-  const m = String(p.data || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if (!m) throw new Error('写真を読み込めませんでした。');
-  if (m[2].length > 8 * 1024 * 1024) throw new Error('写真が大きすぎます。');
-  const at = now_();
-  const ext = EXTENSIONS[m[1]] || 'jpg';
-  const fileName = at.replace(/[-: ]/g, '').slice(0, 14) + '_' + (safeName_(kind) || 'photo') + '_' + (safeName_(ctx.name) || 'portal') + '.' + ext;
-  const folder = subfolder_(photoRoot_(), ev['日付'] + ' ' + safeName_(ev['タイトル']));
-  const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], fileName));
-  appendRow_(SHEETS.PHOTOS, { '日時': at, eventKey: ev.eventKey, '予定': ev['タイトル'], userId: ctx.userId, '表示名': ctx.name, 'ファイル名': fileName, URL: file.getUrl(), 'ファイルID': file.getId(), '種類': kind || 'ポータル' });
+  const file = savePhotoFile_(ctx, ev, p.data, kind || 'ポータル');
   if (kind) {
     upsertTask_(ctx, p.key, kind, String(p.target || '').slice(0, 60), (t) => {
       t['写真ID'] = splitNames_(t['写真ID']).concat([file.getId()]).join(',');
@@ -208,6 +200,20 @@ function uploadPhotoAction_(ctx, p) {
     });
   }
   return '写真を保存しました';
+}
+
+/** 画面から送られた写真（data URL）をドライブの予定ごとのフォルダに保存し、「写真」シートに記録する */
+function savePhotoFile_(ctx, ev, data, kind) {
+  const m = String(data || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) throw new Error('写真を読み込めませんでした。');
+  if (m[2].length > 8 * 1024 * 1024) throw new Error('写真が大きすぎます。');
+  const at = now_();
+  const ext = EXTENSIONS[m[1]] || 'jpg';
+  const fileName = at.replace(/[-: ]/g, '').slice(0, 14) + '_' + (safeName_(kind) || 'photo') + '_' + (safeName_(ctx.name) || 'portal') + '.' + ext;
+  const folder = ev ? subfolder_(photoRoot_(), ev['日付'] + ' ' + safeName_(ev['タイトル'])) : subfolder_(photoRoot_(), '会計');
+  const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], fileName));
+  appendRow_(SHEETS.PHOTOS, { '日時': at, eventKey: ev ? ev.eventKey : '', '予定': ev ? ev['タイトル'] : '', userId: ctx.userId, '表示名': ctx.name, 'ファイル名': fileName, URL: file.getUrl(), 'ファイルID': file.getId(), '種類': kind });
+  return file;
 }
 
 /** 「写真」シートの行のドライブのファイルID（前の版の行は URL から取り出す） */
@@ -378,4 +384,47 @@ function broadcastAction_(ctx, p) {
   push_(groupId, [text_(text)]);
   CacheService.getScriptCache().remove('pushQuota');
   return 'LINEグループに送りました' + (q.members ? '（' + q.members + '通ぶん）' : '');
+}
+
+// ---- 会計（参加費の支払い・領収書の履歴） ----
+
+/**
+ * 支払い（大会への参加費など）や入金を記録する。領収書の写真も付けられる。
+ * 大会に結びつけるときは役員かその大会の当番、結びつけないときは役員だけ
+ */
+function saveLedgerAction_(ctx, p) {
+  const ev = p.key ? findEvent_(p.key) : null;
+  if (p.key && !ev) throw new Error('大会が見つかりません。');
+  if (ev) requireManager_(ctx, ev.eventKey);
+  else if (!ctx.admin) throw new Error('この操作は役員だけができます。');
+  const amount = Number(toHalfWidth_(p.amount || '').replace(/[^0-9]/g, ''));
+  if (!amount) throw new Error('金額を入れてください。');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') ? p.date : ev ? ev['日付'] : today_();
+  const kind = p.kind === '入金' ? '入金' : '支払い';
+  const photo = p.data ? savePhotoFile_(ctx, ev, p.data, '領収書').getId() : '';
+  withLock_(() => {
+    appendRow_(SHEETS.LEDGER, {
+      id: randomKey_().slice(0, 10), '日付': date, eventKey: ev ? ev.eventKey : '', '種類': kind, '金額': String(amount),
+      '相手': String(p.payee || '').trim().slice(0, 60), '但し書き': String(p.note || '').trim().slice(0, 100), '写真ID': photo, '記録者': ctx.name, '日時': now_(),
+    });
+  });
+  if (ev && kind === '支払い') upsertTask_(ctx, ev.eventKey, '参加費支払い', '', (t) => { t['状態'] = '済'; if (photo) t['写真ID'] = splitNames_(t['写真ID']).concat([photo]).join(','); });
+  return (kind === '入金' ? '入金' : '支払い') + ' ¥' + amount.toLocaleString('ja-JP') + ' を記録しました';
+}
+
+function deleteLedgerAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.LEDGER).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('記録が見つかりません。');
+    clearRow_(SHEETS.LEDGER, row);
+  });
+  return '会計の記録を消しました';
+}
+
+/** 画面に渡す会計の記録。役員はすべて、当番は自分の大会の分だけ */
+function ledgerFor_(ctx, manageKeys) {
+  return readRows_(SHEETS.LEDGER)
+    .filter((x) => x.id && (ctx.admin || (x.eventKey && manageKeys.indexOf(x.eventKey) >= 0)))
+    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'] }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
 }

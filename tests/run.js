@@ -305,6 +305,27 @@ test('結果: その子の家族・役員・当番だけが入れられ、LINE�
   assert.strictEqual(st.tasks[0].memo, '186', 'ナンバーはだれでも入れられる');
   assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: '参加費支払い', target: '', done: true }), /当番の人だけ/);
 });
+test('会計: 大会の支払いを領収書つきで記録し、履歴に残る', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  assert.throws(() => gas.ctx.api(k2, 'saveLedger', { key: race.key, amount: 6500 }), /当番の人だけ/);
+  gas.ctx.api(kAdmin, 'setDuty', { key: race.key, fam: 'U2', on: true });
+  const img = 'data:image/jpeg;base64,' + Buffer.from('receipt').toString('base64');
+  let st = gas.ctx.api(k2, 'saveLedger', { key: race.key, amount: '６，５００円', payee: '主催者', note: '参加料', data: img });
+  assert.deepStrictEqual([st.ledger[0].amount, st.ledger[0].date, st.ledger[0].payee], [6500, '2026-11-01', '主催者']);
+  assert.ok(st.tasks.find((t) => t.kind === '参加費支払い').done, '支払いを記録すると手続きも済');
+  assert.strictEqual(st.photos.length, 0, '領収書はアルバムには出さない');
+  assert.deepStrictEqual(gas.ctx.api(k3, 'bootstrap').ledger, [], '当番でも役員でもない人には見せない');
+  assert.throws(() => gas.ctx.api(k2, 'saveLedger', { amount: 1000, note: 'ビブス' }), /役員だけ/);
+  st = gas.ctx.api(kAdmin, 'saveLedger', { kind: '入金', amount: 3000, note: '年会費' });
+  assert.strictEqual(st.ledger.length, 2);
+  st = gas.ctx.api(kAdmin, 'deleteLedger', { id: st.ledger[0].id });
+  assert.strictEqual(st.ledger.length, 1);
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

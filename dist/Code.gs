@@ -857,6 +857,8 @@ const API_ACTIONS = {
   saveResult: { run: saveResultAction_ },
   broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
   broadcast: { admin: true, run: broadcastAction_ },
+  saveLedger: { run: saveLedgerAction_ },
+  deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
@@ -950,7 +952,7 @@ function buildState_(ctx) {
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
   // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => photoIdOf_(x) && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .filter((x) => photoIdOf_(x) && x['種類'] !== '領収書' && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
     .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
     .reverse();
 
@@ -961,6 +963,7 @@ function buildState_(ctx) {
     .filter((x) => kidNames[x['子ども']] && x['記録'])
     .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'] }));
 
+  const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
@@ -969,7 +972,7 @@ function buildState_(ctx) {
       name: ctx.name,
       admin: ctx.admin,
       fam: ctx.famId,
-      canManage: raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId)),
+      canManage: manageKeys,
       notify: wantsAbsenceNotice_(me),
       family: myFam ? myFam.parents : [ctx.name],
       children: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
@@ -988,6 +991,7 @@ function buildState_(ctx) {
     tasks: tasks,
     photos: photos,
     results: results,
+    ledger: ledgerFor_(ctx, manageKeys),
     choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
@@ -1386,15 +1390,7 @@ function uploadPhotoAction_(ctx, p) {
   if (!ev) throw new Error('予定が見つかりません。');
   const kind = String(p.kind || '');
   if (kind) requireTaskRight_(ctx, p.key, kind);
-  const m = String(p.data || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if (!m) throw new Error('写真を読み込めませんでした。');
-  if (m[2].length > 8 * 1024 * 1024) throw new Error('写真が大きすぎます。');
-  const at = now_();
-  const ext = EXTENSIONS[m[1]] || 'jpg';
-  const fileName = at.replace(/[-: ]/g, '').slice(0, 14) + '_' + (safeName_(kind) || 'photo') + '_' + (safeName_(ctx.name) || 'portal') + '.' + ext;
-  const folder = subfolder_(photoRoot_(), ev['日付'] + ' ' + safeName_(ev['タイトル']));
-  const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], fileName));
-  appendRow_(SHEETS.PHOTOS, { '日時': at, eventKey: ev.eventKey, '予定': ev['タイトル'], userId: ctx.userId, '表示名': ctx.name, 'ファイル名': fileName, URL: file.getUrl(), 'ファイルID': file.getId(), '種類': kind || 'ポータル' });
+  const file = savePhotoFile_(ctx, ev, p.data, kind || 'ポータル');
   if (kind) {
     upsertTask_(ctx, p.key, kind, String(p.target || '').slice(0, 60), (t) => {
       t['写真ID'] = splitNames_(t['写真ID']).concat([file.getId()]).join(',');
@@ -1402,6 +1398,20 @@ function uploadPhotoAction_(ctx, p) {
     });
   }
   return '写真を保存しました';
+}
+
+/** 画面から送られた写真（data URL）をドライブの予定ごとのフォルダに保存し、「写真」シートに記録する */
+function savePhotoFile_(ctx, ev, data, kind) {
+  const m = String(data || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) throw new Error('写真を読み込めませんでした。');
+  if (m[2].length > 8 * 1024 * 1024) throw new Error('写真が大きすぎます。');
+  const at = now_();
+  const ext = EXTENSIONS[m[1]] || 'jpg';
+  const fileName = at.replace(/[-: ]/g, '').slice(0, 14) + '_' + (safeName_(kind) || 'photo') + '_' + (safeName_(ctx.name) || 'portal') + '.' + ext;
+  const folder = ev ? subfolder_(photoRoot_(), ev['日付'] + ' ' + safeName_(ev['タイトル'])) : subfolder_(photoRoot_(), '会計');
+  const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], fileName));
+  appendRow_(SHEETS.PHOTOS, { '日時': at, eventKey: ev ? ev.eventKey : '', '予定': ev ? ev['タイトル'] : '', userId: ctx.userId, '表示名': ctx.name, 'ファイル名': fileName, URL: file.getUrl(), 'ファイルID': file.getId(), '種類': kind });
+  return file;
 }
 
 /** 「写真」シートの行のドライブのファイルID（前の版の行は URL から取り出す） */
@@ -1572,6 +1582,49 @@ function broadcastAction_(ctx, p) {
   push_(groupId, [text_(text)]);
   CacheService.getScriptCache().remove('pushQuota');
   return 'LINEグループに送りました' + (q.members ? '（' + q.members + '通ぶん）' : '');
+}
+
+// ---- 会計（参加費の支払い・領収書の履歴） ----
+
+/**
+ * 支払い（大会への参加費など）や入金を記録する。領収書の写真も付けられる。
+ * 大会に結びつけるときは役員かその大会の当番、結びつけないときは役員だけ
+ */
+function saveLedgerAction_(ctx, p) {
+  const ev = p.key ? findEvent_(p.key) : null;
+  if (p.key && !ev) throw new Error('大会が見つかりません。');
+  if (ev) requireManager_(ctx, ev.eventKey);
+  else if (!ctx.admin) throw new Error('この操作は役員だけができます。');
+  const amount = Number(toHalfWidth_(p.amount || '').replace(/[^0-9]/g, ''));
+  if (!amount) throw new Error('金額を入れてください。');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') ? p.date : ev ? ev['日付'] : today_();
+  const kind = p.kind === '入金' ? '入金' : '支払い';
+  const photo = p.data ? savePhotoFile_(ctx, ev, p.data, '領収書').getId() : '';
+  withLock_(() => {
+    appendRow_(SHEETS.LEDGER, {
+      id: randomKey_().slice(0, 10), '日付': date, eventKey: ev ? ev.eventKey : '', '種類': kind, '金額': String(amount),
+      '相手': String(p.payee || '').trim().slice(0, 60), '但し書き': String(p.note || '').trim().slice(0, 100), '写真ID': photo, '記録者': ctx.name, '日時': now_(),
+    });
+  });
+  if (ev && kind === '支払い') upsertTask_(ctx, ev.eventKey, '参加費支払い', '', (t) => { t['状態'] = '済'; if (photo) t['写真ID'] = splitNames_(t['写真ID']).concat([photo]).join(','); });
+  return (kind === '入金' ? '入金' : '支払い') + ' ¥' + amount.toLocaleString('ja-JP') + ' を記録しました';
+}
+
+function deleteLedgerAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.LEDGER).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('記録が見つかりません。');
+    clearRow_(SHEETS.LEDGER, row);
+  });
+  return '会計の記録を消しました';
+}
+
+/** 画面に渡す会計の記録。役員はすべて、当番は自分の大会の分だけ */
+function ledgerFor_(ctx, manageKeys) {
+  return readRows_(SHEETS.LEDGER)
+    .filter((x) => x.id && (ctx.admin || (x.eventKey && manageKeys.indexOf(x.eventKey) >= 0)))
+    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'] }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
 // ===== Results.gs =====
@@ -1800,6 +1853,7 @@ const SHEETS = {
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
+  LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
   SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };
 

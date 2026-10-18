@@ -44,6 +44,8 @@ const API_ACTIONS = {
   saveResult: { run: saveResultAction_ },
   broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
   broadcast: { admin: true, run: broadcastAction_ },
+  saveLedger: { run: saveLedgerAction_ },
+  deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
@@ -137,7 +139,7 @@ function buildState_(ctx) {
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
   // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => photoIdOf_(x) && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .filter((x) => photoIdOf_(x) && x['種類'] !== '領収書' && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
     .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
     .reverse();
 
@@ -148,6 +150,7 @@ function buildState_(ctx) {
     .filter((x) => kidNames[x['子ども']] && x['記録'])
     .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'] }));
 
+  const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
@@ -156,7 +159,7 @@ function buildState_(ctx) {
       name: ctx.name,
       admin: ctx.admin,
       fam: ctx.famId,
-      canManage: raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId)),
+      canManage: manageKeys,
       notify: wantsAbsenceNotice_(me),
       family: myFam ? myFam.parents : [ctx.name],
       children: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
@@ -175,6 +178,7 @@ function buildState_(ctx) {
     tasks: tasks,
     photos: photos,
     results: results,
+    ledger: ledgerFor_(ctx, manageKeys),
     choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }

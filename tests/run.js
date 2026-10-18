@@ -326,6 +326,29 @@ test('会計: 大会の支払いを領収書つきで記録し、履歴に残る
   st = gas.ctx.api(kAdmin, 'deleteLedger', { id: st.ledger[0].id });
   assert.strictEqual(st.ledger.length, 1);
 });
+test('コメント・ヒヤリハット: みんなで共有し、役員に届き、役員が対策を書く', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const prac = gas.ctx.api(k2, 'bootstrap').events.find((e) => e.date === '2026-10-15');
+  let st = gas.ctx.api(k2, 'saveComment', { key: prac.key, kind: 'ヒヤリハット', body: '駐車場から車が急に出てきた', place: '駐車場の出入口' });
+  assert.ok(st.message.includes('共有しました'));
+  const push = gas.pushes().pop();
+  assert.strictEqual(push.payload.to, 'U1', '役員にLINEで届く');
+  assert.ok(push.payload.messages[0].text.includes('駐車場から車'));
+  gas.ctx.api(k2, 'saveComment', { key: prac.key, body: '役員さんだけに相談です', adminOnly: true });
+  st = gas.ctx.api(k3, 'bootstrap');
+  assert.deepStrictEqual(st.comments.map((c) => c.kind), ['ヒヤリハット'], '「役員だけ」は、ほかの保護者には見えない');
+  assert.strictEqual(gas.ctx.api(kAdmin, 'bootstrap').comments.length, 2);
+  const id = st.comments[0].id;
+  assert.throws(() => gas.ctx.api(k3, 'setMeasure', { id, measure: 'x' }), /役員だけ/);
+  st = gas.ctx.api(kAdmin, 'setMeasure', { id, measure: '出入口にコーンを置き、大人が1人立つ' });
+  assert.strictEqual(st.comments.find((c) => c.id === id).measureBy, '山田');
+  assert.throws(() => gas.ctx.api(k3, 'deleteComment', { id }), /書いた人と役員/);
+  assert.throws(() => gas.ctx.api(k2, 'saveComment', { key: prac.key, body: ' ' }), /書いてください/);
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

@@ -49,6 +49,9 @@ const CONFIG = {
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
   ABSENCE_PUSH_TO_ADMINS: true,
 
+  // ヒヤリハットが書かれたら、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
+  NEAR_MISS_PUSH_TO_ADMINS: true,
+
   // グループに投稿された写真をすべてドライブに保存するか
   SAVE_ALL_PHOTOS: true,
   // 写真を何日前までの予定に紐づけるか（大会の翌日に写真を上げる場合など）

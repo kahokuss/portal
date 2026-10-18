@@ -428,3 +428,71 @@ function ledgerFor_(ctx, manageKeys) {
     .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'] }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
+
+// ---- コメント・ヒヤリハット ----
+
+/**
+ * 練習・大会への保護者のコメント。種類が「ヒヤリハット」（けがにはならなかったが危なかったこと）のものは、
+ * 目立たせて一覧にし、役員が対策を書きこむ。「役員だけ」にすると、書いた人と役員にだけ見える
+ */
+function saveCommentAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('予定が見つかりません。');
+  const kind = p.kind === 'ヒヤリハット' ? 'ヒヤリハット' : 'コメント';
+  const body = String(p.body || '').trim().slice(0, 1000);
+  if (!body) throw new Error(kind === 'ヒヤリハット' ? '何があったかを書いてください。' : 'コメントを書いてください。');
+  const photo = p.data ? savePhotoFile_(ctx, ev, p.data, kind).getId() : '';
+  withLock_(() => {
+    appendRow_(SHEETS.COMMENTS, {
+      id: randomKey_().slice(0, 10), eventKey: ev.eventKey, '種類': kind, '本文': body, '場所': String(p.place || '').trim().slice(0, 60),
+      '公開': p.adminOnly ? '役員' : '全員', '写真ID': photo, userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
+    });
+  });
+  if (kind === 'ヒヤリハット' && CONFIG.NEAR_MISS_PUSH_TO_ADMINS) {
+    const text = '⚠ ヒヤリハットの報告\n' + formatDate_(ev['日付']) + ' ' + ev['タイトル'] + (p.place ? '（' + String(p.place).slice(0, 60) + '）' : '') + '\n' + body.slice(0, 300) + '\n報告：' + ctx.name + 'さん\n対策はポータルで書きこめます\n' + portalUrl_();
+    readRows_(SHEETS.FAMILIES).filter((f) => isAdmin_(f) && f.userId !== ctx.userId).forEach((f) => {
+      try { push_(f.userId, [text_(text)]); } catch (err) { console.warn('ヒヤリハットの通知に失敗: ' + err); }
+    });
+  }
+  return kind === 'ヒヤリハット' ? 'ヒヤリハットを共有しました。ありがとうございます' : 'コメントを書きました';
+}
+
+function deleteCommentAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.COMMENTS).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('コメントが見つかりません。');
+    if (!ctx.admin && row.userId !== ctx.userId) throw new Error('消せるのは、書いた人と役員だけです。');
+    clearRow_(SHEETS.COMMENTS, row);
+  });
+  return 'コメントを消しました';
+}
+
+/** ヒヤリハットへの対策（役員） */
+function setMeasureAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.COMMENTS).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('見つかりません。');
+    row['対策'] = String(p.measure || '').trim().slice(0, 500);
+    row['対策者'] = row['対策'] ? ctx.name : '';
+    row['対策日時'] = row['対策'] ? now_() : '';
+    updateRow_(SHEETS.COMMENTS, row);
+  });
+  return p.measure ? '対策を書きました' : '';
+}
+
+/** 画面に渡すコメント（1年分）。「役員だけ」のものは、書いた人と役員にだけ */
+function commentsFor_(ctx) {
+  const from = addDays_(today_(), -400);
+  const all = {};
+  readRows_(SHEETS.EVENTS).forEach((e) => (all[e.eventKey] = e));
+  return readRows_(SHEETS.COMMENTS)
+    .filter((x) => x.id && String(x['日時']).slice(0, 10) >= from && (x['公開'] !== '役員' || ctx.admin || x.userId === ctx.userId))
+    .map((x) => {
+      const ev = all[x.eventKey];
+      return {
+        id: x.id, key: x.eventKey, kind: x['種類'], body: x['本文'], place: x['場所'], adminOnly: x['公開'] === '役員', photo: x['写真ID'],
+        by: x['表示名'], at: x['日時'], mine: x.userId === ctx.userId, measure: x['対策'], measureBy: x['対策者'],
+        date: ev ? ev['日付'] : String(x['日時']).slice(0, 10), title: ev ? ev['タイトル'] : '',
+      };
+    });
+}

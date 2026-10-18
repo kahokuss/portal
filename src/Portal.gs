@@ -45,6 +45,9 @@ const API_ACTIONS = {
   broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
   broadcast: { admin: true, run: broadcastAction_ },
   saveLedger: { run: saveLedgerAction_ },
+  saveComment: { run: saveCommentAction_ },
+  deleteComment: { run: deleteCommentAction_ },
+  setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
@@ -139,7 +142,7 @@ function buildState_(ctx) {
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
   // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => photoIdOf_(x) && x['種類'] !== '領収書' && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .filter((x) => photoIdOf_(x) && ['領収書', 'ヒヤリハット', 'コメント'].indexOf(x['種類']) < 0 && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
     .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
     .reverse();
 
@@ -179,6 +182,7 @@ function buildState_(ctx) {
     photos: photos,
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
+    comments: commentsFor_(ctx),
     choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }

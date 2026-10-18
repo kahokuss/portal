@@ -311,6 +311,31 @@ async function openPortal(browser, gas, userId, name) {
       await p.shot('9-album');
       await p.click('#vClose');
     });
+    await step('保護者: 練習のページでヒヤリハットを共有し、役員が対策を書く', async () => {
+      await p.click('[data-nav="events"]');
+      await p.click('.ev:has-text("通常練習") >> nth=0');
+      await p.click('[data-ck="ヒヤリハット"]');
+      await p.fill('#cm-place', '駐車場の出入口');
+      await p.fill('#cm-body', '練習の帰り、車が急に出てきてぶつかりそうになった');
+      p.once('dialog', (d) => d.accept());
+      await p.click('#cmtForm button[type=submit]');
+      await p.idle();
+      assert.ok((await p.textContent('#view')).includes('対策：まだ'));
+      await p.shot('10-nearmiss');
+      await a.click('[data-nav="admin"]');
+      await a.click('#reload');
+      await a.idle();
+      await a.click('[data-go="nearmiss"]');
+      await a.fill('[data-mid]', '出入口に大人が1人立つ');
+      await a.click('[data-msave]');
+      await a.idle();
+      assert.strictEqual(gas.rows('コメント')[0]['対策'], '出入口に大人が1人立つ');
+      await a.shot('8-nearmiss');
+      await p.click('[data-nav="home"]');
+      await p.click('#reload');
+      await p.idle();
+      assert.ok((await p.textContent('#view')).includes('最近のヒヤリハット'));
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

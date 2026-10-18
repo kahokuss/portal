@@ -334,6 +334,9 @@ const CONFIG = {
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
   ABSENCE_PUSH_TO_ADMINS: true,
 
+  // ヒヤリハットが書かれたら、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
+  NEAR_MISS_PUSH_TO_ADMINS: true,
+
   // グループに投稿された写真をすべてドライブに保存するか
   SAVE_ALL_PHOTOS: true,
   // 写真を何日前までの予定に紐づけるか（大会の翌日に写真を上げる場合など）
@@ -858,6 +861,9 @@ const API_ACTIONS = {
   broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
   broadcast: { admin: true, run: broadcastAction_ },
   saveLedger: { run: saveLedgerAction_ },
+  saveComment: { run: saveCommentAction_ },
+  deleteComment: { run: deleteCommentAction_ },
+  setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
   saveEntry: { run: saveEntryAction_ },
@@ -952,7 +958,7 @@ function buildState_(ctx) {
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
   // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => photoIdOf_(x) && x['種類'] !== '領収書' && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .filter((x) => photoIdOf_(x) && ['領収書', 'ヒヤリハット', 'コメント'].indexOf(x['種類']) < 0 && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
     .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
     .reverse();
 
@@ -992,6 +998,7 @@ function buildState_(ctx) {
     photos: photos,
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
+    comments: commentsFor_(ctx),
     choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
@@ -1627,6 +1634,74 @@ function ledgerFor_(ctx, manageKeys) {
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
+// ---- コメント・ヒヤリハット ----
+
+/**
+ * 練習・大会への保護者のコメント。種類が「ヒヤリハット」（けがにはならなかったが危なかったこと）のものは、
+ * 目立たせて一覧にし、役員が対策を書きこむ。「役員だけ」にすると、書いた人と役員にだけ見える
+ */
+function saveCommentAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('予定が見つかりません。');
+  const kind = p.kind === 'ヒヤリハット' ? 'ヒヤリハット' : 'コメント';
+  const body = String(p.body || '').trim().slice(0, 1000);
+  if (!body) throw new Error(kind === 'ヒヤリハット' ? '何があったかを書いてください。' : 'コメントを書いてください。');
+  const photo = p.data ? savePhotoFile_(ctx, ev, p.data, kind).getId() : '';
+  withLock_(() => {
+    appendRow_(SHEETS.COMMENTS, {
+      id: randomKey_().slice(0, 10), eventKey: ev.eventKey, '種類': kind, '本文': body, '場所': String(p.place || '').trim().slice(0, 60),
+      '公開': p.adminOnly ? '役員' : '全員', '写真ID': photo, userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
+    });
+  });
+  if (kind === 'ヒヤリハット' && CONFIG.NEAR_MISS_PUSH_TO_ADMINS) {
+    const text = '⚠ ヒヤリハットの報告\n' + formatDate_(ev['日付']) + ' ' + ev['タイトル'] + (p.place ? '（' + String(p.place).slice(0, 60) + '）' : '') + '\n' + body.slice(0, 300) + '\n報告：' + ctx.name + 'さん\n対策はポータルで書きこめます\n' + portalUrl_();
+    readRows_(SHEETS.FAMILIES).filter((f) => isAdmin_(f) && f.userId !== ctx.userId).forEach((f) => {
+      try { push_(f.userId, [text_(text)]); } catch (err) { console.warn('ヒヤリハットの通知に失敗: ' + err); }
+    });
+  }
+  return kind === 'ヒヤリハット' ? 'ヒヤリハットを共有しました。ありがとうございます' : 'コメントを書きました';
+}
+
+function deleteCommentAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.COMMENTS).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('コメントが見つかりません。');
+    if (!ctx.admin && row.userId !== ctx.userId) throw new Error('消せるのは、書いた人と役員だけです。');
+    clearRow_(SHEETS.COMMENTS, row);
+  });
+  return 'コメントを消しました';
+}
+
+/** ヒヤリハットへの対策（役員） */
+function setMeasureAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.COMMENTS).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('見つかりません。');
+    row['対策'] = String(p.measure || '').trim().slice(0, 500);
+    row['対策者'] = row['対策'] ? ctx.name : '';
+    row['対策日時'] = row['対策'] ? now_() : '';
+    updateRow_(SHEETS.COMMENTS, row);
+  });
+  return p.measure ? '対策を書きました' : '';
+}
+
+/** 画面に渡すコメント（1年分）。「役員だけ」のものは、書いた人と役員にだけ */
+function commentsFor_(ctx) {
+  const from = addDays_(today_(), -400);
+  const all = {};
+  readRows_(SHEETS.EVENTS).forEach((e) => (all[e.eventKey] = e));
+  return readRows_(SHEETS.COMMENTS)
+    .filter((x) => x.id && String(x['日時']).slice(0, 10) >= from && (x['公開'] !== '役員' || ctx.admin || x.userId === ctx.userId))
+    .map((x) => {
+      const ev = all[x.eventKey];
+      return {
+        id: x.id, key: x.eventKey, kind: x['種類'], body: x['本文'], place: x['場所'], adminOnly: x['公開'] === '役員', photo: x['写真ID'],
+        by: x['表示名'], at: x['日時'], mine: x.userId === ctx.userId, measure: x['対策'], measureBy: x['対策者'],
+        date: ev ? ev['日付'] : String(x['日時']).slice(0, 10), title: ev ? ev['タイトル'] : '',
+      };
+    });
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -1853,6 +1928,7 @@ const SHEETS = {
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
+  COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時'] },
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
   SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };

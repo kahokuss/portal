@@ -326,7 +326,7 @@ test('会計: 大会の支払いを領収書つきで記録し、履歴に残る
   st = gas.ctx.api(kAdmin, 'deleteLedger', { id: st.ledger[0].id });
   assert.strictEqual(st.ledger.length, 1);
 });
-test('コメント・ヒヤリハット: みんなで共有し、役員に届き、役員が対策を書く', () => {
+test('コメント・ヒヤリハット: みんなで共有し、役員が対策を書く', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');
   gas.line(dm('U2'), '登録 鈴木けんた 5年');
@@ -335,9 +335,8 @@ test('コメント・ヒヤリハット: みんなで共有し、役員に届き
   const prac = gas.ctx.api(k2, 'bootstrap').events.find((e) => e.date === '2026-10-15');
   let st = gas.ctx.api(k2, 'saveComment', { key: prac.key, kind: 'ヒヤリハット', body: '駐車場から車が急に出てきた', place: '駐車場の出入口' });
   assert.ok(st.message.includes('共有しました'));
-  const push = gas.pushes().pop();
-  assert.strictEqual(push.payload.to, 'U1', '役員にLINEで届く');
-  assert.ok(push.payload.messages[0].text.includes('駐車場から車'));
+  assert.strictEqual(gas.pushes().length, 0, 'LINEの通知はしない（役員はBotの「新着」やポータルで見る）');
+  assert.ok(gas.line(dm('U1'), '新着').includes('対策がまだのヒヤリハット 1件'));
   gas.ctx.api(k2, 'saveComment', { key: prac.key, body: '役員さんだけに相談です', adminOnly: true });
   st = gas.ctx.api(k3, 'bootstrap');
   assert.deepStrictEqual(st.comments.map((c) => c.kind), ['ヒヤリハット'], '「役員だけ」は、ほかの保護者には見えない');
@@ -407,7 +406,7 @@ test('前の版のシートに、新しい列の見出しが足される', () =>
   sh.data.push(['U9', '古い人', '', '', '', '']);
   gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k])");
   gas.run('readRows_(SHEETS.FAMILIES)');
-  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知']);
+  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認']);
   assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
 });
 
@@ -468,6 +467,47 @@ test('写真: アルバムはポータルで見る。前の版の行も出る。
   gas.line(group('U3'), '写真');
   const r = gas.privateTo('U3');
   assert.ok(r.includes('kahokuss.github.io/portal/?tab=album') && !r.includes('drive.google'), r);
+});
+test('Bot: 新着・今日・予定・休み・当番・出欠・エントリーに答える（ボタンつき）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kAdmin, 'bootstrap');
+  const race = st.events.find((e) => e.title === '秋季記録会');
+  const prac = st.events.find((e) => e.date === '2026-10-15');
+  gas.ctx.api(kAdmin, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', target: '全員', fee: 500, deadline: '2026-10-22', races: ['100m'] });
+  gas.ctx.api(kAdmin, 'setDuty', { key: prac.key, fam: 'U2', on: true });
+  gas.ctx.api(kAdmin, 'saveNotice', { title: '集合時間の変更', body: '17:15集合です' });
+
+  const news = gas.line(dm('U2'), '新着');
+  assert.ok(news.includes('次の練習') && news.includes('10/15(木)'), news);
+  assert.ok(news.includes('練習当番'), 'わが家の当番');
+  assert.ok(news.includes('鈴木けんた 未回答'), 'エントリーの未回答');
+  assert.ok(news.includes('集合時間の変更'), '新しいお知らせ');
+  const last = gas.fetches.filter((f) => /reply$/.test(f.url)).pop();
+  assert.ok(last.payload.messages.slice(-1)[0].quickReply.items.some((i) => i.action.text === '休み'), 'ボタンが付く');
+  assert.ok(!gas.line(dm('U2'), '新着').includes('新しいお知らせ'), '一度見たお知らせは「新しい」にしない');
+
+  const ab = gas.line(dm('U2'), '休み');
+  assert.ok(ab.includes('休みの連絡をします'));
+  const btn = gas.fetches.filter((f) => /reply$/.test(f.url)).pop().payload.messages[0].quickReply.items[0].action.text;
+  assert.strictEqual(btn, '休み 鈴木けんた 2026-10-15', '次の練習の日のボタン');
+  const r = gas.line(dm('U2'), '休み 明日 体調不良 熱っぽい');
+  assert.ok(r.includes('10/15(木) 鈴木けんたのお休みを連絡しました（体調不良・熱っぽい）'), r);
+  assert.strictEqual(gas.rows('休み')[0]['メモ'], '熱っぽい');
+  assert.ok(gas.line(dm('U1'), '新着').includes('確認していない休みの連絡 1件'), '役員には確認待ち');
+  assert.ok(gas.line(dm('U1'), '出欠').includes('鈴木けんた（体調不良・熱っぽい）'), '役員には理由も');
+  assert.ok(!gas.line(dm('U3'), '出欠').includes('体調不良'), 'ほかの人には名前だけ');
+  assert.ok(gas.line(dm('U2'), '休み取消').includes('取り消しました'));
+  assert.strictEqual(gas.rows('休み').length, 0);
+
+  assert.ok(gas.line(dm('U2'), '当番').includes('10/15(木)'));
+  assert.ok(gas.line(dm('U2'), '予定').includes('秋季記録会'));
+  assert.ok(gas.line(dm('U2'), 'エントリー').includes('鈴木けんた：未回答'));
+  assert.ok(gas.line(dm('U2'), '今日').includes('今日の予定はありません'));
+  assert.ok(gas.line(dm('U3'), '休み').includes('先にお子さんを登録'));
 });
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();

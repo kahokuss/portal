@@ -4,6 +4,9 @@
  * （プッシュなので1通ぶん無料枠を使う。Botを友だち追加していない人には届かないので、そのときだけグループで案内する）。
  */
 function respond_(ev, messages) {
+  // 返事の下に、よく使うボタンを出す（押すとその言葉が送られる）
+  const last = messages[messages.length - 1];
+  if (last && !last.quickReply) last.quickReply = quickItems_(MAIN_QUICK);
   if (!ev.privateAnswer) return reply_(ev.replyToken, messages);
   try {
     push_(ev.source.userId, messages);
@@ -17,7 +20,15 @@ function respond_(ev, messages) {
 function helpText_() {
   return [
     '🏃 ' + CONFIG.CLUB_NAME + ' Botの使い方',
+    '下のボタンか、メニューから選べます。',
     '',
+    '新着 … 次の練習・わが家の当番・エントリーの締切・お知らせなど、まとめて',
+    '今日 … 今日の予定（大会の日は、子どもの時刻・招集・ナンバー）',
+    '予定 … これからの予定',
+    '休み … 休みの連絡（例：休み 明日／休み たろう 10/20 体調不良）。「休み取消」で取り消し',
+    '当番 … わが家の当番と、これからの当番',
+    '出欠 … 次の練習で休む人',
+    'エントリー … 大会のエントリーの状況',
     'ポータル … 予定・大会のエントリー・休みの連絡ができるページのリンク（グループのメンバーだけが見られます）',
     '登録 名前 学年 … お子さんを登録（例：登録 山田たろう 3年 山田はなこ 1年）。ポータルの「わが家」からもできます',
     '結果 種目 記録 … レース結果を記録（例：結果 100m 15.2秒）',
@@ -42,7 +53,14 @@ function parseCommand_(text) {
     'ヘルプ': 'help', '使い方': 'help', 'help': 'help',
     '登録': 'register',
     'ポータル': 'portal', 'portal': 'portal',
-    '予定': 'portalHint', '出欠': 'portalHint', '休み': 'portalHint', 'エントリー': 'portalHint',
+    '新着': 'news', '確認': 'news', 'お知らせ': 'news', 'メニュー': 'help',
+    '今日': 'today', 'きょう': 'today',
+    '予定': 'schedule', '次': 'schedule', 'スケジュール': 'schedule',
+    '休み': 'absence', '欠席': 'absence', 'やすみ': 'absence',
+    '休み取消': 'absenceCancel', '取消': 'absenceCancel', '取り消し': 'absenceCancel',
+    '当番': 'duty',
+    '出欠': 'attendance',
+    'エントリー': 'entries',
     '結果': 'result',
     '記録': 'records',
     '写真': 'photos', 'アルバム': 'photos',
@@ -61,13 +79,27 @@ function handleText_(ev) {
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
   switch (cmd.name) {
     case 'help':
-      return respond_(ev, [text_(helpText_())]);
+      return respond_(ev, botMessages_([helpText_()]));
     case 'register':
       return handleRegister_(ev, cmd.args);
     case 'portal':
       return handlePortal_(ev);
-    case 'portalHint':
-      return respond_(ev, [text_('予定・大会のエントリー・休みの連絡は、ポータルからできます。\n' + portalUrl_())]);
+    case 'news':
+      return handleNews_(ev);
+    case 'today':
+      return handleToday_(ev);
+    case 'schedule':
+      return handleSchedule_(ev);
+    case 'absence':
+      return handleAbsence_(ev, cmd.args);
+    case 'absenceCancel':
+      return handleAbsenceCancel_(ev);
+    case 'duty':
+      return handleDuty_(ev);
+    case 'attendance':
+      return handleAttendance_(ev);
+    case 'entries':
+      return handleEntries_(ev);
     case 'result':
       return handleResultCommand_(ev, cmd.args);
     case 'records':

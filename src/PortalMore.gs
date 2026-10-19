@@ -60,6 +60,7 @@ function setDutyAction_(ctx, p) {
     if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': dutyType_(ev), '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
     if (!p.on && row) clearRow_(SHEETS.DUTIES, row);
   });
+  if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, '当番：' + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
   return '';
 }
 
@@ -148,6 +149,7 @@ function saveTimetableAction_(ctx, p) {
     });
     rows.filter((x) => !keep[x.id]).forEach((x) => clearRow_(SHEETS.TIMETABLE, x));
   });
+  logHistory_(p.key, ctx, 'タイムテーブルを保存（' + list.length + '件）');
   return 'タイムテーブルを保存しました（' + list.length + '件）';
 }
 
@@ -181,6 +183,7 @@ function setTaskAction_(ctx, p) {
     if (p.done !== undefined) t['状態'] = p.done ? '済' : '';
     if (p.memo !== undefined) t['メモ'] = String(p.memo).slice(0, 500);
   });
+  if (kind !== 'レーン' && kind !== 'ナンバー') logHistory_(p.key, ctx, kind + (target && kind !== '招集' ? '（' + target.split('|')[0] + '）' : kind === '招集' ? '：' + target.split('|')[0] : '') + (p.done === true ? ' 済' : p.done === false ? ' 取り消し' : ' を記録'));
   return p.done ? kind + '：済にしました' : '';
 }
 
@@ -199,6 +202,7 @@ function uploadPhotoAction_(ctx, p) {
       if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い') t['状態'] = '済';
     });
   }
+  logHistory_(p.key, ctx, (kind ? kind + 'の' : '') + '写真を追加');
   return '写真を保存しました';
 }
 
@@ -353,6 +357,7 @@ function saveResultAction_(ctx, p) {
     if (row) updateRow_(SHEETS.RESULTS, Object.assign(row, data));
     else appendRow_(SHEETS.RESULTS, Object.assign(data, { id: randomKey_().slice(0, 10) }));
   });
+  logHistory_(ev.eventKey, ctx, '結果：' + child + ' ' + race + ' ' + record);
   return child + ' ' + race + ' ' + record + ' を記録しました';
 }
 
@@ -408,6 +413,7 @@ function saveLedgerAction_(ctx, p) {
       '相手': String(p.payee || '').trim().slice(0, 60), '但し書き': String(p.note || '').trim().slice(0, 100), '写真ID': photo, '記録者': ctx.name, '日時': now_(),
     });
   });
+  if (ev) logHistory_(ev.eventKey, ctx, kind + ' ¥' + amount.toLocaleString('ja-JP') + (p.payee ? '（' + String(p.payee).slice(0, 30) + '）' : '') + (photo ? '・領収書の写真あり' : ''));
   if (ev && kind === '支払い') upsertTask_(ctx, ev.eventKey, '参加費支払い', '', (t) => { t['状態'] = '済'; if (photo) t['写真ID'] = splitNames_(t['写真ID']).concat([photo]).join(','); });
   return (kind === '入金' ? '入金' : '支払い') + ' ¥' + amount.toLocaleString('ja-JP') + ' を記録しました';
 }
@@ -495,4 +501,71 @@ function commentsFor_(ctx) {
         date: ev ? ev['日付'] : String(x['日時']).slice(0, 10), title: ev ? ev['タイトル'] : '',
       };
     });
+}
+
+// ---- 大会の資料・履歴 ----
+
+/** 大会の履歴に1行足す（だれが・いつ・何をしたか） */
+function logHistory_(eventKey, ctx, text) {
+  if (!eventKey) return;
+  try {
+    appendRow_(SHEETS.HISTORY, { '日時': now_(), eventKey: eventKey, '表示名': (ctx && ctx.name) || '', '内容': String(text).slice(0, 200) });
+  } catch (err) {
+    console.warn('履歴を残せませんでした: ' + err);
+  }
+}
+
+/**
+ * 大会の資料（要項・申込書・プログラム・地図・リザルトなど）を足す。
+ * リンク（主催者のページ）か、ファイル（写真・PDF）。メンバー全員が見られる。足せるのは役員と当番
+ */
+function addDocAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  const kind = CHOICES.DOC_KINDS.indexOf(p.kind) >= 0 ? p.kind : 'その他';
+  const url = String(p.url || '').trim();
+  let fileId = '';
+  let type = 'link';
+  if (p.data) {
+    const m = String(p.data).match(/^data:(image\/(?:jpeg|png|webp)|application\/pdf);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) throw new Error('写真かPDFを選んでください。');
+    if (m[2].length > 14 * 1024 * 1024) throw new Error('ファイルが大きすぎます（10MBまで）。');
+    if (m[1] === 'application/pdf') {
+      const name = now_().replace(/[-: ]/g, '').slice(0, 14) + '_' + safeName_(kind) + '_' + safeName_(p.name || 'document') + '.pdf';
+      const folder = subfolder_(photoRoot_(), ev['日付'] + ' ' + safeName_(ev['タイトル']));
+      const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], name));
+      appendRow_(SHEETS.PHOTOS, { '日時': now_(), eventKey: ev.eventKey, '予定': ev['タイトル'], userId: ctx.userId, '表示名': ctx.name, 'ファイル名': name, URL: file.getUrl(), 'ファイルID': file.getId(), '種類': '資料' });
+      fileId = file.getId();
+      type = 'pdf';
+    } else {
+      fileId = savePhotoFile_(ctx, ev, p.data, '資料').getId();
+      type = 'image';
+    }
+  } else if (!/^https?:\/\/\S+$/.test(url)) {
+    throw new Error('リンク（https://…）を入れるか、ファイルを選んでください。');
+  }
+  const name = String(p.name || '').trim().slice(0, 60) || kind;
+  withLock_(() => {
+    appendRow_(SHEETS.DOCS, { id: randomKey_().slice(0, 10), eventKey: ev.eventKey, '種類': kind, '名前': name, URL: fileId ? '' : url.slice(0, 300), 'ファイルID': fileId, '形式': type, '追加者': ctx.name, '日時': now_() });
+  });
+  logHistory_(ev.eventKey, ctx, '資料を追加：' + kind + (name !== kind ? '（' + name + '）' : ''));
+  return '資料「' + name + '」を追加しました';
+}
+
+function deleteDocAction_(ctx, p) {
+  const row = readRows_(SHEETS.DOCS).find((x) => x.id && x.id === p.id);
+  if (!row) throw new Error('資料が見つかりません。');
+  requireManager_(ctx, row.eventKey);
+  withLock_(() => clearRow_(SHEETS.DOCS, row));
+  logHistory_(row.eventKey, ctx, '資料を削除：' + row['名前']);
+  return '資料を消しました';
+}
+
+/** 資料のファイル（写真・PDF）を返す。「資料」シートにあるものだけ */
+function docAction_(ctx, p) {
+  const row = readRows_(SHEETS.DOCS).find((x) => x.id && x.id === p.id && x['ファイルID']);
+  if (!row) throw new Error('資料が見つかりません。');
+  const blob = DriveApp.getFileById(row['ファイルID']).getBlob();
+  return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
 }

@@ -154,6 +154,10 @@ form.f, .f { display: grid; gap: 8px; }
 .cal button[aria-pressed="true"] small { color: #fff; }
 .cal button:disabled { opacity: .35; cursor: not-allowed; }
 .banner { background: var(--track-soft); border-color: transparent; }
+.steps { display: flex; gap: 3px; flex-wrap: wrap; }
+.steps span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.steps span.done { background: var(--field-soft); color: var(--field); border-color: transparent; }
+.steps span.now { background: var(--track); color: #fff; border-color: transparent; font-weight: 700; }
 .cmt { display: grid; gap: 4px; }
 .cmt .b { white-space: pre-wrap; }
 .cmt.nm { background: var(--warn-soft); border-radius: 10px; padding: 8px 10px; border-top: 0; margin-top: 4px; }
@@ -246,12 +250,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
   function fillDefaults(st) {
-    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
     if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
     if (!st.choices.rounds) st.choices.rounds = ['予選', '準決勝', '決勝', 'タイムレース'];
+    if (!st.choices.applyHow) st.choices.applyHow = ['Web', 'メール', 'FAX', '郵送', '持参', '当日'];
+    if (!st.choices.docKinds) st.choices.docKinds = ['要項', '申込書', 'プログラム', '地図', 'リザルト', 'その他'];
     return st;
   }
   function go(tab, key) { S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false; render(); window.scrollTo(0, 0); }
@@ -415,14 +421,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var tabs = ['概要', 'エントリー', 'タイムテーブル', '手続き', '結果', '写真'];
     h += '<div class="tabs" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + t + '</button>'; }).join('') + '</div>' + toastHtml();
     if (S.etab === '概要') {
+      h += statusCard(e);
       if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + (ST.me.admin ? '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button><button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button></div>' : '') + '</section>';
       else {
         h += '<section class="card"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
-          '<dt>参加費</dt><dd>' + (det.fee ? yen(det.fee) + '／人' : 'なし') + '</dd>' + (det.deadline ? '<dt>締切</dt><dd>' + md(det.deadline) + '</dd>' : '') +
+          '<dt>参加費</dt><dd>' + (det.fee ? yen(det.fee) + '／人' : 'なし') + '</dd>' + 
           (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
           (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl>' + (ST.me.admin ? '<button class="btn small ghost" id="editRace" type="button">案内を直す</button>' : '') + '</section>';
       }
-      h += dutyCard(e) + commentsCard(e);
+      h += docsCard(e) + dutyCard(e) + commentsCard(e) + historyCard(e);
     }
     if (S.etab === 'エントリー') h += entryHtml(e);
     if (S.etab === 'タイムテーブル') h += timetableHtml(e);
@@ -431,7 +438,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '結果') h += resultsTab(e);
     view.innerHTML = h;
     bindDuty(e);
-    if (S.etab === '概要') bindComments(e);
+    if (S.etab === '概要') { bindComments(e); bindRaceInfo(e); }
     if (S.etab === 'タイムテーブル') bindTimetable(e);
     if (S.etab === '手続き') { bindTasks(e); bindTimetable(e); }
     if (S.etab === '写真') bindPhotos(e);
@@ -538,10 +545,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function backBtn() { return '<button class="link" id="aBack" type="button">‹ 管理メニュー</button>'; }
   function bindBack() { on('#aBack', function () { S.admin = 'menu'; S.toast = ''; render(); }); }
 
-  function newDraft() { return { key: '', from: '', title: '', type: '大会', date: '', place: '', meetTime: '', meetPlace: '', target: '全員', fee: '', deadline: '', races: [], items: ['ユニフォーム', 'アスリートビブス', '水筒'], notes: '', autoDeadline: true }; }
+  function newDraft() { return { key: '', from: '', title: '', type: '大会', date: '', place: '', meetTime: '', meetPlace: '', target: '全員', fee: '', deadline: '', races: [], items: ['ユニフォーム', 'アスリートビブス', '水筒'], notes: '', autoDeadline: true, organizer: '', applyBy: '', applyHow: '', payBy: '', reception: '', url: '' }; }
   function draftFrom(e) {
     var det = e.detail || {};
-    return { key: e.key, from: 'edit', title: e.title, type: e.type === '練習' ? '大会' : e.type, date: e.date, place: e.place || '', meetTime: det.meetTime || '', meetPlace: det.meetPlace || '', target: det.target || '全員', fee: det.fee ? String(det.fee) : '', deadline: det.deadline || (e.detail ? '' : addDays(e.date, -ST.choices.deadlineDays)), races: (det.races || []).slice(), items: det.items ? det.items.slice() : ['ユニフォーム', 'アスリートビブス', '水筒'], notes: det.notes || '', autoDeadline: !det.deadline };
+    return { key: e.key, from: 'edit', title: e.title, type: e.type === '練習' ? '大会' : e.type, date: e.date, place: e.place || '', meetTime: det.meetTime || '', meetPlace: det.meetPlace || '', target: det.target || '全員', fee: det.fee ? String(det.fee) : '', deadline: det.deadline || (e.detail ? '' : addDays(e.date, -ST.choices.deadlineDays)), races: (det.races || []).slice(), items: det.items ? det.items.slice() : ['ユニフォーム', 'アスリートビブス', '水筒'], notes: det.notes || '', autoDeadline: !det.deadline,
+      organizer: det.organizer || '', applyBy: det.applyBy || '', applyHow: det.applyHow || '', payBy: det.payBy || '', reception: det.reception || '', url: det.url || '' };
   }
   function pastRaces() { return ST.events.filter(function (e) { return isRace(e) && e.detail; }).slice().reverse(); }
   function venues() {
@@ -566,6 +574,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if ((m = t.match(new RegExp('持ち物' + SEP + '([^\\n]+)')))) r.items = m[1].split(/[、,，・\s]+/).filter(Boolean);
     var extra = t.split('\n').filter(function (l) { return /可です|注意|お願いします|必要です/.test(l) && !/よろしく|宜しく/.test(l) && !/場所|会場/.test(l); });
     if (extra.length) r.notes = (r.notes ? r.notes + '\n' : '') + extra.join('\n');
+    if ((m = t.match(new RegExp('申込(?:み)?(?:期限|締切|締め切り)' + SEP + '(\\d{1,2})月(\\d{1,2})日')))) r.applyBy = ymd(m[1], m[2]);
+    if ((m = t.match(new RegExp('(?:支払|振込)(?:い)?(?:期限|締切)' + SEP + '(\\d{1,2})月(\\d{1,2})日')))) r.payBy = ymd(m[1], m[2]);
+    if ((m = t.match(new RegExp('受付' + SEP + '([^\\n]+)')))) r.reception = m[1].trim().slice(0, 80);
+    if ((m = t.match(new RegExp('主催' + SEP + '([^\\n]+)')))) r.organizer = m[1].trim().slice(0, 60);
+    if ((m = t.match(/https?:\/\/\S+/))) r.url = m[0];
     if (r.date && !r.deadline) r.deadline = addDays(r.date, -ST.choices.deadlineDays);
     return r;
   }
@@ -603,13 +616,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="lbl">種目（タップで選ぶ）</div><div class="choice">' + ST.choices.races.concat(D.races.filter(function (x) { return ST.choices.races.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="races|' + esc(x) + '" aria-pressed="' + (D.races.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<div class="lbl">持ち物（タップで選ぶ）</div><div class="choice">' + ST.choices.items.concat(D.items.filter(function (x) { return ST.choices.items.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="items|' + esc(x) + '" aria-pressed="' + (D.items.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<label>注意・連絡<textarea id="d-notes"' + cls('notes') + ' placeholder="例：寒さ対策にロングタイツ可">' + esc(D.notes) + '</textarea></label>' +
+      '<div class="lbl" style="margin-top:6px;font-weight:700;color:var(--fg)">主催者への申込み（役員・当番用）</div>' +
+      '<label>主催<input id="d-organizer"' + cls('organizer') + ' value="' + esc(D.organizer) + '" placeholder="例：〇〇陸上競技協会"></label>' +
+      '<div class="two"><label>申込期限（主催）<input type="date" id="d-applyBy"' + cls('applyBy') + ' value="' + esc(D.applyBy) + '"></label><label>支払期限<input type="date" id="d-payBy"' + cls('payBy') + ' value="' + esc(D.payBy) + '"></label></div>' +
+      '<div class="lbl">申込方法</div><div class="choice">' + ST.choices.applyHow.map(function (x) { return '<button type="button" data-set="applyHow|' + x + '" aria-pressed="' + (D.applyHow === x) + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<label>当日の受付<input id="d-reception"' + cls('reception') + ' value="' + esc(D.reception) + '" placeholder="例：8:00〜8:30 本部テント（代表者）"></label>' +
+      '<label>要項のリンク<input id="d-url"' + cls('url') + ' inputmode="url" value="' + esc(D.url) + '" placeholder="https://…"></label>' +
       '<button class="btn" type="submit">' + (D.from === 'edit' ? '保存する' : '保存してポータルに公開') + '</button><div class="hint">保存すると、クラブのGoogleカレンダーにも予定が入ります。</div></form></section>';
     view.innerHTML = h;
     bindBack();
     on('[data-from]', function () { D.from = this.dataset.from; render(); });
     on('[data-copy]', function () {
       var src = draftFrom(evByKey(this.dataset.copy));
-      applyDraft(D, { title: src.title, type: src.type, place: src.place, meetTime: src.meetTime, meetPlace: src.meetPlace, target: src.target, fee: src.fee, races: src.races, items: src.items, notes: src.notes });
+      applyDraft(D, { title: src.title, type: src.type, place: src.place, meetTime: src.meetTime, meetPlace: src.meetPlace, target: src.target, fee: src.fee, races: src.races, items: src.items, notes: src.notes, organizer: src.organizer, applyHow: src.applyHow, reception: src.reception });
       D.date = ''; D.deadline = ''; D.autoDeadline = true;
       S.toast = '✅「' + src.title + '」をコピーしました。日付を入れてください'; S.toastErr = false; render();
       document.getElementById('d-date').focus();
@@ -622,7 +641,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       S.toast = n ? '✅ ' + n + 'か所を読み取りました。緑の欄を確認してください' : '読み取れる項目がありませんでした。手で入れてください'; S.toastErr = !n;
       render();
     });
-    ['title', 'place', 'meetPlace', 'fee', 'notes', 'deadline'].forEach(function (k) {
+    ['title', 'place', 'meetPlace', 'fee', 'notes', 'deadline', 'organizer', 'applyBy', 'payBy', 'reception', 'url'].forEach(function (k) {
       document.getElementById('d-' + k).addEventListener('input', function () { D[k] = this.value; if (k === 'deadline') D.autoDeadline = false; });
     });
     document.getElementById('d-date').addEventListener('change', function () {
@@ -637,7 +656,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('evForm').addEventListener('submit', function (e) {
       e.preventDefault();
       if (!D.title.trim() || !D.date) { S.toast = '大会名と日付を入れてください。'; S.toastErr = true; render(); return; }
-      var payload = { key: D.key, title: D.title, type: D.type, date: D.date, place: D.place, meetTime: fmtTime(D.meetTime), meetPlace: D.meetPlace, target: D.target, fee: D.fee, deadline: D.deadline, races: D.races, items: D.items, notes: D.notes };
+      var payload = { key: D.key, title: D.title, type: D.type, date: D.date, place: D.place, meetTime: fmtTime(D.meetTime), meetPlace: D.meetPlace, target: D.target, fee: D.fee, deadline: D.deadline, races: D.races, items: D.items, notes: D.notes,
+        organizer: D.organizer, applyBy: D.applyBy, applyHow: D.applyHow, payBy: D.payBy, reception: D.reception, url: D.url };
       call('saveRace', payload, function (st) {
         if (!st.message) return;
         var saved = st.events.filter(function (x) { return x.title === D.title.trim() && x.date === D.date; })[0];
@@ -1004,6 +1024,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<div class="copybox">' + esc(md(e.date).replace(/\(.\)/, '') + '\n' + e.title + '\n' + yen(det.fee * joined.length).replace('¥', '') + '円\n（' + CLUB + '）') + '</div><div class="hint">封筒に書くときの見本です。</div></section>';
       h += payCard(e, det.fee * paid.length, man);
     }
+    h += taskCard(e, '受付', '当日の受付', (det.reception ? '受付：' + esc(det.reception) + '。' : '') + '受付を済ませたら「済にする」を押してください。', man);
     h += taskCard(e, 'プログラム', 'プログラム・組み合わせ', 'プログラムや番組編成が出たら写真を載せ、「タイムテーブル」に時刻を入れてください。', man);
     var pairs = [];
     ttRows(e).forEach(function (r) { rowKids(e, r).forEach(function (k) { pairs.push({ r: r, k: k }); }); });
@@ -1166,6 +1187,92 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       });
     });
     loadThumbs();
+  }
+
+  // ---- 大会の状況・資料・履歴 ----
+  var STEPS = ['案内待ち', '募集中', '申込準備', '申込済み', '受付済み', '終了'];
+  function raceStatus(e) {
+    var det = e.detail, done = function (k) { var t = taskOf(e.key, k, ''); return t && t.done; };
+    if (e.cancelled) return '中止';
+    if (e.date < ST.today) return '終了';
+    if (done('受付')) return '受付済み';
+    if (done('エントリー控え')) return '申込済み';
+    if (!det) return '案内待ち';
+    if (det.deadline && ST.today > det.deadline) return '申込準備';
+    return '募集中';
+  }
+  function untilText(date) { var n = diff(ST.today, date); return n < 0 ? '過ぎています' : n === 0 ? '今日まで' : 'あと' + n + '日'; }
+  function statusCard(e) {
+    var st = raceStatus(e), det = e.detail || {}, i = STEPS.indexOf(st), applied = i >= STEPS.indexOf('申込済み');
+    var h = '<section class="card"><h2>大会の状況<span class="pill ' + (st === '中止' ? 'p-gray' : applied ? 'p-ok' : 'p-warn') + '">' + st + '</span></h2>' +
+      '<div class="steps">' + STEPS.map(function (x, j) { return '<span class="' + (j < i ? 'done' : j === i ? 'now' : '') + '">' + x + '</span>'; }).join('') + '</div><dl class="kv">';
+    if (det.deadline) h += '<dt>回答締切</dt><dd>' + md(det.deadline) + '（クラブ内）' + (st === '募集中' ? '　' + untilText(det.deadline) : '') + '</dd>';
+    if (det.applyBy) {
+      var n = diff(ST.today, det.applyBy), warn = !applied && n <= 3;
+      h += '<dt>申込期限</dt><dd>' + md(det.applyBy) + (det.applyHow ? '（' + esc(det.applyHow) + '）' : '') + (applied ? '　<span class="pill p-ok">申込済み</span>' : '　<span class="pill ' + (warn ? 'p-race' : 'p-gray') + '">' + untilText(det.applyBy) + '</span>') + '</dd>';
+    } else if (det.applyHow) h += '<dt>申込方法</dt><dd>' + esc(det.applyHow) + '</dd>';
+    if (det.payBy) h += '<dt>支払期限</dt><dd>' + md(det.payBy) + (ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || (taskOf(e.key, '参加費支払い', '') || {}).done ? '　<span class="pill p-ok">支払い済み</span>' : '') + '</dd>';
+    if (det.reception) h += '<dt>受付</dt><dd>' + esc(det.reception) + ((taskOf(e.key, '受付', '') || {}).done ? '　<span class="pill p-ok">受付済み</span>' : '') + '</dd>';
+    if (det.organizer) h += '<dt>主催</dt><dd>' + esc(det.organizer) + '</dd>';
+    h += '</dl>';
+    if (!det.applyBy && !det.organizer && ST.me.admin) h += '<div class="hint">「案内を直す」で、主催者の申込期限・支払期限・受付・要項のリンクも入れられます。</div>';
+    return h + '</section>';
+  }
+  function docsOf(key) { return ST.docs.filter(function (x) { return x.key === key; }); }
+  function docsCard(e) {
+    var list = docsOf(e.key), det = e.detail || {}, man = canManage(e.key), Dc = S.doc && S.doc.key === e.key ? S.doc : null;
+    var h = '<section class="card"><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>';
+    if (det.url) h += '<div class="between"><span><span class="pill p-gray">要項</span> 主催者のページ</span><a class="btn small ghost" href="' + esc(det.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a></div>';
+    if (list.length) h += '<div class="list">' + list.map(function (x) {
+      return '<div class="between"><span><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '<br><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + (x.type === 'pdf' ? '・PDF' : x.type === 'image' ? '・写真' : '') + '</span></span><span class="row">' +
+        (x.type === 'link' ? '<a class="btn small ghost" href="' + esc(x.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a>' : '<button class="btn small ghost" type="button" data-doc="' + esc(x.id) + '">開く</button>') +
+        (man ? '<button class="icon-btn" type="button" data-ddel="' + esc(x.id) + '" aria-label="消す">×</button>' : '') + '</span></div>';
+    }).join('') + '</div>';
+    if (!list.length && !det.url) h += '<div class="sub">まだ資料はありません。' + (man ? '' : '要項やプログラムが届いたら、役員か当番の人が載せます。') + '</div>';
+    if (man && Dc) {
+      h += '<form class="f" id="docForm"><div class="lbl">種類</div><div class="choice">' + ST.choices.docKinds.map(function (k) { return '<button type="button" data-dk="' + k + '" aria-pressed="' + (Dc.kind === k) + '">' + k + '</button>'; }).join('') + '</div>' +
+        '<label>名前（なくてもOK）<input id="dc-name" value="' + esc(Dc.name || '') + '" placeholder="例：大会要項、申込書（記入例）"></label>' +
+        '<label>リンク<input id="dc-url" inputmode="url" value="' + esc(Dc.url || '') + '" placeholder="https://…（ファイルのときは空でOK）"></label>' +
+        '<div class="row"><label class="btn small ghost upl">📎 写真・PDFを選ぶ<input type="file" accept="image/*,application/pdf" id="dc-file" hidden></label><span class="hint" id="dc-fname">' + esc(Dc.fname || '') + '</span></div>' +
+        '<div class="row"><button class="btn" type="submit">追加する</button><button class="btn ghost" type="button" id="dcCancel">やめる</button></div></form>';
+    } else if (man) h += '<button class="btn small ghost" type="button" id="docAdd" style="justify-self:start">＋ 資料を追加（要項・申込書・プログラムなど）</button>';
+    return h + '</section>';
+  }
+  function historyCard(e) {
+    var list = ST.history.filter(function (x) { return x.key === e.key; }), all = S.histAll === e.key, shown = all ? list : list.slice(0, 6);
+    if (!list.length) return '';
+    return '<section class="card"><h2>履歴<small>' + list.length + '件</small></h2><div class="list">' + shown.map(function (x) {
+      return '<div class="between" style="align-items:flex-start"><span>' + esc(x.text) + '</span><span class="sub" style="white-space:nowrap">' + esc(x.by) + '・' + esc(String(x.at).slice(5, 16).replace('-', '/')) + '</span></div>';
+    }).join('') + '</div>' + (list.length > shown.length ? '<button class="link" type="button" id="histAll">すべて見る（' + list.length + '件）</button>' : '') + '</section>';
+  }
+  function bindRaceInfo(e) {
+    on('#histAll', function () { S.histAll = e.key; render(); });
+    on('#docAdd', function () { S.doc = { key: e.key, kind: '要項' }; render(); });
+    on('#dcCancel', function () { S.doc = null; render(); });
+    var Dc = S.doc;
+    function keep() { if (!document.getElementById('dc-name')) return; Dc.name = val('dc-name'); Dc.url = val('dc-url'); }
+    on('[data-dk]', function () { keep(); Dc.kind = this.dataset.dk; render(); });
+    var fi = document.getElementById('dc-file');
+    if (fi) fi.addEventListener('change', function () {
+      var file = this.files && this.files[0]; if (!file) return;
+      var show = function (data) { Dc.data = data; Dc.fname = data ? file.name : '読み込めませんでした'; document.getElementById('dc-fname').textContent = Dc.fname; if (!val('dc-name')) document.getElementById('dc-name').value = file.name.replace(/\.[^.]+$/, ''); };
+      if (file.type === 'application/pdf') { var r = new FileReader(); r.onload = function () { show(r.result); }; r.onerror = function () { show(null); }; r.readAsDataURL(file); }
+      else readImage(file, show);
+    });
+    var f = document.getElementById('docForm');
+    if (f) f.addEventListener('submit', function (x) { x.preventDefault(); keep(); call('addDoc', { key: e.key, kind: Dc.kind, name: Dc.name, url: Dc.url, data: Dc.data || '' }, function () { S.doc = null; }); });
+    on('[data-ddel]', function () { if (confirm('この資料を消しますか？')) call('deleteDoc', { id: this.dataset.ddel }); });
+    on('[data-doc]', function () {
+      var b = this, x = ST.docs.find(function (d) { return d.id === b.dataset.doc; }); b.textContent = '読み込み中…';
+      rpc('doc', { id: x.id }, function (r) {
+        b.textContent = '開く';
+        if (x.type === 'image') { PHOTO['f' + x.id] = r.data; showPhoto(x.id); return; }
+        var bin = atob(r.data.split(',')[1]), arr = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        var url = URL.createObjectURL(new Blob([arr], { type: 'application/pdf' })), a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.download = (r.name || '資料') + '.pdf'; document.body.appendChild(a); a.click(); a.remove();
+      }, function (err) { b.textContent = '開く'; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
+    });
   }
 
   // ---- コメント・ヒヤリハット ----

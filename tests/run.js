@@ -348,6 +348,33 @@ test('コメント・ヒヤリハット: みんなで共有し、役員が対策
   assert.throws(() => gas.ctx.api(k3, 'deleteComment', { id }), /書いた人と役員/);
   assert.throws(() => gas.ctx.api(k2, 'saveComment', { key: prac.key, body: ' ' }), /書いてください/);
 });
+test('大会の詳細: 主催の申込期限・資料・履歴', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  let st = gas.ctx.api(kAdmin, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', deadline: '2026-10-15', organizer: '市陸上競技協会', applyBy: '2026-10-18', applyHow: 'Web', payBy: '2026-10-25', reception: '8:00〜 本部', url: 'https://example.com/youkou' });
+  const det = st.events.find((e) => e.key === race.key).detail;
+  assert.deepStrictEqual([det.organizer, det.applyBy, det.applyHow, det.payBy, det.reception, det.url], ['市陸上競技協会', '2026-10-18', 'Web', '2026-10-25', '8:00〜 本部', 'https://example.com/youkou']);
+  assert.ok(gas.line(dm('U1'), '新着').includes('申込期限が近い：秋季記録会'), '役員の新着に出る');
+  gas.ctx.api(k2, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: [] });
+  assert.throws(() => gas.ctx.api(k2, 'addDoc', { key: race.key, kind: '要項', url: 'https://example.com' }), /当番の人だけ/);
+  st = gas.ctx.api(kAdmin, 'addDoc', { key: race.key, kind: '申込書', name: '申込書（記入例）', url: 'https://example.com/form' });
+  const pdf = 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 test').toString('base64');
+  st = gas.ctx.api(kAdmin, 'addDoc', { key: race.key, kind: 'プログラム', name: 'プログラム', data: pdf });
+  assert.deepStrictEqual(st.docs.map((x) => x.type), ['link', 'pdf']);
+  assert.strictEqual(gas.ctx.api(k3, 'doc', { id: st.docs[1].id }).data, pdf, 'メンバーは資料を見られる');
+  assert.throws(() => gas.ctx.api(kAdmin, 'addDoc', { key: race.key, kind: '要項', data: 'data:text/html;base64,AAAA' }), /写真かPDF/);
+  assert.strictEqual(st.photos.length, 0, '資料はアルバムに出さない');
+  gas.ctx.api(kAdmin, 'setTask', { key: race.key, kind: 'エントリー控え', target: '', done: true });
+  gas.ctx.api(kAdmin, 'setTask', { key: race.key, kind: '受付', target: '', done: true });
+  st = gas.ctx.api(k3, 'bootstrap');
+  const hist = st.history.filter((x) => x.key === race.key).map((x) => x.text);
+  assert.deepStrictEqual(hist, ['受付 済', 'エントリー控え 済', '資料を追加：プログラム', '資料を追加：申込書（申込書（記入例））', 'エントリー：鈴木けんた 参加', '大会の案内をつくりました'], '新しい順');
+  assert.ok(!gas.line(dm('U1'), '新着').includes('申込期限が近い'), '申込済みなら出ない');
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

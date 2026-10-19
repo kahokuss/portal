@@ -46,6 +46,9 @@ const API_ACTIONS = {
   broadcast: { admin: true, run: broadcastAction_ },
   saveLedger: { run: saveLedgerAction_ },
   saveComment: { run: saveCommentAction_ },
+  addDoc: { run: addDocAction_ },
+  deleteDoc: { run: deleteDocAction_ },
+  doc: { raw: true, run: docAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -73,6 +76,12 @@ function raceToObj_(r) {
     races: splitNames_(r['種目']),
     items: splitNames_(r['持ち物']),
     notes: r['注意'],
+    organizer: r['主催'] || '',
+    applyBy: r['申込期限'] || '',
+    applyHow: r['申込方法'] || '',
+    payBy: r['支払期限'] || '',
+    reception: r['受付'] || '',
+    url: r['要項URL'] || '',
   };
 }
 
@@ -142,7 +151,7 @@ function buildState_(ctx) {
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
   // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => photoIdOf_(x) && ['領収書', 'ヒヤリハット', 'コメント'].indexOf(x['種類']) < 0 && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .filter((x) => photoIdOf_(x) && ['領収書', 'ヒヤリハット', 'コメント', '資料'].indexOf(x['種類']) < 0 && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
     .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
     .reverse();
 
@@ -183,7 +192,9 @@ function buildState_(ctx) {
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
     comments: commentsFor_(ctx),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
+    history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
 
@@ -255,6 +266,7 @@ function saveEntryAction_(ctx, p) {
     if (row) updateRow_(SHEETS.ENTRIES, Object.assign(row, data));
     else appendRow_(SHEETS.ENTRIES, Object.assign(data, { '集金': '' }));
   });
+  logHistory_(p.key, ctx, 'エントリー：' + p.child + ' ' + p.join + (races.length ? '（' + races.join('・') + '）' : ''));
   return p.child + '：' + p.join + (races.length ? '（' + races.join('・') + '）' : '') + 'で受け付けました';
 }
 
@@ -266,6 +278,7 @@ function setPaidAction_(ctx, p) {
     row['更新日時'] = now_();
     updateRow_(SHEETS.ENTRIES, row);
   });
+  logHistory_(p.key, ctx, '集金：' + p.child + (p.paid ? ' 済' : ' 未にもどす'));
   return '';
 }
 
@@ -337,6 +350,8 @@ function saveRaceAction_(ctx, p) {
   const place = String(p.place || '').trim().slice(0, 80);
   const ev = upsertRaceEvent_(p.key || '', title, p.date, place);
   const deadline = /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '';
+  const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
+  const url = /^https?:\/\/\S+$/.test(String(p.url || '').trim()) ? String(p.url).trim().slice(0, 300) : '';
   const data = {
     eventKey: ev.eventKey,
     '種別': ['大会', '記録会', '練習試合'].indexOf(p.type) >= 0 ? p.type : '大会',
@@ -349,12 +364,20 @@ function saveRaceAction_(ctx, p) {
     '持ち物': cleanList_(p.items).join(','),
     '注意': String(p.notes || '').slice(0, 1000),
     '更新日時': now_(),
+    '主催': String(p.organizer || '').trim().slice(0, 60),
+    '申込期限': ymd(p.applyBy),
+    '申込方法': CHOICES.APPLY_HOW.indexOf(p.applyHow) >= 0 ? p.applyHow : '',
+    '支払期限': ymd(p.payBy),
+    '受付': String(p.reception || '').trim().slice(0, 80),
+    '要項URL': url,
   };
+  let created = false;
   withLock_(() => {
     const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === ev.eventKey);
     if (row) updateRow_(SHEETS.RACES, Object.assign(row, data));
-    else appendRow_(SHEETS.RACES, data);
+    else { appendRow_(SHEETS.RACES, data); created = true; }
   });
+  logHistory_(ev.eventKey, ctx, created ? '大会の案内をつくりました' : '大会の案内を直しました');
   return '「' + title + '」を保存しました';
 }
 

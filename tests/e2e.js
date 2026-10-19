@@ -115,6 +115,7 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('#evForm button[type=submit]');
       await a.waitForSelector('#copyText');
       const row = gas.rows('大会').find((r) => r['集合場所'] === '正面スタンド下');
+      assert.ok(row);
       assert.strictEqual(row['集合時刻'], '7:50');
       assert.strictEqual(row['対象'], '4年生以上');
       assert.strictEqual(row['種目'], '100m,走幅跳');
@@ -335,6 +336,29 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('#reload');
       await p.idle();
       assert.ok((await p.textContent('#view')).includes('最近のヒヤリハット'));
+    });
+    await step('役員: 主催の申込期限・資料を入れると、大会の状況と履歴が見られる', async () => {
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("秋季記録会")');
+      await a.click('#editRace');
+      await a.fill('#d-organizer', '市陸上競技協会');
+      await a.fill('#d-applyBy', '2026-10-16');
+      await a.click('[data-set="applyHow|Web"]');
+      await a.fill('#d-reception', '8:00〜8:30 本部テント');
+      await a.click('#evForm button[type=submit]');
+      await a.waitForSelector('#copyText');
+      await a.click('[data-ev]');
+      let text = await a.textContent('#view');
+      assert.ok(text.includes('大会の状況') && text.includes('申込期限') && text.includes('あと2日'), text);
+      await a.click('#docAdd');
+      await a.click('[data-dk="要項"]');
+      await a.fill('#dc-name', '大会要項');
+      await a.fill('#dc-url', 'https://example.com/youkou.pdf');
+      await a.click('#docForm button[type=submit]');
+      await a.idle();
+      text = await a.textContent('#view');
+      assert.ok(text.includes('大会要項') && text.includes('資料を追加：要項（大会要項）'), text);
+      await a.shot('9-race-overview');
     });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');

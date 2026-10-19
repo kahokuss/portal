@@ -122,6 +122,11 @@ function handleNews_(ev) {
     }
     const open = readRows_(SHEETS.COMMENTS).filter((c) => c.id && c['種類'] === 'ヒヤリハット' && !c['対策']);
     if (open.length) adminLines.push('⚠ 対策がまだのヒヤリハット ' + open.length + '件');
+    const tasks = readRows_(SHEETS.TASKS);
+    d.events.filter((e) => e.detail && e.detail.applyBy && e.detail.applyBy <= addDays_(d.today, 7)).forEach((e) => {
+      const done = tasks.some((t) => t.eventKey === e.key && t['種類'] === 'エントリー控え' && t['状態'] === '済');
+      if (!done) adminLines.push('📮 申込期限が近い：' + e.title + '（' + formatDate_(e.detail.applyBy) + '・' + dayWord_(e.detail.applyBy, d.today).replace('今日', '今日まで') + '）');
+    });
     const noDuty = d.events.filter((e) => e.date <= addDays_(d.today, 14) && !duties.some((x) => x.eventKey === e.key));
     if (noDuty.length) adminLines.push('🧹 当番が決まっていない予定（2週間以内）' + noDuty.length + '件');
     if (adminLines.length) adminLines.unshift('【役員向け】');

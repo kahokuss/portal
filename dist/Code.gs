@@ -127,6 +127,11 @@ function handleNews_(ev) {
     }
     const open = readRows_(SHEETS.COMMENTS).filter((c) => c.id && c['種類'] === 'ヒヤリハット' && !c['対策']);
     if (open.length) adminLines.push('⚠ 対策がまだのヒヤリハット ' + open.length + '件');
+    const tasks = readRows_(SHEETS.TASKS);
+    d.events.filter((e) => e.detail && e.detail.applyBy && e.detail.applyBy <= addDays_(d.today, 7)).forEach((e) => {
+      const done = tasks.some((t) => t.eventKey === e.key && t['種類'] === 'エントリー控え' && t['状態'] === '済');
+      if (!done) adminLines.push('📮 申込期限が近い：' + e.title + '（' + formatDate_(e.detail.applyBy) + '・' + dayWord_(e.detail.applyBy, d.today).replace('今日', '今日まで') + '）');
+    });
     const noDuty = d.events.filter((e) => e.date <= addDays_(d.today, 14) && !duties.some((x) => x.eventKey === e.key));
     if (noDuty.length) adminLines.push('🧹 当番が決まっていない予定（2週間以内）' + noDuty.length + '件');
     if (adminLines.length) adminLines.unshift('【役員向け】');
@@ -733,10 +738,13 @@ const CHOICES = {
   TARGETS: ['全員', '3年生以上', '4年生以上', '希望者'],
   ABSENCE_REASONS: ['体調不良', '家の都合', '学校行事', 'その他'],
   // 大会の手続き（チェックリスト）の種類
-  TASKS: ['エントリー控え', '参加費支払い', 'プログラム', '招集', 'リレー予選', 'リレー決勝', 'レーン', 'ナンバー', 'リザルト'],
+  TASKS: ['エントリー控え', '参加費支払い', 'プログラム', '受付', '招集', 'リレー予選', 'リレー決勝', 'レーン', 'ナンバー', 'リザルト'],
   // だれでも報告できる手続き（会場で助け合えるように）。ほかは役員と当番だけ
   OPEN_TASKS: ['招集', 'レーン', 'ナンバー', 'リザルト'],
   ROUNDS: ['予選', '準決勝', '決勝', 'タイムレース'],
+  // 大会の申込方法と、資料の種類
+  APPLY_HOW: ['Web', 'メール', 'FAX', '郵送', '持参', '当日'],
+  DOC_KINDS: ['要項', '申込書', 'プログラム', '地図', 'リザルト', 'その他'],
 };
 
 function prop_(key) {
@@ -1243,6 +1251,9 @@ const API_ACTIONS = {
   broadcast: { admin: true, run: broadcastAction_ },
   saveLedger: { run: saveLedgerAction_ },
   saveComment: { run: saveCommentAction_ },
+  addDoc: { run: addDocAction_ },
+  deleteDoc: { run: deleteDocAction_ },
+  doc: { raw: true, run: docAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -1270,6 +1281,12 @@ function raceToObj_(r) {
     races: splitNames_(r['種目']),
     items: splitNames_(r['持ち物']),
     notes: r['注意'],
+    organizer: r['主催'] || '',
+    applyBy: r['申込期限'] || '',
+    applyHow: r['申込方法'] || '',
+    payBy: r['支払期限'] || '',
+    reception: r['受付'] || '',
+    url: r['要項URL'] || '',
   };
 }
 
@@ -1339,7 +1356,7 @@ function buildState_(ctx) {
     .map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], target: x['対象'], done: x['状態'] === '済', memo: x['メモ'], photos: splitNames_(x['写真ID']), by: x['更新者'], at: x['日時'] }));
   // アルバム：1年分の写真（LINEグループに送られた写真と、ポータルから上げた写真）
   const photos = readRows_(SHEETS.PHOTOS)
-    .filter((x) => photoIdOf_(x) && ['領収書', 'ヒヤリハット', 'コメント'].indexOf(x['種類']) < 0 && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
+    .filter((x) => photoIdOf_(x) && ['領収書', 'ヒヤリハット', 'コメント', '資料'].indexOf(x['種類']) < 0 && String(x['日時']).slice(0, 10) >= addDays_(today, -400))
     .map((x) => ({ id: photoIdOf_(x), key: x.eventKey, title: x['予定'], date: String(x['日時']).slice(0, 10), by: x['表示名'], at: x['日時'], kind: x['種類'] || 'LINE', mine: x.userId === ctx.userId }))
     .reverse();
 
@@ -1380,7 +1397,9 @@ function buildState_(ctx) {
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
     comments: commentsFor_(ctx),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
+    history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
 
@@ -1452,6 +1471,7 @@ function saveEntryAction_(ctx, p) {
     if (row) updateRow_(SHEETS.ENTRIES, Object.assign(row, data));
     else appendRow_(SHEETS.ENTRIES, Object.assign(data, { '集金': '' }));
   });
+  logHistory_(p.key, ctx, 'エントリー：' + p.child + ' ' + p.join + (races.length ? '（' + races.join('・') + '）' : ''));
   return p.child + '：' + p.join + (races.length ? '（' + races.join('・') + '）' : '') + 'で受け付けました';
 }
 
@@ -1463,6 +1483,7 @@ function setPaidAction_(ctx, p) {
     row['更新日時'] = now_();
     updateRow_(SHEETS.ENTRIES, row);
   });
+  logHistory_(p.key, ctx, '集金：' + p.child + (p.paid ? ' 済' : ' 未にもどす'));
   return '';
 }
 
@@ -1534,6 +1555,8 @@ function saveRaceAction_(ctx, p) {
   const place = String(p.place || '').trim().slice(0, 80);
   const ev = upsertRaceEvent_(p.key || '', title, p.date, place);
   const deadline = /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '';
+  const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
+  const url = /^https?:\/\/\S+$/.test(String(p.url || '').trim()) ? String(p.url).trim().slice(0, 300) : '';
   const data = {
     eventKey: ev.eventKey,
     '種別': ['大会', '記録会', '練習試合'].indexOf(p.type) >= 0 ? p.type : '大会',
@@ -1546,12 +1569,20 @@ function saveRaceAction_(ctx, p) {
     '持ち物': cleanList_(p.items).join(','),
     '注意': String(p.notes || '').slice(0, 1000),
     '更新日時': now_(),
+    '主催': String(p.organizer || '').trim().slice(0, 60),
+    '申込期限': ymd(p.applyBy),
+    '申込方法': CHOICES.APPLY_HOW.indexOf(p.applyHow) >= 0 ? p.applyHow : '',
+    '支払期限': ymd(p.payBy),
+    '受付': String(p.reception || '').trim().slice(0, 80),
+    '要項URL': url,
   };
+  let created = false;
   withLock_(() => {
     const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === ev.eventKey);
     if (row) updateRow_(SHEETS.RACES, Object.assign(row, data));
-    else appendRow_(SHEETS.RACES, data);
+    else { appendRow_(SHEETS.RACES, data); created = true; }
   });
+  logHistory_(ev.eventKey, ctx, created ? '大会の案内をつくりました' : '大会の案内を直しました');
   return '「' + title + '」を保存しました';
 }
 
@@ -1646,6 +1677,7 @@ function setDutyAction_(ctx, p) {
     if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': dutyType_(ev), '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
     if (!p.on && row) clearRow_(SHEETS.DUTIES, row);
   });
+  if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, '当番：' + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
   return '';
 }
 
@@ -1734,6 +1766,7 @@ function saveTimetableAction_(ctx, p) {
     });
     rows.filter((x) => !keep[x.id]).forEach((x) => clearRow_(SHEETS.TIMETABLE, x));
   });
+  logHistory_(p.key, ctx, 'タイムテーブルを保存（' + list.length + '件）');
   return 'タイムテーブルを保存しました（' + list.length + '件）';
 }
 
@@ -1767,6 +1800,7 @@ function setTaskAction_(ctx, p) {
     if (p.done !== undefined) t['状態'] = p.done ? '済' : '';
     if (p.memo !== undefined) t['メモ'] = String(p.memo).slice(0, 500);
   });
+  if (kind !== 'レーン' && kind !== 'ナンバー') logHistory_(p.key, ctx, kind + (target && kind !== '招集' ? '（' + target.split('|')[0] + '）' : kind === '招集' ? '：' + target.split('|')[0] : '') + (p.done === true ? ' 済' : p.done === false ? ' 取り消し' : ' を記録'));
   return p.done ? kind + '：済にしました' : '';
 }
 
@@ -1785,6 +1819,7 @@ function uploadPhotoAction_(ctx, p) {
       if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い') t['状態'] = '済';
     });
   }
+  logHistory_(p.key, ctx, (kind ? kind + 'の' : '') + '写真を追加');
   return '写真を保存しました';
 }
 
@@ -1939,6 +1974,7 @@ function saveResultAction_(ctx, p) {
     if (row) updateRow_(SHEETS.RESULTS, Object.assign(row, data));
     else appendRow_(SHEETS.RESULTS, Object.assign(data, { id: randomKey_().slice(0, 10) }));
   });
+  logHistory_(ev.eventKey, ctx, '結果：' + child + ' ' + race + ' ' + record);
   return child + ' ' + race + ' ' + record + ' を記録しました';
 }
 
@@ -1994,6 +2030,7 @@ function saveLedgerAction_(ctx, p) {
       '相手': String(p.payee || '').trim().slice(0, 60), '但し書き': String(p.note || '').trim().slice(0, 100), '写真ID': photo, '記録者': ctx.name, '日時': now_(),
     });
   });
+  if (ev) logHistory_(ev.eventKey, ctx, kind + ' ¥' + amount.toLocaleString('ja-JP') + (p.payee ? '（' + String(p.payee).slice(0, 30) + '）' : '') + (photo ? '・領収書の写真あり' : ''));
   if (ev && kind === '支払い') upsertTask_(ctx, ev.eventKey, '参加費支払い', '', (t) => { t['状態'] = '済'; if (photo) t['写真ID'] = splitNames_(t['写真ID']).concat([photo]).join(','); });
   return (kind === '入金' ? '入金' : '支払い') + ' ¥' + amount.toLocaleString('ja-JP') + ' を記録しました';
 }
@@ -2081,6 +2118,73 @@ function commentsFor_(ctx) {
         date: ev ? ev['日付'] : String(x['日時']).slice(0, 10), title: ev ? ev['タイトル'] : '',
       };
     });
+}
+
+// ---- 大会の資料・履歴 ----
+
+/** 大会の履歴に1行足す（だれが・いつ・何をしたか） */
+function logHistory_(eventKey, ctx, text) {
+  if (!eventKey) return;
+  try {
+    appendRow_(SHEETS.HISTORY, { '日時': now_(), eventKey: eventKey, '表示名': (ctx && ctx.name) || '', '内容': String(text).slice(0, 200) });
+  } catch (err) {
+    console.warn('履歴を残せませんでした: ' + err);
+  }
+}
+
+/**
+ * 大会の資料（要項・申込書・プログラム・地図・リザルトなど）を足す。
+ * リンク（主催者のページ）か、ファイル（写真・PDF）。メンバー全員が見られる。足せるのは役員と当番
+ */
+function addDocAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  const kind = CHOICES.DOC_KINDS.indexOf(p.kind) >= 0 ? p.kind : 'その他';
+  const url = String(p.url || '').trim();
+  let fileId = '';
+  let type = 'link';
+  if (p.data) {
+    const m = String(p.data).match(/^data:(image\/(?:jpeg|png|webp)|application\/pdf);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) throw new Error('写真かPDFを選んでください。');
+    if (m[2].length > 14 * 1024 * 1024) throw new Error('ファイルが大きすぎます（10MBまで）。');
+    if (m[1] === 'application/pdf') {
+      const name = now_().replace(/[-: ]/g, '').slice(0, 14) + '_' + safeName_(kind) + '_' + safeName_(p.name || 'document') + '.pdf';
+      const folder = subfolder_(photoRoot_(), ev['日付'] + ' ' + safeName_(ev['タイトル']));
+      const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], name));
+      appendRow_(SHEETS.PHOTOS, { '日時': now_(), eventKey: ev.eventKey, '予定': ev['タイトル'], userId: ctx.userId, '表示名': ctx.name, 'ファイル名': name, URL: file.getUrl(), 'ファイルID': file.getId(), '種類': '資料' });
+      fileId = file.getId();
+      type = 'pdf';
+    } else {
+      fileId = savePhotoFile_(ctx, ev, p.data, '資料').getId();
+      type = 'image';
+    }
+  } else if (!/^https?:\/\/\S+$/.test(url)) {
+    throw new Error('リンク（https://…）を入れるか、ファイルを選んでください。');
+  }
+  const name = String(p.name || '').trim().slice(0, 60) || kind;
+  withLock_(() => {
+    appendRow_(SHEETS.DOCS, { id: randomKey_().slice(0, 10), eventKey: ev.eventKey, '種類': kind, '名前': name, URL: fileId ? '' : url.slice(0, 300), 'ファイルID': fileId, '形式': type, '追加者': ctx.name, '日時': now_() });
+  });
+  logHistory_(ev.eventKey, ctx, '資料を追加：' + kind + (name !== kind ? '（' + name + '）' : ''));
+  return '資料「' + name + '」を追加しました';
+}
+
+function deleteDocAction_(ctx, p) {
+  const row = readRows_(SHEETS.DOCS).find((x) => x.id && x.id === p.id);
+  if (!row) throw new Error('資料が見つかりません。');
+  requireManager_(ctx, row.eventKey);
+  withLock_(() => clearRow_(SHEETS.DOCS, row));
+  logHistory_(row.eventKey, ctx, '資料を削除：' + row['名前']);
+  return '資料を消しました';
+}
+
+/** 資料のファイル（写真・PDF）を返す。「資料」シートにあるものだけ */
+function docAction_(ctx, p) {
+  const row = readRows_(SHEETS.DOCS).find((x) => x.id && x.id === p.id && x['ファイルID']);
+  if (!row) throw new Error('資料が見つかりません。');
+  const blob = DriveApp.getFileById(row['ファイルID']).getBlob();
+  return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
 }
 
 // ===== Results.gs =====
@@ -2300,7 +2404,7 @@ const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時'] },
-  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時'] },
+  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },
@@ -2310,6 +2414,8 @@ const SHEETS = {
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
   COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時'] },
+  DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
+  HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
   SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };

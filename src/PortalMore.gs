@@ -596,3 +596,42 @@ function setDeadlineAction_(ctx, p) {
 function deadlineLabel_(kind) {
   return { 'エントリー控え': 'エントリーの提出', '参加費支払い': '参加費の支払い', 'リレー予選': 'リレー予選のオーダー', 'リレー決勝': 'リレー決勝のオーダー' }[kind] || kind;
 }
+
+// ---- 練習のダウン（お迎えの目安） ----
+
+/**
+ * 今日の練習に、ダウンに入った時刻を記録する。どの練習か分からないときは、今の時刻にいちばん近い今日の練習
+ * @return {Object|null} 記録した「予定」シートの行
+ */
+function recordDown_(when, by, eventKey) {
+  const date = fmt_(when, 'yyyy-MM-dd');
+  const hm = fmt_(when, 'HH:mm');
+  return withLock_(() => {
+    const todays = readRows_(SHEETS.EVENTS).filter((e) => e['日付'] === date && e['状態'] !== '中止' && (eventKey ? e.eventKey === eventKey : (e['種別'] || guessType_(e['タイトル'])) === '練習'));
+    if (!todays.length) return null;
+    const dist = (e) => (e['開始'] && e['開始'] !== '終日' ? Math.abs(toMin_(e['終了'] || e['開始']) - toMin_(hm)) : 9999);
+    const row = todays.sort((a, b) => dist(a) - dist(b))[0];
+    row['ダウン'] = hm;
+    updateRow_(SHEETS.EVENTS, row);
+    return row;
+  });
+}
+
+function toMin_(hm) {
+  const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/);
+  return m ? +m[1] * 60 + +m[2] : 0;
+}
+
+/** ポータルの「ダウンに入った」ボタン（役員と、その日の当番の家族）。押し直すと時刻を直せる。clear で消す */
+function markDownAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('予定が見つかりません。');
+  if (ev['日付'] !== today_()) throw new Error('今日の練習だけ記録できます。');
+  if (!ctx.admin && !readRows_(SHEETS.DUTIES).some((d) => d.eventKey === p.key && d['家族ID'] === ctx.famId)) throw new Error('この操作は、役員とその日の当番の人だけができます。');
+  if (p.clear) {
+    withLock_(() => { const row = findEvent_(p.key); row['ダウン'] = ''; updateRow_(SHEETS.EVENTS, row); });
+    return 'ダウンの記録を消しました';
+  }
+  const row = recordDown_(new Date(), ctx.name, p.key);
+  return 'ダウン ' + row['ダウン'] + ' を記録しました';
+}

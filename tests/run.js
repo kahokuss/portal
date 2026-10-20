@@ -589,6 +589,31 @@ test('スプレッドシート: 書きかえてよい列は緑、裏方の列は
   assert.strictEqual(fam.protections.filter((p) => p.desc === '自動で入る列：userId').length, 1, '2回実行しても保護は1つ');
   assert.ok(gas.sheet('使い方').data[0][0].includes('ポータルとLINE Botのデータ'));
 });
+test('ダウン: グループの「ダウン入ります」で時刻だけ記録（返事なし）、ポータルとBotにお迎えの目安', () => {
+  const gas = createGas({ now: '2026-10-15T18:20:00+09:00' });
+  gas.init();
+  const jst = (x) => new Date(x + '+09:00');
+  gas.calendar.add({ title: '通常練習', start: jst('2026-10-15T17:00:00'), end: jst('2026-10-15T18:30:00'), location: '第二小学校' });
+  Object.assign(gas.profiles, { U1: '山田', U2: '鈴木', U3: '佐藤' });
+  ['U1', 'U2', 'U3'].forEach((u) => gas.members.add(u));
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kAdmin, 'bootstrap');
+  const before = gas.fetches.length;
+  assert.strictEqual(gas.line(group('U3'), 'ダウン入ります！'), '', 'グループには返さない');
+  assert.strictEqual(gas.fetches.slice(before).filter((f) => /push|reply/.test(f.url)).length, 0, '通数は使わない');
+  let st = gas.ctx.api(k3, 'bootstrap');
+  assert.strictEqual(st.events[0].down, '18:20');
+  assert.ok(gas.line(dm('U2'), '今日').includes('ダウン 18:20〜（お迎えの目安 18:35頃）'));
+  assert.strictEqual(gas.line(group('U3'), 'ダウンジャケット忘れた'), '', 'ほかの話には反応しない');
+  assert.strictEqual(gas.ctx.api(k3, 'bootstrap').events[0].down, '18:20');
+  assert.throws(() => gas.ctx.api(k2, 'markDown', { key: st.events[0].key }), /当番の人だけ/);
+  gas.ctx.api(kAdmin, 'setDuty', { key: st.events[0].key, fam: 'U2', on: true });
+  st = gas.ctx.api(k2, 'markDown', { key: st.events[0].key, clear: true });
+  assert.strictEqual(st.events[0].down, '');
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

@@ -73,7 +73,15 @@ function parseCommand_(text) {
 /** グループで送られても、みんなに見せる返事。いまはなし（Botの返事はすべて、送った人にだけ届ける） */
 const PUBLIC_COMMANDS = [];
 
+/** グループで「ダウン入ります」「ダウンに入りました」などと送られたか（返事はしない） */
+const DOWN_PATTERN = /^(?:クール)?ダウン(?:に)?(?:入|はい|開始|始|スタート)/;
+
 function handleText_(ev) {
+  if (ev.source.type === 'group' && DOWN_PATTERN.test(String(ev.message.text).trim())) {
+    // 保護者へのお知らせは、送った人のメッセージそのもの（通数はかからない）。Botは時刻を記録するだけ
+    recordDown_(new Date(ev.timestamp), getDisplayName_(ev.source));
+    return;
+  }
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;

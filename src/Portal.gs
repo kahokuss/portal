@@ -50,6 +50,7 @@ const API_ACTIONS = {
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
   setDeadline: { run: setDeadlineAction_ },
+  markDown: { run: markDownAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -117,6 +118,7 @@ function buildState_(ctx) {
         place: e['場所'],
         type: race ? race['種別'] || '大会' : e['種別'] || guessType_(e['タイトル']),
         cancelled: e['状態'] === '中止',
+        down: e['日付'] === today ? e['ダウン'] || '' : '',
         detail: race ? raceToObj_(race) : null,
       };
     });
@@ -206,7 +208,7 @@ function buildState_(ctx) {
     comments: commentsFor_(ctx),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, downMinutes: CONFIG.DOWN_MINUTES },
   };
 }
 

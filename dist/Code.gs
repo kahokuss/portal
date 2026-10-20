@@ -183,6 +183,7 @@ function handleToday_(ev) {
         });
       });
     } else {
+      if (e.row['ダウン']) lines.push('🏃 ダウン ' + e.row['ダウン'] + '〜（お迎えの目安 ' + addMinutes_(e.row['ダウン'], CONFIG.DOWN_MINUTES) + '頃）');
       const off = readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] === e.date).map((a) => a['子ども']);
       lines.push('休み ' + off.length + '人' + (off.length ? '：' + off.join('、') : ''));
     }
@@ -383,6 +384,11 @@ function setupRichMenu() {
   });
   lineFetch_(LINE_API + '/user/all/richmenu/' + id, 'post');
   console.log('リッチメニューを設定しました: ' + id);
+}
+
+function addMinutes_(hm, n) {
+  const t = toMin_(hm) + n;
+  return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
 }
 
 // ===== Calendar.gs =====
@@ -630,7 +636,15 @@ function parseCommand_(text) {
 /** グループで送られても、みんなに見せる返事。いまはなし（Botの返事はすべて、送った人にだけ届ける） */
 const PUBLIC_COMMANDS = [];
 
+/** グループで「ダウン入ります」「ダウンに入りました」などと送られたか（返事はしない） */
+const DOWN_PATTERN = /^(?:クール)?ダウン(?:に)?(?:入|はい|開始|始|スタート)/;
+
 function handleText_(ev) {
+  if (ev.source.type === 'group' && DOWN_PATTERN.test(String(ev.message.text).trim())) {
+    // 保護者へのお知らせは、送った人のメッセージそのもの（通数はかからない）。Botは時刻を記録するだけ
+    recordDown_(new Date(ev.timestamp), getDisplayName_(ev.source));
+    return;
+  }
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
@@ -735,6 +749,8 @@ const CONFIG = {
 
   // 練習の予定をポータルで作るときの時間の候補（夏・秋〜春）
   PRACTICE_TIMES: [['17:00', '18:30'], ['18:00', '19:30']],
+  // 練習のダウン（整理運動）にかかる時間（分）。ダウン開始＋この時間を「お迎えの目安」として出す
+  DOWN_MINUTES: 15,
   // タイムテーブルで「アップ」を空にしたとき、招集の何分前を目安に出すか
   WARM_UP_MINUTES_BEFORE_CALL: 30,
   // 家族の招待番号の有効時間（時間。最大6）
@@ -1392,6 +1408,7 @@ const API_ACTIONS = {
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
   setDeadline: { run: setDeadlineAction_ },
+  markDown: { run: markDownAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -1459,6 +1476,7 @@ function buildState_(ctx) {
         place: e['場所'],
         type: race ? race['種別'] || '大会' : e['種別'] || guessType_(e['タイトル']),
         cancelled: e['状態'] === '中止',
+        down: e['日付'] === today ? e['ダウン'] || '' : '',
         detail: race ? raceToObj_(race) : null,
       };
     });
@@ -1548,7 +1566,7 @@ function buildState_(ctx) {
     comments: commentsFor_(ctx),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, downMinutes: CONFIG.DOWN_MINUTES },
   };
 }
 
@@ -2363,6 +2381,45 @@ function deadlineLabel_(kind) {
   return { 'エントリー控え': 'エントリーの提出', '参加費支払い': '参加費の支払い', 'リレー予選': 'リレー予選のオーダー', 'リレー決勝': 'リレー決勝のオーダー' }[kind] || kind;
 }
 
+// ---- 練習のダウン（お迎えの目安） ----
+
+/**
+ * 今日の練習に、ダウンに入った時刻を記録する。どの練習か分からないときは、今の時刻にいちばん近い今日の練習
+ * @return {Object|null} 記録した「予定」シートの行
+ */
+function recordDown_(when, by, eventKey) {
+  const date = fmt_(when, 'yyyy-MM-dd');
+  const hm = fmt_(when, 'HH:mm');
+  return withLock_(() => {
+    const todays = readRows_(SHEETS.EVENTS).filter((e) => e['日付'] === date && e['状態'] !== '中止' && (eventKey ? e.eventKey === eventKey : (e['種別'] || guessType_(e['タイトル'])) === '練習'));
+    if (!todays.length) return null;
+    const dist = (e) => (e['開始'] && e['開始'] !== '終日' ? Math.abs(toMin_(e['終了'] || e['開始']) - toMin_(hm)) : 9999);
+    const row = todays.sort((a, b) => dist(a) - dist(b))[0];
+    row['ダウン'] = hm;
+    updateRow_(SHEETS.EVENTS, row);
+    return row;
+  });
+}
+
+function toMin_(hm) {
+  const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/);
+  return m ? +m[1] * 60 + +m[2] : 0;
+}
+
+/** ポータルの「ダウンに入った」ボタン（役員と、その日の当番の家族）。押し直すと時刻を直せる。clear で消す */
+function markDownAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('予定が見つかりません。');
+  if (ev['日付'] !== today_()) throw new Error('今日の練習だけ記録できます。');
+  if (!ctx.admin && !readRows_(SHEETS.DUTIES).some((d) => d.eventKey === p.key && d['家族ID'] === ctx.famId)) throw new Error('この操作は、役員とその日の当番の人だけができます。');
+  if (p.clear) {
+    withLock_(() => { const row = findEvent_(p.key); row['ダウン'] = ''; updateRow_(SHEETS.EVENTS, row); });
+    return 'ダウンの記録を消しました';
+  }
+  const row = recordDown_(new Date(), ctx.name, p.key);
+  return 'ダウン ' + row['ダウン'] + ' を記録しました';
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -2579,7 +2636,7 @@ function onScheduleSheetEdit(e) {
 const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
-  EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時'] },
+  EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },

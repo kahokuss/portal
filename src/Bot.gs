@@ -127,6 +127,16 @@ function handleNews_(ev) {
       const done = tasks.some((t) => t.eventKey === e.key && t['種類'] === 'エントリー控え' && t['状態'] === '済');
       if (!done) adminLines.push('📮 申込期限が近い：' + e.title + '（' + formatDate_(e.detail.applyBy) + '・' + dayWord_(e.detail.applyBy, d.today).replace('今日', '今日まで') + '）');
     });
+    const nowStr = now_().slice(0, 16), soon = fmt_(new Date(Date.now() + 24 * 3600000), 'yyyy-MM-dd HH:mm');
+    d.events.filter((e) => e.detail).forEach((e) => {
+      Object.keys(e.detail.deadlines || {}).forEach((k) => {
+        const at = e.detail.deadlines[k];
+        if (at < nowStr || at > soon) return;
+        const done = tasks.filter((t) => t.eventKey === e.key && t['種類'] === k);
+        if (done.length && done.every((t) => t['状態'] === '済')) return;
+        adminLines.push('⏰ ' + deadlineLabel_(k) + '：' + at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11) + 'まで（' + e.title + '）');
+      });
+    });
     const noDuty = d.events.filter((e) => e.date <= addDays_(d.today, 14) && !duties.some((x) => x.eventKey === e.key));
     if (noDuty.length) adminLines.push('🧹 当番が決まっていない予定（2週間以内）' + noDuty.length + '件');
     if (adminLines.length) adminLines.unshift('【役員向け】');
@@ -297,7 +307,7 @@ function canonRaceGs_(r) {
   r = toHalfWidth_(r || '').toLowerCase().replace(/\s/g, '').replace(/[×x]/g, 'x').replace(/\(.*?\)/g, '');
   if (/リレー|\dx\d+m/.test(r)) return 'リレー';
   return r.replace('走り幅跳び', '走幅跳').replace('走り高跳び', '走高跳').replace(/幅跳び?$/, '幅跳').replace(/高跳び?$/, '高跳')
-    .replace(/ジャベリック?ボール投げ?|ボール投げ?/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
+    .replace(/ジャベ(?:リック)?ボール(?:投げ?|スロー)|ボール(?:投げ?|スロー)|ジャベリックスロー/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
 }
 
 function sameRaceGs_(a, b) {

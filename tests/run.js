@@ -375,6 +375,27 @@ test('大会の詳細: 主催の申込期限・資料・履歴', () => {
   assert.deepStrictEqual(hist, ['受付 済', 'エントリー控え 済', '資料を追加：プログラム', '資料を追加：申込書（申込書（記入例））', 'エントリー：鈴木けんた 参加', '大会の案内をつくりました'], '新しい順');
   assert.ok(!gas.line(dm('U1'), '新着').includes('申込期限が近い'), '申込済みなら出ない');
 });
+test('締切: 手続きごとに日時を入れられ、役員の新着に出る', () => {
+  const gas = createGas({ now: '2026-11-01T08:00:00+09:00' });
+  gas.init();
+  gas.calendar.add({ title: '秋季記録会', start: new Date('2026-11-01T00:00:00+09:00'), end: new Date('2026-11-02T00:00:00+09:00'), allDay: true });
+  gas.profiles.U1 = '山田'; gas.profiles.U2 = '鈴木'; gas.members.add('U1'); gas.members.add('U2');
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kAdmin, 'bootstrap').events[0];
+  assert.throws(() => gas.ctx.api(k2, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '2026-11-01 10:00' }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(kAdmin, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '10時' }), /読めません/);
+  let st = gas.ctx.api(kAdmin, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '2026-11-01 10:00' });
+  assert.strictEqual(st.events[0].detail.deadlines['リレー予選'], '2026-11-01 10:00');
+  gas.ctx.api(kAdmin, 'setTask', { key: race.key, kind: 'リレー予選', target: 'Aチーム', memo: '1走 山田たろう' });
+  assert.ok(gas.line(dm('U1'), '新着').includes('⏰ リレー予選のオーダー：11/01 10:00まで'));
+  gas.ctx.api(kAdmin, 'setTask', { key: race.key, kind: 'リレー予選', target: 'Aチーム', done: true });
+  assert.ok(!gas.line(dm('U1'), '新着').includes('リレー予選のオーダー'), '提出済みなら出ない');
+  st = gas.ctx.api(kAdmin, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '' });
+  assert.deepStrictEqual(plain(st.events[0].detail.deadlines), {});
+  assert.ok(st.history.some((h) => h.text === '締切：リレー予選のオーダー 11/1(日) 10:00まで'));
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

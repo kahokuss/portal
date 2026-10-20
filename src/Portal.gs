@@ -49,6 +49,7 @@ const API_ACTIONS = {
   addDoc: { run: addDocAction_ },
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
+  setDeadline: { run: setDeadlineAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -82,7 +83,18 @@ function raceToObj_(r) {
     payBy: r['支払期限'] || '',
     reception: r['受付'] || '',
     url: r['要項URL'] || '',
+    deadlines: parseDeadlines_(r['手続き期限']),
   };
+}
+
+/** 手続きごとの締切（{ 'リレー予選': '2026-11-01 10:00', … }） */
+function parseDeadlines_(s) {
+  try {
+    const o = JSON.parse(s || '{}');
+    return o && typeof o === 'object' ? o : {};
+  } catch (err) {
+    return {};
+  }
 }
 
 function buildState_(ctx) {

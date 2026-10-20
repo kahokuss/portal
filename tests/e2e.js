@@ -360,6 +360,34 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(text.includes('大会要項') && text.includes('資料を追加：要項（大会要項）'), text);
       await a.shot('9-race-overview');
     });
+    await step('役員: 種目タブでリレーのオーダーを予選・決勝に分けて入れ、締切を入れる', async () => {
+      await a.click('#editRace');
+      await a.click('[data-tog="races|リレー"]');
+      await a.click('#evForm button[type=submit]');
+      await a.waitForSelector('#copyText');
+      await a.click('[data-ev]');
+      await a.click('[data-et="種目"]');
+      let text = await a.textContent('#view');
+      assert.ok(text.includes('100m') && text.includes('走幅跳') && text.includes('オーダー提出'), text);
+      a.once('dialog', (d) => d.accept('10:00'));
+      await a.click('[data-dl="リレー予選"]');
+      await a.idle();
+      assert.ok(JSON.parse(gas.rows('大会').find((r) => r['集合場所'] === '正面スタンド下')['手続き期限'])['リレー予選'] === '2026-11-01 10:00');
+      await a.click('[data-relayadd]');
+      await a.fill('#rl-name', '4×100mR Aチーム');
+      await a.selectOption('[data-rl="0"]', '鈴木けんた');
+      await a.click('#relayForm button[type=submit]');
+      await a.idle();
+      await a.click('[data-relaycopy]');
+      await a.idle();
+      await a.click('[data-task^="リレー予選|"]');
+      await a.idle();
+      const rows = gas.rows('手続き').filter((t) => t['種類'].startsWith('リレー'));
+      assert.deepStrictEqual(rows.map((t) => [t['種類'], t['メモ'], t['状態']]), [['リレー予選', '1走 鈴木けんた', '済'], ['リレー決勝', '1走 鈴木けんた', '']]);
+      text = await a.textContent('#view');
+      assert.ok(text.includes('11/1(日) 10:00まで'), text);
+      await a.shot('10-races');
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

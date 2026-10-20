@@ -132,6 +132,16 @@ function handleNews_(ev) {
       const done = tasks.some((t) => t.eventKey === e.key && t['種類'] === 'エントリー控え' && t['状態'] === '済');
       if (!done) adminLines.push('📮 申込期限が近い：' + e.title + '（' + formatDate_(e.detail.applyBy) + '・' + dayWord_(e.detail.applyBy, d.today).replace('今日', '今日まで') + '）');
     });
+    const nowStr = now_().slice(0, 16), soon = fmt_(new Date(Date.now() + 24 * 3600000), 'yyyy-MM-dd HH:mm');
+    d.events.filter((e) => e.detail).forEach((e) => {
+      Object.keys(e.detail.deadlines || {}).forEach((k) => {
+        const at = e.detail.deadlines[k];
+        if (at < nowStr || at > soon) return;
+        const done = tasks.filter((t) => t.eventKey === e.key && t['種類'] === k);
+        if (done.length && done.every((t) => t['状態'] === '済')) return;
+        adminLines.push('⏰ ' + deadlineLabel_(k) + '：' + at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11) + 'まで（' + e.title + '）');
+      });
+    });
     const noDuty = d.events.filter((e) => e.date <= addDays_(d.today, 14) && !duties.some((x) => x.eventKey === e.key));
     if (noDuty.length) adminLines.push('🧹 当番が決まっていない予定（2週間以内）' + noDuty.length + '件');
     if (adminLines.length) adminLines.unshift('【役員向け】');
@@ -302,7 +312,7 @@ function canonRaceGs_(r) {
   r = toHalfWidth_(r || '').toLowerCase().replace(/\s/g, '').replace(/[×x]/g, 'x').replace(/\(.*?\)/g, '');
   if (/リレー|\dx\d+m/.test(r)) return 'リレー';
   return r.replace('走り幅跳び', '走幅跳').replace('走り高跳び', '走高跳').replace(/幅跳び?$/, '幅跳').replace(/高跳び?$/, '高跳')
-    .replace(/ジャベリック?ボール投げ?|ボール投げ?/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
+    .replace(/ジャベ(?:リック)?ボール(?:投げ?|スロー)|ボール(?:投げ?|スロー)|ジャベリックスロー/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
 }
 
 function sameRaceGs_(a, b) {
@@ -1254,6 +1264,7 @@ const API_ACTIONS = {
   addDoc: { run: addDocAction_ },
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
+  setDeadline: { run: setDeadlineAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -1287,7 +1298,18 @@ function raceToObj_(r) {
     payBy: r['支払期限'] || '',
     reception: r['受付'] || '',
     url: r['要項URL'] || '',
+    deadlines: parseDeadlines_(r['手続き期限']),
   };
+}
+
+/** 手続きごとの締切（{ 'リレー予選': '2026-11-01 10:00', … }） */
+function parseDeadlines_(s) {
+  try {
+    const o = JSON.parse(s || '{}');
+    return o && typeof o === 'object' ? o : {};
+  } catch (err) {
+    return {};
+  }
 }
 
 function buildState_(ctx) {
@@ -2187,6 +2209,33 @@ function docAction_(ctx, p) {
   return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
 }
 
+/**
+ * 手続きの締切（日時）を入れる。例：リレー予選のオーダー提出は当日10:00まで。役員と当番
+ * @param {{key: string, kind: string, at: string}} p at は 'yyyy-MM-dd HH:mm'（空なら消す）
+ */
+function setDeadlineAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  if (CHOICES.TASKS.indexOf(p.kind) < 0) throw new Error('不明な手続きです。');
+  const at = String(p.at || '').trim();
+  if (at && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) throw new Error('締切の日時が読めません。');
+  withLock_(() => {
+    let row = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (!row) row = appendRow_(SHEETS.RACES, { eventKey: p.key, '種別': '大会', '対象': '全員', '更新日時': now_() });
+    const d = parseDeadlines_(row['手続き期限']);
+    if (at) d[p.kind] = at; else delete d[p.kind];
+    row['手続き期限'] = JSON.stringify(d);
+    updateRow_(SHEETS.RACES, row);
+  });
+  logHistory_(p.key, ctx, '締切：' + deadlineLabel_(p.kind) + (at ? ' ' + formatDate_(at.slice(0, 10)) + ' ' + at.slice(11) + 'まで' : ' を消す'));
+  return at ? deadlineLabel_(p.kind) + 'の締切を入れました' : '';
+}
+
+function deadlineLabel_(kind) {
+  return { 'エントリー控え': 'エントリーの提出', '参加費支払い': '参加費の支払い', 'リレー予選': 'リレー予選のオーダー', 'リレー決勝': 'リレー決勝のオーダー' }[kind] || kind;
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -2404,7 +2453,7 @@ const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時'] },
-  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL'] },
+  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },

@@ -67,6 +67,9 @@ api('saveLedger', { key: race.key, amount: 6500, payee: '主催者（陸上競�
   await shot('2-timetable');
   await page.click('[data-ttf="全部"]');
   await shot('3-timetable-all');
+  await page.click('[data-et="種目"]');
+  await page.waitForTimeout(300);
+  await shot('4-races');
   await page.click('[data-et="手続き"]');
   await page.waitForTimeout(300);
   await shot('4-tasks');

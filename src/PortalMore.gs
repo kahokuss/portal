@@ -569,3 +569,30 @@ function docAction_(ctx, p) {
   const blob = DriveApp.getFileById(row['ファイルID']).getBlob();
   return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
 }
+
+/**
+ * 手続きの締切（日時）を入れる。例：リレー予選のオーダー提出は当日10:00まで。役員と当番
+ * @param {{key: string, kind: string, at: string}} p at は 'yyyy-MM-dd HH:mm'（空なら消す）
+ */
+function setDeadlineAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  if (CHOICES.TASKS.indexOf(p.kind) < 0) throw new Error('不明な手続きです。');
+  const at = String(p.at || '').trim();
+  if (at && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) throw new Error('締切の日時が読めません。');
+  withLock_(() => {
+    let row = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (!row) row = appendRow_(SHEETS.RACES, { eventKey: p.key, '種別': '大会', '対象': '全員', '更新日時': now_() });
+    const d = parseDeadlines_(row['手続き期限']);
+    if (at) d[p.kind] = at; else delete d[p.kind];
+    row['手続き期限'] = JSON.stringify(d);
+    updateRow_(SHEETS.RACES, row);
+  });
+  logHistory_(p.key, ctx, '締切：' + deadlineLabel_(p.kind) + (at ? ' ' + formatDate_(at.slice(0, 10)) + ' ' + at.slice(11) + 'まで' : ' を消す'));
+  return at ? deadlineLabel_(p.kind) + 'の締切を入れました' : '';
+}
+
+function deadlineLabel_(kind) {
+  return { 'エントリー控え': 'エントリーの提出', '参加費支払い': '参加費の支払い', 'リレー予選': 'リレー予選のオーダー', 'リレー決勝': 'リレー決勝のオーダー' }[kind] || kind;
+}

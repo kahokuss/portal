@@ -193,7 +193,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "5c1a0505d2";
+var BUILD = "1d114a6d94";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -850,7 +850,20 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function sameRace(a, b) { a = canon(a); b = canon(b); return !!a && !!b && (a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0); }
   function raceMatch(row, x) { return x.races.some(function (q) { return sameRace(row.race, q); }); }
-  function rowKids(e, row) { return ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && raceMatch(row, x) && groupMatch(row.group, k); }).sort(byGrade); }
+  /** この行（種目・区分）にエントリーしている子 */
+  function entrants(e, row) { return ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && raceMatch(row, x) && groupMatch(row.group, k); }).sort(byGrade); }
+  /** この行に出る子。前のラウンドがある決勝・準決勝は、「決勝へ」を押した（進んだ）子だけ */
+  function rowKids(e, row) { var list = entrants(e, row); return needsAdvance(e, row) ? list.filter(function (k) { return advanced(e, row, k); }) : list; }
+  var ROUND_ORDER = ['予選', '準決勝', '決勝'];
+  function roundOf(r) { var m = String(r.heat || '').match(/準決勝|予選|決勝|タイムレース/); return m ? m[0] : ''; }
+  function normG(g) { return toHalf(g || '').replace(/\s/g, ''); }
+  /** 同じ種目・区分に、前のラウンド（予選・準決勝）の行があるか */
+  function needsAdvance(e, r) {
+    var ri = ROUND_ORDER.indexOf(roundOf(r));
+    if (ri <= 0) return false;
+    return ttRows(e).some(function (x) { var xi = ROUND_ORDER.indexOf(roundOf(x)); return x.id !== r.id && xi >= 0 && xi < ri && sameRace(x.race, r.race) && normG(x.group) === normG(r.group); });
+  }
+  function advanced(e, r, k) { var t = taskOf(e.key, '進出', k.name + '|' + r.id); return !!(t && t.done); }
   function ttRows(e) { return ST.timetable.filter(function (r) { return r.key === e.key; }).sort(function (a, b) { return tkey(a.start) < tkey(b.start) ? -1 : tkey(a.start) > tkey(b.start) ? 1 : 0; }); }
   function callBtn(e, row, k) {
     var t = taskOf(e.key, '招集', k.name + '|' + row.id), done = t && t.done;
@@ -868,15 +881,22 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     return out;
   }
-  function ttItem(e, r, kids) {
+  function ttItem(e, r, kids, only) {
     var warm = r.warm || tsub(r.call, ST.choices.warmMinutes);
     var h = '<div class="tt"><div class="tt-time">' + esc(r.start || '—') + '</div><div class="main"><div class="ttl">' + esc(r.race) + ' <span class="sub">' + esc([r.group, r.heat].filter(Boolean).join(' ')) + '</span></div>' +
       '<div class="sub">' + (warm ? 'アップ ' + esc(warm) + (r.warm ? '' : '頃') + '　' : '') + (r.call ? '<b class="callt">招集 ' + esc(r.call) + '</b>' : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
     if (kids.length) h += '<div class="tt-kids">' + kids.map(function (k) {
       var lane = taskOf(e.key, 'レーン', k.name + '|' + r.id), mine = myNames().indexOf(k.name) >= 0;
       return '<span class="row"><span>' + esc(k.name) + (k.grade ? ' <span class="sub">' + k.grade + '年</span>' : '') + (lane && lane.memo ? ' <span class="pill p-gray">' + esc(lane.memo) + '</span>' : '') + '</span><span class="row">' +
-        (mine ? '<button type="button" class="btn small ghost" data-lane="' + esc(k.name + '|' + r.id) + '" data-cur="' + esc(lane ? lane.memo : '') + '">組・レーン</button>' : '') + callBtn(e, r, k) + '</span></span>';
+        (mine ? '<button type="button" class="btn small ghost" data-lane="' + esc(k.name + '|' + r.id) + '" data-cur="' + esc(lane ? lane.memo : '') + '">組・レーン</button>' : '') + callBtn(e, r, k) + '</span></span>' +
+        (needsAdvance(e, r) && (mine || canManage(e.key)) ? '<button class="link" type="button" data-adv="' + esc(k.name + '|' + r.id) + '" data-on="" style="font-size:11.5px">' + roundOf(r) + 'への進出を取り消す</button>' : '');
     }).join('') + '</div>';
+    if (needsAdvance(e, r)) {
+      var cand = entrants(e, r).filter(function (k) { return !advanced(e, r, k) && (!only || k.name === only) && (canManage(e.key) || myNames().indexOf(k.name) >= 0); });
+      var waiting = entrants(e, r).filter(function (k) { return !advanced(e, r, k) && (!only || k.name === only); });
+      if (waiting.length) h += '<div class="sub">' + (only ? '' : '予選に出る子：' + waiting.map(function (k) { return esc(k.name); }).join('、') + '。') + roundOf(r) + 'に進んだら押してください</div>' +
+        (cand.length ? '<div class="row">' + cand.map(function (k) { return '<button type="button" class="btn small ghost" data-adv="' + esc(k.name + '|' + r.id) + '" data-on="1">' + esc(k.name) + ' → ' + roundOf(r) + 'へ</button>'; }).join('') + '</div>' : '');
+    }
     return h + '</div></div>';
   }
   function timetableHtml(e) {
@@ -892,12 +912,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         if (next) { var m = minutesUntil(next.r.call); h += '<section class="card banner"><h2>次の招集</h2><div class="big">' + esc(next.r.call) + '　' + esc(next.k.name) + '・' + esc(next.r.race) + '</div><div class="sub">' + (m >= 0 ? 'あと' + m + '分' : m > -60 ? '時刻を過ぎています' : '') + '</div></section>'; }
       }
       mine.forEach(function (k) {
-        var x = entryOf(e.key, k.name), list = rows.filter(function (r) { return rowKids(e, r).some(function (y) { return y.name === k.name; }); });
+        var x = entryOf(e.key, k.name), list = rows.filter(function (r) { return entrants(e, r).some(function (y) { return y.name === k.name; }); });
         var bib = taskOf(e.key, 'ナンバー', k.name);
         h += '<section class="card"><h2>' + esc(k.name) + '<small>' + (k.grade ? k.grade + '年' : '') + (k.sex ? k.sex === '男' ? '男子' : '女子' : '') + '</small></h2>' +
           '<div class="between"><span class="sub">ナンバー（ゼッケン）' + (bib && bib.memo ? '：<b>' + esc(bib.memo) + '</b>' : '：まだ') + '</span><button type="button" class="btn small ghost" data-bib="' + esc(k.name) + '" data-cur="' + esc(bib ? bib.memo : '') + '">' + (bib && bib.memo ? '直す' : '入れる') + '</button></div>';
         if (!list.length) h += '<div class="sub">' + (x && x.join === '参加' ? '出る種目がタイムテーブルに見つかりません。学年・性別（わが家）と種目を確かめてください。' : 'この大会にはエントリーしていません。') + '</div>';
-        else h += '<div class="list">' + list.map(function (r) { return ttItem(e, r, [k]); }).join('') + '</div>';
+        else h += '<div class="list">' + list.map(function (r) { return ttItem(e, r, rowKids(e, r).filter(function (y) { return y.name === k.name; }), k.name); }).join('') + '</div>';
         h += '</section>';
       });
     } else {
@@ -911,6 +931,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ttf]', function () { S.ttf = this.dataset.ttf; render(); });
     on('#ttEdit', function () { S.ttDraft = ttRows(e).map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }; }); if (!S.ttDraft.length) S.ttDraft.push(blankTT()); S.toast = ''; render(); });
     on('[data-call]', function () { call('setTask', { key: e.key, kind: '招集', target: this.dataset.call, done: !!this.dataset.done }); });
+    on('[data-adv]', function () { call('setTask', { key: e.key, kind: '進出', target: this.dataset.adv, done: !!this.dataset.on }); });
     on('[data-lane]', function () { var v = prompt('組とレーンを入れてください（例：2組 5レーン）', this.dataset.cur); if (v !== null) call('setTask', { key: e.key, kind: 'レーン', target: this.dataset.lane, memo: toHalf(v).trim() }); });
     on('[data-bib]', function () { var v = prompt('ナンバー（ゼッケン）を入れてください', this.dataset.cur); if (v !== null) call('setTask', { key: e.key, kind: 'ナンバー', target: this.dataset.bib, memo: toHalf(v).trim() }); });
     bindTTEditor(e);
@@ -941,8 +962,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function ttEditor(e) {
     var D = S.ttDraft, others = ST.events.filter(function (x) { return x.key !== e.key && ST.timetable.some(function (r) { return r.key === x.key; }); });
     var h = '<button class="link" id="ttBack" type="button">‹ タイムテーブルに戻る（保存しない）</button>' +
-      '<section class="card"><h2>プログラムから貼り付け</h2><form class="f" id="ttPaste"><textarea id="ttIn" placeholder="1行に1種目。例：&#10;10:30 5年男子 100m 2組 招集10:00&#10;11:00 3年女子 走り幅跳び 招集10:30"></textarea><button class="btn" type="submit">読み取って下に足す</button>' +
-      '<div class="hint">時刻・学年・男子／女子・種目・組・「招集」「アップ」の時刻を読み取ります（AIは使いません）。読み取れなかったところは手で直してください。</div></form>' +
+      '<section class="card"><h2>プログラムから貼り付け</h2><form class="f" id="ttPaste"><textarea id="ttIn" placeholder="1行に1種目。例：&#10;10:30 5年男子 100m 予選 招集10:00&#10;13:30 5年男子 100m 決勝 招集13:10&#10;11:00 3年女子 走り幅跳び 招集10:30"></textarea><button class="btn" type="submit">読み取って下に足す</button>' +
+      '<div class="hint">時刻・学年・男子／女子・種目・予選／決勝・組・「招集」「アップ」の時刻を読み取ります（AIは使いません）。予選と決勝がある種目は、決勝に進んだ子だけ決勝の時刻が出ます（「決勝へ」ボタン）。読み取れなかったところは手で直してください。</div></form>' +
       (others.length ? '<div class="lbl">前の大会からコピー</div><div class="quick">' + others.map(function (x) { return '<button type="button" data-ttcopy="' + x.key + '">' + md(x.date) + ' ' + esc(x.title) + '</button>'; }).join('') + '</div>' : '') + '</section>' +
       '<section class="card"><h2>タイムテーブル<small>' + D.length + '件</small></h2><div>' + D.map(function (r, i) {
         function inp(k, ph, cls, num) { return '<input class="' + cls + '" data-tt="' + i + '|' + k + '" value="' + esc(r[k]) + '" placeholder="' + ph + '" aria-label="' + ph + '"' + (num ? ' inputmode="numeric"' : '') + (k === 'race' ? ' list="raceList"' : '') + '>'; }

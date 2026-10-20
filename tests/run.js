@@ -396,6 +396,25 @@ test('締切: 手続きごとに日時を入れられ、役員の新着に出る
   assert.deepStrictEqual(plain(st.events[0].detail.deadlines), {});
   assert.ok(st.history.some((h) => h.text === '締切：リレー予選のオーダー 11/1(日) 10:00まで'));
 });
+test('Bot「今日」: 予選・決勝がある種目は、進むまで「（進んだら）」と出る', () => {
+  const gas = createGas({ now: '2026-11-01T08:00:00+09:00' });
+  gas.init();
+  gas.calendar.add({ title: '秋季記録会', start: new Date('2026-11-01T00:00:00+09:00'), end: new Date('2026-11-02T00:00:00+09:00'), allDay: true });
+  gas.profiles.U1 = '山田'; gas.members.add('U1');
+  gas.line(dm('U1'), '登録 山田たろう 5年');
+  const k = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(k, 'bootstrap').events[0];
+  gas.ctx.api(k, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', races: ['100m'] });
+  gas.ctx.api(k, 'saveEntry', { key: race.key, child: '山田たろう', join: '参加', races: ['100m'] });
+  let st = gas.ctx.api(k, 'saveTimetable', { key: race.key, rows: [{ start: '10:00', race: '100m', group: '5年男子', heat: '予選 1組', call: '9:40' }, { start: '14:00', race: '100m', group: '5年男子', heat: '決勝', call: '13:40' }] });
+  let r = gas.line(dm('U1'), '今日');
+  assert.ok(r.includes('10:00 100m 予選 1組　招集 9:40') && r.includes('14:00 100m 決勝　招集 13:40（進んだら）'), r);
+  const fin = st.timetable.find((x) => x.heat === '決勝');
+  gas.ctx.api(k, 'setTask', { key: race.key, kind: '進出', target: '山田たろう|' + fin.id, done: true });
+  r = gas.line(dm('U1'), '今日');
+  assert.ok(!r.includes('（進んだら）'), r);
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

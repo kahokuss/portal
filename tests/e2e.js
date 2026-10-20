@@ -388,6 +388,26 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(text.includes('11/1(日) 10:00まで'), text);
       await a.shot('10-races');
     });
+    await step('当番: 予選と決勝がある種目は、決勝へ進んだ子だけ決勝の時刻が出る', async () => {
+      await p.click('[data-nav="events"]');
+      await p.click('.ev:has-text("秋季記録会")');
+      await p.click('[data-et="タイムテーブル"]');
+      await p.click('#ttEdit');
+      await p.fill('[data-tt="0|heat"]', '予選 2組');
+      await p.fill('#ttIn', '14:00 5・6年男子 100m 決勝 招集13:40');
+      await p.click('#ttPaste button[type=submit]');
+      await p.click('#ttSave');
+      await p.idle();
+      let text = await p.textContent('#view');
+      assert.ok(text.includes('決勝に進んだら押してください'), text);
+      assert.strictEqual(await p.isVisible('[data-call$="|' + gas.rows('タイムテーブル').find((r) => r['組'] === '決勝')['id'] + '"]'), false, '進む前は決勝の招集ボタンは出ない');
+      await p.click('[data-adv][data-on="1"]');
+      await p.idle();
+      text = await p.textContent('#view');
+      assert.ok(text.includes('決勝への進出を取り消す') && text.includes('招集 13:40'), text);
+      assert.ok(gas.rows('手続き').some((t) => t['種類'] === '進出' && t['状態'] === '済'));
+      await p.shot('11-final');
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

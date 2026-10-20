@@ -170,10 +170,11 @@ function handleToday_(ev) {
         const bib = tasks.find((t) => t.eventKey === e.key && t['種類'] === 'ナンバー' && t['対象'] === k.name);
         lines.push('', '👟 ' + k.name + (bib && bib['メモ'] ? '（ナンバー ' + bib['メモ'] + '）' : ''));
         const mine = rows.filter((r) => splitNames_(x['種目']).some((q) => sameRaceGs_(r['種目'], q)) && groupMatchGs_(r['区分'], k)).sort((a, b) => (padTime_(a['開始']) < padTime_(b['開始']) ? -1 : 1));
+        const adv = (r) => !needsAdvanceGs_(rows, r) || tasks.some((t) => t.eventKey === e.key && t['種類'] === '進出' && t['対象'] === k.name + '|' + r.id && t['状態'] === '済');
         if (!mine.length) lines.push('　種目：' + (x['種目'] || '—') + '（タイムテーブルはまだ）');
         mine.forEach((r) => {
           const lane = tasks.find((t) => t.eventKey === e.key && t['種類'] === 'レーン' && t['対象'] === k.name + '|' + r.id);
-          lines.push('　' + (r['開始'] || '—') + ' ' + r['種目'] + (r['組'] ? ' ' + r['組'] : '') + (r['招集'] ? '　招集 ' + r['招集'] : '') + (lane && lane['メモ'] ? '　' + lane['メモ'] : ''));
+          lines.push('　' + (r['開始'] || '—') + ' ' + r['種目'] + (r['組'] ? ' ' + r['組'] : '') + (r['招集'] ? '　招集 ' + r['招集'] : '') + (lane && lane['メモ'] ? '　' + lane['メモ'] : '') + (adv(r) ? '' : '（進んだら）'));
         });
       });
     } else {
@@ -297,6 +298,24 @@ function handleEntries_(ev) {
 }
 
 // ---- 画面と同じ照合（タイムテーブルの区分・種目） ----
+
+const ROUND_ORDER_GS = ['予選', '準決勝', '決勝'];
+
+function roundOfGs_(r) {
+  const m = String(r['組'] || '').match(/準決勝|予選|決勝|タイムレース/);
+  return m ? m[0] : '';
+}
+
+/** 同じ種目・区分に、前のラウンド（予選・準決勝）の行がある決勝・準決勝か */
+function needsAdvanceGs_(rows, r) {
+  const ri = ROUND_ORDER_GS.indexOf(roundOfGs_(r));
+  if (ri <= 0) return false;
+  const g = toHalfWidth_(r['区分'] || '').replace(/\s/g, '');
+  return rows.some((x) => {
+    const xi = ROUND_ORDER_GS.indexOf(roundOfGs_(x));
+    return x.id !== r.id && xi >= 0 && xi < ri && sameRaceGs_(x['種目'], r['種目']) && toHalfWidth_(x['区分'] || '').replace(/\s/g, '') === g;
+  });
+}
 
 function padTime_(t) {
   const m = String(t || '').match(/^(\d{1,2}):(\d{2})/);

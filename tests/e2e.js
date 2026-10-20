@@ -426,6 +426,22 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(ce, 'カレンダーも直る');
       assert.ok((await a.textContent('#view')).includes('予定に反映しました'));
     });
+    await step('役員（PC）: 広い画面で、予定を表でまとめて直す', async () => {
+      await a.setViewportSize({ width: 1280, height: 900 });
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="table"]');
+      const row = a.locator('tr[data-row]').filter({ has: a.locator('input[data-f="date"][value="2026-10-20"]') });
+      await row.locator('input[data-f="place"]').fill('河北中学校 体育館');
+      await row.locator('input[data-f="place"]').press('Tab');
+      await row.locator('input[data-f="start"]').fill('1800');
+      await row.locator('input[data-f="start"]').press('Tab');
+      assert.ok((await a.textContent('#tSave')).includes('1件をまとめて保存'));
+      await a.shot('12-table-pc');
+      await a.click('#tSave');
+      await a.idle();
+      assert.ok(gas.calendar.events.some((x) => x.location === '河北中学校 体育館' && gas.ctx.Utilities.formatDate(x.start, '', 'HH:mm') === '18:00'));
+      await a.setViewportSize({ width: 420, height: 900 });
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

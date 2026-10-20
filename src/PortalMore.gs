@@ -658,3 +658,21 @@ function markDownAction_(ctx, p) {
   const row = recordDown_(new Date(), ctx.name, p.key);
   return 'ダウン ' + row['ダウン'] + ' を記録しました';
 }
+
+/** 予定をまとめて直す（ポータルの「予定を表でまとめて直す」）。直せなかった行は理由を返す */
+function bulkEditEventsAction_(ctx, p) {
+  let ok = 0;
+  const ng = [];
+  (p.rows || []).slice(0, 200).forEach((r) => {
+    try {
+      if (r.cancel) cancelEventAction_(ctx, { key: r.key });
+      else editEventAction_(ctx, r);
+      ok++;
+    } catch (err) {
+      const ev = findEvent_(r.key);
+      ng.push((ev ? formatDate_(ev['日付']) + ' ' + ev['タイトル'] : '予定') + '：' + String(err.message || err));
+    }
+  });
+  if (ng.length && !ok) throw new Error(ng.join('\n'));
+  return ok + '件を直しました' + (ng.length ? '（直せなかったもの：' + ng.join('／') + '）' : '');
+}

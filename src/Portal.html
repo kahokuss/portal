@@ -117,7 +117,28 @@ form.f, .f { display: grid; gap: 8px; }
 .childrow { display: grid; grid-template-columns: minmax(0, 1fr) 6.5em 32px; gap: 6px; align-items: center; }
 .icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; font: inherit; cursor: pointer; }
 .empty { padding: 24px 8px; text-align: center; color: var(--muted); }
-.top .acts { margin-left: auto; flex: none; display: flex; gap: 6px; }
+/* PC：メニューを左に、中身を広く */
+@media (min-width: 900px) {
+  .app { max-width: 1100px; }
+  .frame { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "top top" "nav view"; }
+  .top { grid-area: top; padding: 14px 22px; }
+  .view { grid-area: view; padding: 18px 26px; }
+  .nav, .nav.admin { grid-area: nav; grid-template-columns: 1fr; align-content: start; position: sticky; top: 0; border-top: 0; border-right: 1px solid var(--line); padding: 10px 0; }
+  .nav button { grid-auto-flow: column; justify-content: start; align-items: center; gap: 10px; padding: 11px 18px; font-size: 14px; }
+  .nav button[aria-current="page"] { background: var(--track-soft); }
+  .busy { bottom: 24px; }
+  .wide-only { display: block !important; }
+}
+.wide-only { display: none; }
+.grid-edit { width: 100%; border-collapse: collapse; font-size: 13px; }
+.grid-edit th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.grid-edit td { padding: 3px; }
+.grid-edit input { font: inherit; font-size: 13px; color: var(--fg); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 4px 6px; width: 100%; min-width: 0; }
+.grid-edit input:hover, .grid-edit input:focus { border-color: var(--line); background: var(--surface-2); }
+.grid-edit tr.changed td { background: var(--warn-soft); }
+.grid-edit tr.race td:first-child { border-left: 3px solid var(--track); }
+.grid-edit tr.cancelled td { opacity: .5; text-decoration: line-through; }
+.top > .acts { margin-left: auto; flex: none; display: flex; gap: 6px; }
 .top .acts .btn { white-space: nowrap; text-decoration: none; }
 .btn.line { background: #06c755; color: #fff; border: 0; }
 .childrow { grid-template-columns: minmax(0, 1fr) 5.4em 4.4em 32px; }
@@ -546,7 +567,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'ledger') return adminLedger();
     if (S.admin === 'nearmiss') return adminNearMiss();
     if (S.admin === 'members') return adminMembers();
-    var items = [['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
+    if (S.admin === 'table') return adminTable();
+    var items = [['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
@@ -1684,6 +1706,49 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.innerHTML = h;
     bindBack();
     on('[data-notify]', function () { call('setNotify', { userId: this.dataset.notify, on: !!this.dataset.on }); });
+  }
+
+  /** 予定を表で直す（PC向け）。直した行は色が変わり、「まとめて保存」でカレンダーも直る */
+  function adminTable() {
+    var T = S.table || (S.table = { days: 60, edits: {} });
+    var list = ST.events.filter(function (e) { return e.date >= ST.today && e.date <= addDays(ST.today, T.days); });
+    var n = Object.keys(T.edits).length;
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>予定を表でまとめて直す<small>' + list.length + '件</small></h2>' +
+      '<div class="choice">' + [30, 60, 120].map(function (d) { return '<button type="button" data-tdays="' + d + '" aria-pressed="' + (T.days === d) + '">' + d + '日先まで</button>'; }).join('') + '</div>' +
+      '<div class="tbl-wrap"><table class="grid-edit"><thead><tr><th>日付</th><th>始まり</th><th>終わり</th><th>タイトル</th><th>場所</th><th>中止</th></tr></thead><tbody>' + list.map(function (e) {
+        var x = T.edits[e.key] || {}, v = function (k, d) { return x[k] !== undefined ? x[k] : d; };
+        var st = e.start === '終日' ? '' : e.start.replace(/^0/, ''), en = (e.end || '').replace(/^0/, '');
+        return '<tr data-row="' + e.key + '" class="' + (T.edits[e.key] ? 'changed ' : '') + (isRace(e) ? 'race ' : '') + (e.cancelled || x.cancel ? 'cancelled' : '') + '">' +
+          '<td><input type="date" data-f="date" value="' + esc(v('date', e.date)) + '" style="min-width:8.5em"' + (e.cancelled ? ' disabled' : '') + '></td>' +
+          '<td><input data-f="start" inputmode="numeric" value="' + esc(v('start', st)) + '" placeholder="終日" style="width:4.6em"' + (e.cancelled ? ' disabled' : '') + '></td>' +
+          '<td><input data-f="end" inputmode="numeric" value="' + esc(v('end', en)) + '" style="width:4.6em"' + (e.cancelled ? ' disabled' : '') + '></td>' +
+          '<td><input data-f="title" value="' + esc(v('title', e.title)) + '" style="min-width:9em"' + (e.cancelled ? ' disabled' : '') + '></td>' +
+          '<td><input data-f="place" value="' + esc(v('place', e.place || '')) + '" style="min-width:9em"' + (e.cancelled ? ' disabled' : '') + '></td>' +
+          '<td style="text-align:center">' + (e.cancelled ? '中止' : '<input type="checkbox" data-f="cancel"' + (x.cancel ? ' checked' : '') + ' style="width:auto">') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<div class="row"><button class="btn" type="button" id="tSave"' + (n ? '' : ' disabled') + '>' + (n ? n + '件をまとめて保存' : '直したところはまだありません') + '</button>' + (n ? '<button class="btn ghost" type="button" id="tReset">元に戻す</button>' : '') + '</div>' +
+      '<div class="hint">セルをクリックして直すと、行の色が変わります。時刻は「1700」でも17:00になります。保存するとGoogleカレンダーも直ります。新しい予定は「練習の予定をつくる」か、スプレッドシートの「予定入力」からどうぞ。カレンダーの「繰り返し予定」はここでは直せません。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-tdays]', function () { T.days = +this.dataset.tdays; render(); });
+    view.querySelectorAll('[data-row] input').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var tr = this.closest('tr'), key = tr.dataset.row, ed = T.edits[key] || (T.edits[key] = {}), f = this.dataset.f;
+        ed[f] = f === 'cancel' ? this.checked : (f === 'start' || f === 'end') ? (this.value = fmtTime(this.value)) : this.value;
+        tr.classList.add('changed');
+        var b = document.getElementById('tSave'); b.disabled = false; b.textContent = Object.keys(T.edits).length + '件をまとめて保存';
+      });
+    });
+    on('#tReset', function () { T.edits = {}; render(); });
+    on('#tSave', function () {
+      var rows = Object.keys(T.edits).map(function (key) {
+        var e = evByKey(key), x = T.edits[key];
+        if (x.cancel) return { key: key, cancel: true };
+        return { key: key, date: x.date !== undefined ? x.date : e.date, start: x.start !== undefined ? x.start : (e.start === '終日' ? '' : e.start), end: x.end !== undefined ? x.end : e.end, title: x.title !== undefined ? x.title : e.title, place: x.place !== undefined ? x.place : e.place };
+      });
+      if (rows.some(function (r) { return r.cancel; }) && !confirm('中止にチェックした予定は、カレンダーから消えます。保存しますか？')) return;
+      call('bulkEditEvents', { rows: rows }, function () { T.edits = {}; });
+    });
   }
 
   function adminMembers() {

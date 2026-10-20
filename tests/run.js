@@ -701,6 +701,22 @@ test('役員: 役員がポータルでほかの人を役員にでき、最後の
   gas.ctx.api(k2, 'setAdmin', { userId: 'U1', on: false });
   assert.strictEqual(gas.ctx.api(kAdmin, 'bootstrap').me.admin, false);
 });
+test('予定を表でまとめて直す: 何件かまとめて直し・中止できる', () => {
+  const gas = setupClub();
+  const k = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const evs = gas.ctx.api(k, 'bootstrap').events.filter((e) => e.type === '練習');
+  assert.throws(() => gas.ctx.api(k2, 'bulkEditEvents', { rows: [] }), /役員だけ/);
+  const st = gas.ctx.api(k, 'bulkEditEvents', { rows: [
+    { key: evs[0].key, date: evs[0].date, start: '16:50', end: '18:20', title: '練習', place: '競技場' },
+    { key: evs[1].key, cancel: true },
+    { key: 'nope', date: '2026-10-30', title: 'x' },
+  ] });
+  assert.ok(st.message.startsWith('2件を直しました') && st.message.includes('直せなかったもの'), st.message);
+  const a = st.events.find((e) => e.key === evs[0].key);
+  assert.deepStrictEqual([a.start, a.end, a.place], ['16:50', '18:20', '競技場']);
+  assert.strictEqual(st.events.find((e) => e.key === evs[1].key).cancelled, true);
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

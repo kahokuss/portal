@@ -41,6 +41,7 @@ const API_ACTIONS = {
   deletePhoto: { run: deletePhotoAction_ },
   savePractices: { admin: true, run: savePracticesAction_ },
   editEvent: { admin: true, run: editEventAction_ },
+  bulkEditEvents: { admin: true, run: bulkEditEventsAction_ },
   cancelEvent: { admin: true, run: cancelEventAction_ },
   saveResult: { run: saveResultAction_ },
   broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },

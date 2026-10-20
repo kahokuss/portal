@@ -589,7 +589,7 @@ test('スプレッドシート: 書きかえてよい列は緑、裏方の列は
   assert.strictEqual(fam.protections.filter((p) => p.desc === '自動で入る列：userId').length, 1, '2回実行しても保護は1つ');
   assert.ok(gas.sheet('使い方').data[0][0].includes('ポータルとLINE Botのデータ'));
 });
-test('ダウン: グループの「ダウン入ります」で時刻だけ記録（返事なし）、ポータルとBotにお迎えの目安', () => {
+test('ダウン: グループの「ダウン入ります」で時刻だけ記録（返事なし）、ポータルとBotに出る', () => {
   const gas = createGas({ now: '2026-10-15T18:20:00+09:00' });
   gas.init();
   const jst = (x) => new Date(x + '+09:00');
@@ -606,7 +606,7 @@ test('ダウン: グループの「ダウン入ります」で時刻だけ記録
   assert.strictEqual(gas.fetches.slice(before).filter((f) => /push|reply/.test(f.url)).length, 0, '通数は使わない');
   let st = gas.ctx.api(k3, 'bootstrap');
   assert.strictEqual(st.events[0].down, '18:20');
-  assert.ok(gas.line(dm('U2'), '今日').includes('ダウン 18:20〜（お迎えの目安 18:35頃）'));
+  assert.ok(gas.line(dm('U2'), '今日').includes('ダウンに入りました（18:20）'));
   assert.strictEqual(gas.line(group('U3'), 'ダウンジャケット忘れた'), '', 'ほかの話には反応しない');
   assert.strictEqual(gas.ctx.api(k3, 'bootstrap').events[0].down, '18:20');
   assert.throws(() => gas.ctx.api(k2, 'markDown', { key: st.events[0].key }), /当番の人だけ/);

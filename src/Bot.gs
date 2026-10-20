@@ -178,7 +178,7 @@ function handleToday_(ev) {
         });
       });
     } else {
-      if (e.row['ダウン']) lines.push('🏃 ダウン ' + e.row['ダウン'] + '〜（お迎えの目安 ' + addMinutes_(e.row['ダウン'], CONFIG.DOWN_MINUTES) + '頃）');
+      if (e.row['ダウン']) lines.push('🏃 ダウンに入りました（' + e.row['ダウン'].replace(/^0/, '') + '）。お迎えをお願いします');
       const off = readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] === e.date).map((a) => a['子ども']);
       lines.push('休み ' + off.length + '人' + (off.length ? '：' + off.join('、') : ''));
     }
@@ -379,9 +379,4 @@ function setupRichMenu() {
   });
   lineFetch_(LINE_API + '/user/all/richmenu/' + id, 'post');
   console.log('リッチメニューを設定しました: ' + id);
-}
-
-function addMinutes_(hm, n) {
-  const t = toMin_(hm) + n;
-  return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
 }

@@ -256,7 +256,6 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
     if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
-    if (!st.choices.downMinutes) st.choices.downMinutes = 15;
     if (!st.choices.rounds) st.choices.rounds = ['予選', '準決勝', '決勝', 'タイムレース'];
     if (!st.choices.applyHow) st.choices.applyHow = ['Web', 'メール', 'FAX', '郵送', '持参', '当日'];
     if (!st.choices.docKinds) st.choices.docKinds = ['要項', '申込書', 'プログラム', '地図', 'リザルト', 'その他'];
@@ -1324,16 +1323,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     loadThumbs();
   }
 
-  // ---- 練習のダウン（お迎えの目安） ----
-  function addMin(hm, n) { var m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); if (!m) return ''; var t = +m[1] * 60 + +m[2] + n; return Math.floor(t / 60) + ':' + pad(t % 60); }
-  function downText(e) { return e.down ? '🏃 ダウン ' + e.down.replace(/^0/, '') + '〜（お迎えの目安 ' + addMin(e.down, ST.choices.downMinutes || 15) + '頃）' : ''; }
+  // ---- 練習のダウン（お迎えの合図） ----
+  function downText(e) { return e.down ? '🏃 ダウンに入りました（' + e.down.replace(/^0/, '') + '）' : ''; }
   function canDown(e) { return e.date === ST.today && (ST.me.admin || dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; })); }
   function downCard(e) {
     if (e.date !== ST.today || e.cancelled) return '';
     var h = '<section class="card' + (e.down ? ' banner' : '') + '"><h2>今日の練習' + (e.down ? '<small>ダウン中</small>' : '') + '</h2>';
     h += e.down ? '<div class="big">' + downText(e) + '</div>' : '<div class="sub">ダウンに入ったら、ここに時刻が出ます（グループに「ダウン入ります」と送られたときも記録されます）。</div>';
     if (canDown(e)) {
-      var msg = 'ダウンに入りました（' + (e.down || nowHM()).replace(/^0/, '') + '）。' + addMin(e.down || nowHM(), ST.choices.downMinutes || 15) + '頃に終わる予定です。お迎えをお願いします🙏';
+      var msg = 'ダウンに入りました（' + (e.down || nowHM()).replace(/^0/, '') + '）。お迎えをお願いします🙏';
       h += e.down ? '<a class="btn line" href="https://line.me/R/msg/text/?' + encodeURIComponent(msg) + '" target="_top" style="text-align:center;text-decoration:none">LINEでグループに知らせる</a><div class="row"><button class="btn small ghost" type="button" id="downAgain">時刻を今にする</button><button class="btn small ghost" type="button" id="downClear">記録を消す</button></div>' +
         '<div class="hint">緑のボタンを押すとLINEが開くので、クラブのグループを選んで送ってください（人が送るので通数はかかりません）。</div>'
         : '<button class="btn" type="button" id="downNow">ダウンに入った</button><div class="hint">押すと時刻を記録して、LINEで送る文章を用意します（当番・役員）。</div>';

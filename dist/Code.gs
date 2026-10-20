@@ -183,7 +183,7 @@ function handleToday_(ev) {
         });
       });
     } else {
-      if (e.row['ダウン']) lines.push('🏃 ダウン ' + e.row['ダウン'] + '〜（お迎えの目安 ' + addMinutes_(e.row['ダウン'], CONFIG.DOWN_MINUTES) + '頃）');
+      if (e.row['ダウン']) lines.push('🏃 ダウンに入りました（' + e.row['ダウン'].replace(/^0/, '') + '）。お迎えをお願いします');
       const off = readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] === e.date).map((a) => a['子ども']);
       lines.push('休み ' + off.length + '人' + (off.length ? '：' + off.join('、') : ''));
     }
@@ -384,11 +384,6 @@ function setupRichMenu() {
   });
   lineFetch_(LINE_API + '/user/all/richmenu/' + id, 'post');
   console.log('リッチメニューを設定しました: ' + id);
-}
-
-function addMinutes_(hm, n) {
-  const t = toMin_(hm) + n;
-  return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
 }
 
 // ===== Calendar.gs =====
@@ -749,8 +744,6 @@ const CONFIG = {
 
   // 練習の予定をポータルで作るときの時間の候補（夏・秋〜春）
   PRACTICE_TIMES: [['17:00', '18:30'], ['18:00', '19:30']],
-  // 練習のダウン（整理運動）にかかる時間（分）。ダウン開始＋この時間を「お迎えの目安」として出す
-  DOWN_MINUTES: 15,
   // タイムテーブルで「アップ」を空にしたとき、招集の何分前を目安に出すか
   WARM_UP_MINUTES_BEFORE_CALL: 30,
   // 家族の招待番号の有効時間（時間。最大6）
@@ -1566,7 +1559,7 @@ function buildState_(ctx) {
     comments: commentsFor_(ctx),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, downMinutes: CONFIG.DOWN_MINUTES },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
   };
 }
 
@@ -2381,7 +2374,7 @@ function deadlineLabel_(kind) {
   return { 'エントリー控え': 'エントリーの提出', '参加費支払い': '参加費の支払い', 'リレー予選': 'リレー予選のオーダー', 'リレー決勝': 'リレー決勝のオーダー' }[kind] || kind;
 }
 
-// ---- 練習のダウン（お迎えの目安） ----
+// ---- 練習のダウン（お迎えの合図） ----
 
 /**
  * 今日の練習に、ダウンに入った時刻を記録する。どの練習か分からないときは、今の時刻にいちばん近い今日の練習

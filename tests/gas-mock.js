@@ -195,6 +195,7 @@ function createGas(options) {
         if (/\/members\/count$/.test(url)) return res(200, { count: members.size });
         if (/\/message\/push$/.test(url)) {
           if (notFriends.has(payload.to)) { fetches[fetches.length - 1].failed = true; return res(400, { message: 'not friend' }); }
+          if (quotaUsed.n >= 200) { fetches[fetches.length - 1].failed = true; return res(429, { message: 'You have reached your monthly limit.' }); }
           quotaUsed.n += payload.to === props.GROUP_ID ? members.size : 1;
           return res(200, {});
         }

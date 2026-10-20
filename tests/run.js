@@ -667,6 +667,14 @@ test('ダウン: 「ダウンです。」でも記録する', () => {
   assert.ok(gas.run("DOWN_PATTERN.test('今からダウンします')"));
   assert.ok(!gas.run("DOWN_PATTERN.test('ダウンジャケット忘れた')"));
 });
+test('Bot: 今月の通数を使い切ったら、グループには「1対1で送って」と案内（返信は無料）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.quotaUsed.n = 200;
+  const r = gas.line(group('U1'), '新着');
+  assert.ok(r.includes('無料の通数を使い切った') && !r.includes('友だち追加'), r);
+  assert.ok(gas.line(dm('U1'), '新着').includes('新着'), '1対1のトークは返信なので使える');
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

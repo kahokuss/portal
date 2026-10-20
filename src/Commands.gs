@@ -11,8 +11,12 @@ function respond_(ev, messages) {
   try {
     push_(ev.source.userId, messages);
   } catch (err) {
-    console.warn('個別の返事に失敗（友だち追加されていない？）: ' + err);
-    reply_(ev.replyToken, [text_('お返事は、送った人だけに届くようにしています。Bot「' + CONFIG.CLUB_NAME + '」を友だち追加して、1対1のトークで送ってください。')]);
+    console.warn('個別の返事に失敗: ' + err);
+    // 429 は、今月の無料の通数（プッシュ）を使い切ったとき。返信（リプライ）は無料なので、グループに案内だけ出す
+    const overQuota = / 429 /.test(String(err));
+    reply_(ev.replyToken, [text_(overQuota
+      ? '今月のBotの無料の通数を使い切ったため、グループからは個別にお返事できません。Botとの1対1のトークで送ってください（1対1なら無料でお返事できます）。'
+      : 'お返事は、送った人だけに届くようにしています。Bot「' + CONFIG.CLUB_NAME + '」を友だち追加して、1対1のトークで送ってください。')]);
   }
 }
 

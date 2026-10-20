@@ -99,6 +99,7 @@ function handleNews_(ev) {
     const off = absences.filter((a) => a['日付'] === np.date);
     const duty = duties.filter((x) => x.eventKey === np.key).map((x) => labels[x['家族ID']] || '').filter(Boolean);
     lines.push('', '🏃 次の練習（' + dayWord_(np.date, d.today) + '）', whenText_(np), '休み ' + off.length + '人' + (duty.length ? '・当番 ' + duty.join('、') : ''));
+    if (duties.some((x) => x.eventKey === np.key && x['家族ID'] === u.famId) && off.length) lines.push('（当番のため表示）休む子：' + off.map((a) => a['子ども']).join('、'));
     const nl = noticeLine_(pendingNotices_()[np.key]);
     if (nl) lines.push(nl);
   }
@@ -782,7 +783,8 @@ const CONFIG = {
   GROUP_PRIVATE_REPLY: true,
 
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
-  ABSENCE_PUSH_TO_ADMINS: true,
+  // （通数を節約するため、いまは止めています。役員と当番は、Botの「新着」「出欠」とポータルの出欠で確認します）
+  ABSENCE_PUSH_TO_ADMINS: false,
 
   // ヒヤリハットが書かれたら、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
   NEAR_MISS_PUSH_TO_ADMINS: false,
@@ -1710,7 +1712,7 @@ function buildState_(ctx) {
     comments: commentsFor_(ctx),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
   };
 }
 

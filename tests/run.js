@@ -135,7 +135,7 @@ test('ポータル: 大会を新しく作るとカレンダーにも入る', () 
   assert.strictEqual(gas.rows('予定').filter((r) => r['タイトル'] === '冬季ロードレース大会').length, 1, '同期しても重複しない');
 });
 
-test('ポータル: 休みの連絡は役員に届き、理由は本人と役員だけに見える', () => {
+test('ポータル: 休みの連絡は役員がBotやポータルで見られ、理由は本人と役員だけに見える', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');
   gas.line(dm('U2'), '登録 鈴木けんた 5年');
@@ -148,9 +148,8 @@ test('ポータル: 休みの連絡は役員に届き、理由は本人と役員
   assert.throws(() => gas.ctx.api(kParent, 'reportAbsence', { child: '鈴木けんた', date: '2026-10-01', reason: '体調不良' }), /過ぎた日/);
   let st = gas.ctx.api(kParent, 'reportAbsence', { child: '鈴木けんた', date: '2026-10-15', reason: '家の都合', memo: '通院' });
   assert.strictEqual(st.absences.length, 1);
-  const push = gas.pushes().pop();
-  assert.strictEqual(push.payload.to, 'U1');
-  assert.ok(push.payload.messages[0].text.includes('鈴木けんた'));
+  assert.strictEqual(gas.pushes().length, 0, 'LINEの通知はしない（通数を使わない）');
+  assert.ok(gas.line(dm('U1'), '新着').includes('10/15(木) 鈴木けんた（家の都合・通院）'), '役員はBotの「新着」で見られる');
   const seen = gas.ctx.api(kOther, 'bootstrap').absences;
   assert.strictEqual(seen.length, 1, 'だれが休みかはメンバー全員に見える');
   assert.strictEqual(seen[0].child, '鈴木けんた');
@@ -201,8 +200,9 @@ test('家族: 招待番号で夫婦をまとめると、子どもの登録が共
   assert.strictEqual(gas.ctx.api(k1, 'bootstrap').me.children.length, 2);
 });
 
-test('休みの通知: 受け取る係とその日の練習当番だけに届く。出欠はみんなに見える', () => {
+test('休みの通知（オンにしたとき）: 受け取る係とその日の練習当番だけに届く。出欠はみんなに見える', () => {
   const gas = setupClub();
+  gas.run('CONFIG.ABSENCE_PUSH_TO_ADMINS = true');
   gas.line(dm('U1'), '登録 山田たろう 3年');
   gas.line(dm('U2'), '登録 鈴木けんた 5年');
   gas.line(dm('U3'), '登録 佐藤さくら 2年');
@@ -222,6 +222,21 @@ test('休みの通知: 受け取る係とその日の練習当番だけに届く
   assert.strictEqual(st.duties[0].fam, 'U3');
 });
 
+test('休み: 通知をしなくても、当番の家族はBotの「新着」で休む子が分かる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 2年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.login('U3');
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const prac = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.date === '2026-10-15');
+  gas.ctx.api(kAdmin, 'setDuty', { key: prac.key, fam: 'U3', on: true });
+  gas.line(dm('U2'), '休み 明日 体調不良');
+  assert.strictEqual(gas.pushes().length, 0);
+  assert.ok(gas.line(dm('U3'), '新着').includes('休む子：鈴木けんた'), '当番には名前が出る');
+  assert.ok(!gas.line(dm('U3'), '新着').includes('体調不良'), '理由は出さない');
+});
 test('当番: 前回から日がたっている家族から順に自動で入れる', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

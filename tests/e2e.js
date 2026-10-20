@@ -141,7 +141,7 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(text.includes('参加費 ¥500 未払い'));
       await p.shot('1-entry');
     });
-    await step('保護者: 休みを連絡する（役員にLINEが届く）', async () => {
+    await step('保護者: 休みを連絡する（LINEの通数は使わない）', async () => {
       await p.click('[data-nav="home"]');
       await p.click('#absBtn');
       await p.selectOption('#absDate', '2026-10-17');
@@ -150,7 +150,7 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('#absForm button[type=submit]');
       await p.waitForSelector('[data-unabs]');
       assert.strictEqual(gas.rows('休み')[0]['理由'], '家の都合');
-      assert.ok(gas.pushes().some((f) => f.payload.to === 'U1' && f.payload.messages[0].text.includes('法事のため')));
+      assert.ok(!gas.pushes().some((f) => f.payload.messages[0].text.includes('法事のため')), 'LINEの通知はしない（通数を節約）');
       await p.shot('2-absence');
     });
     await step('保護者: わが家で学年を直す', async () => {

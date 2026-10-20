@@ -94,6 +94,7 @@ function handleNews_(ev) {
     const off = absences.filter((a) => a['日付'] === np.date);
     const duty = duties.filter((x) => x.eventKey === np.key).map((x) => labels[x['家族ID']] || '').filter(Boolean);
     lines.push('', '🏃 次の練習（' + dayWord_(np.date, d.today) + '）', whenText_(np), '休み ' + off.length + '人' + (duty.length ? '・当番 ' + duty.join('、') : ''));
+    if (duties.some((x) => x.eventKey === np.key && x['家族ID'] === u.famId) && off.length) lines.push('（当番のため表示）休む子：' + off.map((a) => a['子ども']).join('、'));
     const nl = noticeLine_(pendingNotices_()[np.key]);
     if (nl) lines.push(nl);
   }

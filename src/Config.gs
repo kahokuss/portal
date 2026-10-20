@@ -47,7 +47,8 @@ const CONFIG = {
   GROUP_PRIVATE_REPLY: true,
 
   // 休みの連絡を、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
-  ABSENCE_PUSH_TO_ADMINS: true,
+  // （通数を節約するため、いまは止めています。役員と当番は、Botの「新着」「出欠」とポータルの出欠で確認します）
+  ABSENCE_PUSH_TO_ADMINS: false,
 
   // ヒヤリハットが書かれたら、役員にLINEで個別に知らせるか（1件につき役員の人数分の通数を使います）
   NEAR_MISS_PUSH_TO_ADMINS: false,

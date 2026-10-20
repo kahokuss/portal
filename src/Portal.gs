@@ -27,6 +27,7 @@ const API_ACTIONS = {
   refresh: { run: () => { importScheduleSafely_(); syncCalendar_(); } },
   saveChildren: { run: saveChildrenAction_ },
   inviteFamily: { raw: true, run: inviteFamilyAction_ },
+  pcCode: { raw: true, run: pcCodeAction_ },
   joinFamily: { run: joinFamilyAction_ },
   leaveFamily: { run: (ctx) => { leaveFamily_(ctx.userId); return '家族のまとまりから外れました'; } },
   setNotify: { admin: true, run: setNotifyAction_ },

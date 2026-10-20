@@ -66,6 +66,8 @@ function apiPost_(e) {
     } else if (body.action === 'login') {
       const r = handleLoginCallback_(String((body.payload || {}).code || ''), String((body.payload || {}).state || ''));
       out = r.key ? { ok: { key: r.key } } : { error: r.error };
+    } else if (body.action === 'codeLogin') {
+      out = { ok: codeLogin_(String((body.payload || {}).code || '')) };
     } else {
       out = { ok: api(body.key, body.action, body.payload) };
     }

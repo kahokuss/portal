@@ -118,3 +118,39 @@ function ensureMember_(family) {
 function portalUrl_() {
   return CONFIG.PORTAL_URL || ScriptApp.getService().getUrl();
 }
+
+// ---- PCでのログイン（スマホに出した番号で入る） ----
+
+/**
+ * スマホでログインしている人が、PCで使うための番号（6けた・5分・1回だけ）を出す。
+ * PCで番号を入れると、その人としてログインできる（パスワードは使わない）
+ */
+function pcCodeAction_(ctx) {
+  const cache = CacheService.getScriptCache();
+  let code = '';
+  for (let i = 0; i < 5 && !code; i++) {
+    const c = String(100000 + (parseInt(randomKey_().slice(0, 8), 16) % 900000));
+    if (!cache.get('pc:' + c)) code = c;
+  }
+  if (!code) throw new Error('もう一度お試しください。');
+  cache.put('pc:' + code, ctx.userId, 300);
+  return { code: code, minutes: 5 };
+}
+
+/** PCで番号を入れたとき。まちがいが続いたら、しばらく受け付けない（当てずっぽうを防ぐ） */
+function codeLogin_(code) {
+  const cache = CacheService.getScriptCache();
+  const fails = Number(cache.get('pcFails') || 0);
+  if (fails >= 20) throw new Error('番号のまちがいが続いたので、10分ほど待ってからお試しください。');
+  const c = toHalfWidth_(code).replace(/\D/g, '');
+  const userId = c.length === 6 ? cache.get('pc:' + c) : null;
+  if (!userId) {
+    cache.put('pcFails', String(fails + 1), 600);
+    throw new Error('番号がちがうか、期限（5分）が切れています。スマホでもう一度番号を出してください。');
+  }
+  cache.remove('pc:' + c);
+  const f = findFamily_(userId);
+  if (!f) throw new Error('ログインできませんでした。');
+  ensureMember_(f);
+  return { key: portalKeyFor_(userId, '', false) };
+}

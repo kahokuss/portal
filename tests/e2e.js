@@ -553,6 +553,27 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...p2.errors, ...s3.errors);
       await p2.close(); await s3.close();
     });
+    await step('PC: スマホに出した番号でログインできる（GitHub Pages の画面）', async () => {
+      const PAGES = 'https://kahokuss.github.io/portal/';
+      const html = fs.readFileSync(path.join(__dirname, '../docs/index.html'), 'utf8');
+      const apiUrl = JSON.parse(html.match(/var API_URL = (".*?");/)[1]);
+      const g = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const errs = [];
+      g.on('pageerror', (e) => errs.push(e.message));
+      await g.route('**/fonts.googleapis.com/**', (r) => r.abort());
+      await g.route(PAGES + '**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
+      await g.route(apiUrl, (r) => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: gas.ctx.doPost({ parameter: {}, postData: { contents: r.request().postData() } }).text }));
+      await g.goto(PAGES);
+      await g.waitForSelector('#codeForm');
+      const code = gas.ctx.api(gas.login('U1').key, 'pcCode').code;
+      await g.fill('#pcCode', code);
+      await g.click('#codeForm button');
+      await g.waitForSelector('#nav:not([hidden])');
+      assert.ok((await g.textContent('#me')).includes('山田'));
+      if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pc-home.png') });
+      assert.deepStrictEqual(errs, []);
+      await g.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

@@ -717,6 +717,19 @@ test('予定を表でまとめて直す: 何件かまとめて直し・中止で
   assert.deepStrictEqual([a.start, a.end, a.place], ['16:50', '18:20', '競技場']);
   assert.strictEqual(st.events.find((e) => e.key === evs[1].key).cancelled, true);
 });
+test('PCログイン: スマホで出した番号でPCから入れる（5分・1回だけ・まちがいが続いたら止める）', () => {
+  const gas = setupClub();
+  const k = gas.login('U2').key;
+  const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);
+  const c = gas.ctx.api(k, 'pcCode');
+  assert.ok(/^\d{6}$/.test(c.code));
+  const r = post({ action: 'codeLogin', payload: { code: c.code } });
+  assert.strictEqual(r.ok.key, k, '同じ人としてログイン');
+  assert.ok(post({ action: 'codeLogin', payload: { code: c.code } }).error.includes('ちがうか'), '1回だけ');
+  for (let i = 0; i < 20; i++) post({ action: 'codeLogin', payload: { code: '000000' } });
+  const c2 = gas.ctx.api(k, 'pcCode');
+  assert.ok(post({ action: 'codeLogin', payload: { code: c2.code } }).error.includes('待って'), 'まちがいが続いたら止める');
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

@@ -541,12 +541,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
     }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' +
       '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() +
+      '<section class="card"><h2>PCでも使う</h2><div class="sub">PCで ' + esc(HOME_URL) + ' を開き、「スマホに出した番号でログイン」に下の番号を入れてください（LINEのアカウントやパスワードは使いません）。</div>' +
+        (S.pc ? '<div class="big" style="font-size:2rem;letter-spacing:.3em;text-align:center">' + esc(S.pc.code) + '</div><div class="hint" style="text-align:center">' + S.pc.minutes + '分間・1回だけ使えます。人に見せないでください。</div>' : '<button class="btn small ghost" type="button" id="pcCodeBtn" style="justify-self:start">番号を出す</button>') + '</section>' +
       '<section class="card"><h2>ログイン</h2><div class="sub">' + esc(ST.me.name) + 'さんのLINEでログインしています。このページは' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。家族のスマホで使うときは、ログアウトしてからそれぞれのLINEでログインしてください。</div><button class="btn small ghost" id="logout" type="button" style="justify-self:start">ログアウト</button></section>';
     view.innerHTML = h;
     view.querySelectorAll('[data-kn]').forEach(function (el) { el.addEventListener('input', function () { rows[+this.dataset.kn].name = this.value; }); });
     view.querySelectorAll('[data-kg]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.kg].grade = +this.value; }); });
     view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
     bindFamilyCard(); bindCommon();
+    on('#pcCodeBtn', function () { var b = this; b.disabled = true; rpc('pcCode', {}, function (r) { S.pc = r; render(); setTimeout(function () { S.pc = null; if (S.tab === 'family') render(); }, r.minutes * 60000); }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); });
     on('[data-kdel]', function () { rows.splice(+this.dataset.kdel, 1); render(); });
     on('#kidAdd', function () { rows.push({ name: '', grade: 0, sex: '' }); render(); });
     on('#logout', function () { clearKey(); ST = null; showLogin('ログアウトしました。'); });
@@ -1948,7 +1951,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.innerHTML = '<section class="card"><div class="big">ようこそ</div><div class="sub">このページは、' + esc(CLUB) + 'のLINEグループのメンバーだけが見られます。グループに入っているLINEアカウントでログインしてください。</div>' +
       (msg ? '<div class="toast' + (/しました/.test(msg) ? '' : ' err') + '">' + esc(msg) + '</div>' : '') +
       '<a class="btn" id="loginBtn" href="' + esc(LOGIN_URL || '#') + '" target="_top" style="text-align:center;text-decoration:none;background:#06c755">LINEでログイン</a>' +
-      '<div class="hint">LINEアプリの中で開くと、ボタンを押すだけでログインできます。</div></section>';
+      '<div class="hint">LINEアプリの中で開くと、ボタンを押すだけでログインできます。PCでは、LINEのQRコードをスマホで読み取ってログインできます。</div></section>' +
+      (API_URL ? '<section class="card"><h2>スマホに出した番号でログイン（PC）</h2><div class="sub">スマホのポータルの「わが家」→「PCでも使う」で出る6けたの番号を入れてください。</div>' +
+        '<form class="f" id="codeForm"><input id="pcCode" inputmode="numeric" maxlength="6" placeholder="6けたの番号" autocomplete="one-time-code" style="font-size:20px;letter-spacing:.3em;text-align:center"><button class="btn" type="submit">ログイン</button></form></section>' : '');
+    var cf = document.getElementById('codeForm');
+    if (cf) cf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var b = cf.querySelector('button'); b.disabled = true; b.textContent = 'ログインしています…';
+      rpc('codeLogin', { code: document.getElementById('pcCode').value }, function (r) { KEY = r.key; start(); }, function (err) { showLogin(err.message); });
+    });
     // GitHub Pages の画面では、押したときにログイン用の URL をもらう
     if (!LOGIN_URL) document.getElementById('loginBtn').addEventListener('click', function (e) {
       e.preventDefault();

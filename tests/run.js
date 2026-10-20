@@ -576,6 +576,19 @@ test('Bot: 新着・今日・予定・休み・当番・出欠・エントリー
   assert.ok(gas.line(dm('U2'), '今日').includes('今日の予定はありません'));
   assert.ok(gas.line(dm('U3'), '休み').includes('先にお子さんを登録'));
 });
+test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
+  const gas = createGas();
+  gas.init();
+  gas.run('decorateSheets_(); decorateSheets_();');
+  const ss = gas.ctx.SpreadsheetApp.openById(gas.props.SPREADSHEET_ID);
+  assert.deepStrictEqual(ss.getSheets().slice(0, 2).map((x) => x.getName()), ['使い方', '予定入力']);
+  const fam = gas.sheet('家族');
+  assert.strictEqual(fam.backgrounds[4], '#d9ead3', '役員の列は緑');
+  assert.strictEqual(fam.backgrounds[1], '#eeeeee', 'userId は灰色');
+  assert.ok(fam.hidden.includes(1) && fam.hidden.includes(3), 'userId とポータルキーはかくす');
+  assert.strictEqual(fam.protections.filter((p) => p.desc === '自動で入る列：userId').length, 1, '2回実行しても保護は1つ');
+  assert.ok(gas.sheet('使い方').data[0][0].includes('ポータルとLINE Botのデータ'));
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

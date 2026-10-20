@@ -44,10 +44,18 @@ class Range {
   }
   setNumberFormat() { return this; }
   setFontWeight() { return this; }
+  setBackground(c) { this.sheet.backgrounds[this.c] = c; return this; }
+  setNote(t) { this.sheet.notes[this.c] = t; return this; }
+  setDataValidation() { return this; }
+  protect() { const p = { desc: '', setDescription(d) { p.desc = d; return p; }, setWarningOnly() { return p; }, getDescription: () => p.desc, remove: () => { this.sheet.protections = this.sheet.protections.filter((x) => x !== p); } }; this.sheet.protections.push(p); return p; }
 }
 
 class Sheet {
-  constructor(name) { this.name = name; this.data = []; this.maxRows = 1000; }
+  constructor(name) { this.name = name; this.data = []; this.maxRows = 1000; this.hidden = []; this.notes = {}; this.backgrounds = {}; this.protections = []; }
+  hideColumns(c) { this.hidden.push(c); }
+  setTabColor() {}
+  setColumnWidth() {}
+  getProtections() { return this.protections.slice(); }
   getName() { return this.name; }
   getRange(r, c, nr, nc) {
     if (r + (nr || 1) - 1 > this.maxRows) throw new Error('範囲がシートの外です');
@@ -76,6 +84,8 @@ class Spreadsheet {
   insertSheet(n) { const s = new Sheet(n); this.sheets.push(s); return s; }
   getSheets() { return this.sheets.slice(); }
   deleteSheet(s) { this.sheets = this.sheets.filter((x) => x !== s); }
+  setActiveSheet(s) { this.active = s; return s; }
+  moveActiveSheet(pos) { this.sheets = this.sheets.filter((x) => x !== this.active); this.sheets.splice(pos - 1, 0, this.active); }
 }
 
 class CalEvent {
@@ -148,6 +158,8 @@ function createGas(options) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); } }) },
     SpreadsheetApp: {
       openById: (id) => { if (!spreadsheets[id]) throw new Error('no spreadsheet ' + id); return spreadsheets[id]; },
+      newDataValidation: () => { const b = { requireValueInList: () => b, setAllowInvalid: () => b, build: () => ({}) }; return b; },
+      ProtectionType: { RANGE: 'RANGE' },
       create: (name) => { const id = 'ss' + Object.keys(spreadsheets).length; spreadsheets[id] = new Spreadsheet(id, name); return spreadsheets[id]; },
     },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },

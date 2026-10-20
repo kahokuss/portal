@@ -142,6 +142,7 @@ function setup() {
   Object.keys(SHEETS).forEach((k) => sheet_(SHEETS[k]));
   const defaultSheet = ss_().getSheetByName('シート1') || ss_().getSheetByName('Sheet1');
   if (defaultSheet && ss_().getSheets().length > 1) ss_().deleteSheet(defaultSheet);
+  decorateSheets_();
 
   if (!prop_('PHOTO_FOLDER_ID')) {
     setProp_('PHOTO_FOLDER_ID', DriveApp.createFolder(CONFIG.CLUB_NAME + ' 写真').getId());

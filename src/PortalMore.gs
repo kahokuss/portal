@@ -31,6 +31,20 @@ function joinFamilyAction_(ctx, p) {
   return name + 'さんと同じ家族になりました。お子さんの登録も共通になります';
 }
 
+/** 役員にする・外す（役員だけ）。役員が1人もいなくなる操作はしない */
+function setAdminAction_(ctx, p) {
+  withLock_(() => {
+    const rows = readRows_(SHEETS.FAMILIES);
+    const f = rows.find((x) => x.userId === p.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (!p.on && rows.filter((x) => isAdmin_(x) && x.userId !== f.userId).length === 0) throw new Error('役員が1人もいなくなるので、外せません。先にほかの人を役員にしてください。');
+    f['役員'] = p.on ? '○' : '';
+    f['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+  });
+  return (p.on ? '役員にしました' : '役員から外しました');
+}
+
 /** 休みの連絡をLINEで受け取る人を切り替える（役員だけ） */
 function setNotifyAction_(ctx, p) {
   withLock_(() => {

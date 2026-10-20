@@ -690,6 +690,17 @@ test('Bot: 今月の通数を使い切ったら、グループには「1対1で�
   assert.ok(r.includes('無料の通数を使い切った') && !r.includes('友だち追加'), r);
   assert.ok(gas.line(dm('U1'), '新着').includes('新着'), '1対1のトークは返信なので使える');
 });
+test('役員: 役員がポータルでほかの人を役員にでき、最後の1人は外せない', () => {
+  const gas = setupClub();
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.throws(() => gas.ctx.api(k2, 'setAdmin', { userId: 'U2', on: true }), /役員だけ/);
+  assert.throws(() => gas.ctx.api(kAdmin, 'setAdmin', { userId: 'U1', on: false }), /1人もいなくなる/);
+  gas.ctx.api(kAdmin, 'setAdmin', { userId: 'U2', on: true });
+  assert.strictEqual(gas.ctx.api(k2, 'bootstrap').me.admin, true);
+  gas.ctx.api(k2, 'setAdmin', { userId: 'U1', on: false });
+  assert.strictEqual(gas.ctx.api(kAdmin, 'bootstrap').me.admin, false);
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

@@ -545,9 +545,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'sheet') return adminSheet();
     if (S.admin === 'ledger') return adminLedger();
     if (S.admin === 'nearmiss') return adminNearMiss();
+    if (S.admin === 'members') return adminMembers();
     var items = [['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'],
-      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ']];
+      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
@@ -1683,6 +1684,21 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.innerHTML = h;
     bindBack();
     on('[data-notify]', function () { call('setNotify', { userId: this.dataset.notify, on: !!this.dataset.on }); });
+  }
+
+  function adminMembers() {
+    var list = ST.parents.slice().sort(function (a, b) { return (b.admin - a.admin) || (a.name < b.name ? -1 : 1); });
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>メンバーと役員<small>' + list.length + '人・役員 ' + list.filter(function (p) { return p.admin; }).length + '人</small></h2><div class="list">' + list.map(function (p) {
+      return '<div class="between"><span>' + esc(p.name) + (p.me ? '（自分）' : '') + (p.admin ? ' <span class="pill p-race">役員</span>' : '') + '<br><span class="sub">' + (p.kids.length ? esc(p.kids.join('・')) : 'お子さん未登録') + '</span></span>' +
+        '<button class="btn small ' + (p.admin ? 'ghost' : 'ok') + '" type="button" data-admin="' + esc(p.id) + '" data-on="' + (p.admin ? '' : '1') + '" data-name="' + esc(p.name) + '" data-me="' + (p.me ? '1' : '') + '">' + (p.admin ? '役員から外す' : '役員にする') + '</button></div>';
+    }).join('') + '</div><div class="hint">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。ここに出るのは、一度でもポータルにログインした人です。役員が1人もいなくなる操作はできません。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-admin]', function () {
+      var d = this.dataset;
+      if (!confirm(d.name + 'さんを' + (d.on ? '役員にしますか？' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
+      call('setAdmin', { userId: d.admin, on: !!d.on }, function () { if (d.me && !d.on) S.tab = 'home'; });
+    });
   }
 
   function adminLedger() {

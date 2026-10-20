@@ -1533,6 +1533,7 @@ const API_ACTIONS = {
   joinFamily: { run: joinFamilyAction_ },
   leaveFamily: { run: (ctx) => { leaveFamily_(ctx.userId); return '家族のまとまりから外れました'; } },
   setNotify: { admin: true, run: setNotifyAction_ },
+  setAdmin: { admin: true, run: setAdminAction_ },
   setDuty: { admin: true, run: setDutyAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
@@ -1698,7 +1699,7 @@ function buildState_(ctx) {
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
     sheetUrl: ctx.admin ? ss_().getUrl() : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
-    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f) })) : [],
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
     entries: entries,
     absences: absences,
@@ -1959,6 +1960,20 @@ function joinFamilyAction_(ctx, p) {
   cache.remove('fam:' + code);
   const name = (findFamily_(inviter) || {})['表示名'] || '家族';
   return name + 'さんと同じ家族になりました。お子さんの登録も共通になります';
+}
+
+/** 役員にする・外す（役員だけ）。役員が1人もいなくなる操作はしない */
+function setAdminAction_(ctx, p) {
+  withLock_(() => {
+    const rows = readRows_(SHEETS.FAMILIES);
+    const f = rows.find((x) => x.userId === p.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (!p.on && rows.filter((x) => isAdmin_(x) && x.userId !== f.userId).length === 0) throw new Error('役員が1人もいなくなるので、外せません。先にほかの人を役員にしてください。');
+    f['役員'] = p.on ? '○' : '';
+    f['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+  });
+  return (p.on ? '役員にしました' : '役員から外しました');
 }
 
 /** 休みの連絡をLINEで受け取る人を切り替える（役員だけ） */

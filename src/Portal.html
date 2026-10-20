@@ -130,6 +130,7 @@ form.f, .f { display: grid; gap: 8px; }
   .wide-only { display: block !important; }
 }
 .wide-only { display: none; }
+[data-drop].drop-on { outline: 3px dashed var(--sky); outline-offset: 3px; background: var(--sky-soft) !important; }
 .grid-edit { width: 100%; border-collapse: collapse; font-size: 13px; }
 .grid-edit th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .grid-edit td { padding: 3px; }
@@ -138,7 +139,7 @@ form.f, .f { display: grid; gap: 8px; }
 .grid-edit tr.changed td { background: var(--warn-soft); }
 .grid-edit tr.race td:first-child { border-left: 3px solid var(--track); }
 .grid-edit tr.cancelled td { opacity: .5; text-decoration: line-through; }
-.top > .acts { margin-left: auto; flex: none; display: flex; gap: 6px; }
+.top > div.acts { margin-left: auto; flex: none; display: flex; gap: 6px; }
 .top .acts .btn { white-space: nowrap; text-decoration: none; }
 .btn.line { background: #06c755; color: #fff; border: 0; }
 .childrow { grid-template-columns: minmax(0, 1fr) 5.4em 4.4em 32px; }
@@ -432,6 +433,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
 
   function eventDetail(e) {
+    CURKEY = e.key;
     var det = e.detail, past = e.date < ST.today;
     var h = '<button class="link" id="back" type="button">‹ 予定一覧</button>' +
       '<section class="card"><div class="row">' + typePill(e) + (det && det.target ? '<span class="pill p-gray">' + esc(det.target) + '</span>' : '') + (e.cancelled ? '<span class="pill p-gray">中止</span>' : past ? '<span class="pill p-gray">終了</span>' : '') + '</div>' +
@@ -1032,12 +1034,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function removeBlank(D) { for (var i = D.length - 1; i >= 0; i--) if (!D[i].race && !D[i].start && !D[i].group && !D[i].call) D.splice(i, 1); }
 
   // ---- 手続き（チェックリスト）と写真 ----
-  function photoBtn(kind, target, label) { return '<label class="btn small ghost upl">📷 ' + (label || '写真を付ける') + '<input type="file" accept="image/*" data-upl="' + esc(kind + '|' + target) + '" hidden></label>'; }
+  function photoBtn(kind, target, label, key) { return '<label class="btn small ghost upl">📷 ' + (label || '写真を付ける') + '<input type="file" accept="image/*" multiple data-upl="' + esc(kind + '|' + target) + '"' + (key ? ' data-key="' + esc(key) + '"' : '') + ' hidden></label>'; }
+  var DROP_HINT = '<div class="hint wide-only">💻 写真をこの枠にドラッグ＆ドロップ（または Ctrl+V で貼り付け）しても追加できます。何枚でもまとめてOK。</div>';
+  function dropAttr(mode, key, kind, target, isDefault) { return ' data-drop="' + esc([mode, key || '', kind || '', target || ''].join('|')) + '"' + (isDefault ? ' data-drop-default="1"' : ''); }
   function photosHtml(ids) { return ids.length ? '<div class="thumbs">' + ids.map(function (id) { return '<button class="thumb" type="button" data-photo="' + esc(id) + '"><img data-src="' + esc(id) + '" alt="写真"></button>'; }).join('') + '</div>' : ''; }
   function whoWhen(t) { return t && t.by ? '<div class="hint">' + esc(t.by) + 'さん・' + esc(String(t.at).slice(5, 16).replace('-', '/')) + '</div>' : ''; }
   function taskCard(e, kind, title, hint, man) {
     var t = taskOf(e.key, kind, '') || { done: false, photos: [] };
-    var h = '<section class="card"><h2>' + title + (t.done ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' + dlChip(e, kind, t.done) + whoWhen(t) + photosHtml(t.photos);
+    var h = '<section class="card"' + (man ? dropAttr('photo', e.key, kind, '') : '') + '><h2>' + title + (t.done ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' + dlChip(e, kind, t.done) + whoWhen(t) + photosHtml(t.photos);
     if (man) h += '<div class="row">' + photoBtn(kind, '') + '<button class="btn small ' + (t.done ? 'ghost' : 'ok') + '" type="button" data-task="' + kind + '|" data-done="' + (t.done ? '' : '1') + '">' + (t.done ? '済を取り消す' : '済にする') + '</button></div><div class="hint">' + hint + '</div>';
     else if (!t.done) h += '<div class="hint">' + hint + '（役員・当番の人が付けます）</div>';
     return h + '</section>';
@@ -1074,7 +1078,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += '<div class="kid"><b>' + esc(tm) + '</b>';
       rounds.forEach(function (k) {
         var t = taskOf(e.key, k, tm), pre = taskOf(e.key, 'リレー予選', tm);
-        h += '<div class="relay-round"><div class="between"><span class="sub"><b>' + roundName(k) + '</b></span>' + (t && t.memo ? (t.done ? '<span class="pill p-ok">提出済み</span>' : '<span class="pill p-warn">未提出</span>') : '<span class="pill p-gray">メンバー未定</span>') + '</div>' +
+        h += '<div class="relay-round"' + (man && t ? dropAttr('photo', e.key, k, tm) : '') + '><div class="between"><span class="sub"><b>' + roundName(k) + '</b></span>' + (t && t.memo ? (t.done ? '<span class="pill p-ok">提出済み</span>' : '<span class="pill p-warn">未提出</span>') : '<span class="pill p-gray">メンバー未定</span>') + '</div>' +
           (t && t.memo ? '<div>' + esc(t.memo) + '</div>' + whoWhen(t) : '') + (t ? photosHtml(t.photos) : '');
         if (man) {
           h += '<div class="row">' + (t && t.memo ? '<button class="btn small ' + (t.done ? 'ghost' : 'ok') + '" type="button" data-task="' + k + '|' + esc(tm) + '" data-done="' + (t.done ? '' : '1') + '">' + (t.done ? '提出を取り消す' : '提出した') + '</button>' : '') +
@@ -1232,7 +1236,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }
     if (man) {
       var P = S.pay || (S.pay = {});
-      h += '<form class="f" id="payForm"><div class="lbl">領収書を記録する</div><div class="two"><label>金額（円）<input id="py-amount" inputmode="numeric" value="' + esc(P.amount || '') + '" placeholder="' + (collected || '') + '"></label><label>日付<input type="date" id="py-date" value="' + esc(P.date || e.date) + '"></label></div>' +
+      h += '<form class="f" id="payForm"' + dropAttr('form', '', 'pay', '') + '><div class="lbl">領収書を記録する</div><div class="two"><label>金額（円）<input id="py-amount" inputmode="numeric" value="' + esc(P.amount || '') + '" placeholder="' + (collected || '') + '"></label><label>日付<input type="date" id="py-date" value="' + esc(P.date || e.date) + '"></label></div>' +
         '<label>払った先<input id="py-payee" value="' + esc(P.payee || '') + '" placeholder="例：大会の主催者"></label><label>但し書き<input id="py-note" value="' + esc(P.note || '参加料') + '"></label>' +
         '<label class="btn small ghost upl" style="justify-self:start">📷 領収書の写真<input type="file" accept="image/*" id="py-photo" hidden></label><span class="hint" id="py-file">' + (P.file ? '写真を選びました' : '写真はなくてもOK') + '</span>' +
         '<button class="btn" type="submit">記録する</button><div class="hint">会計の履歴（管理メニュー）にも残ります。</div></form>';
@@ -1243,6 +1247,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var f = document.getElementById('payForm'); if (!f) return;
     var P = S.pay;
     function keep() { P.amount = val('py-amount'); P.date = val('py-date'); P.payee = val('py-payee'); P.note = val('py-note'); }
+    FORMDROP.pay = function (data) { P.data = data; P.file = true; var el = document.getElementById('py-file'); if (el) el.textContent = '写真を選びました'; };
     document.getElementById('py-photo').addEventListener('change', function () {
       var file = this.files && this.files[0]; if (!file) return;
       readImage(file, function (data) { P.data = data; P.file = !!data; document.getElementById('py-file').textContent = data ? '写真を選びました' : '写真を読み込めませんでした'; });
@@ -1260,8 +1265,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function photosTab(e) {
     var list = ST.photos.filter(function (p) { return p.key === e.key; });
-    return '<section class="card"><h2>写真<small>' + list.length + '枚</small></h2>' + (list.length ? photosHtml(list.map(function (p) { return p.id; })) : '<div class="sub">まだ写真はありません。LINEグループに送った写真も、ここに出ます。</div>') +
-      '<div class="row">' + photoBtn('', '', '写真を上げる') + '</div><div class="hint">このページと同じく、LINEグループのメンバーだけが見られます。</div></section>';
+    return '<section class="card"' + dropAttr('photo', e.key, '', '', true) + '><h2>写真<small>' + list.length + '枚</small></h2>' + (list.length ? photosHtml(list.map(function (p) { return p.id; })) : '<div class="sub">まだ写真はありません。LINEグループに送った写真も、ここに出ます。</div>') +
+      '<div class="row">' + photoBtn('', '', '写真を上げる（何枚でも）') + '</div>' + DROP_HINT + '<div class="hint">このページと同じく、LINEグループのメンバーだけが見られます。</div></section>';
   }
 
   var PHOTO = {};
@@ -1314,16 +1319,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var open = S.albumOpen || (S.albumOpen = {});
     var h = toastHtml();
     if (!groups.length) h += '<div class="card empty">まだ写真はありません。<br>LINEグループに送った写真は、自動でここに入ります。</div>';
+    else h += '<div class="hint wide-only">💻 写真を、入れたい予定の枠にドラッグ＆ドロップすると追加できます（何枚でもまとめてOK）。新しい予定の写真は「予定・大会」のその予定の「写真」から。</div>';
     groups.forEach(function (g) {
       var all = open[g.key], ids = all ? g.ids : g.ids.slice(0, 9);
-      h += '<section class="card"><h2>' + esc(g.title) + '<small>' + md(g.date) + '・' + g.ids.length + '枚</small></h2>' + photosHtml(ids) +
-        (g.ids.length > ids.length ? '<button class="link" type="button" data-amore="' + esc(g.key) + '">あと' + (g.ids.length - ids.length) + '枚を見る ›</button>' : '') + '</section>';
+      h += '<section class="card"' + (g.ev ? dropAttr('photo', g.ev, '', '') : '') + '><h2>' + esc(g.title) + '<small>' + md(g.date) + '・' + g.ids.length + '枚</small></h2>' + photosHtml(ids) +
+        (g.ids.length > ids.length ? '<button class="link" type="button" data-amore="' + esc(g.key) + '">あと' + (g.ids.length - ids.length) + '枚を見る ›</button>' : '') +
+        (g.ev ? '<div class="row">' + photoBtn('', '', 'この予定に写真を足す', g.ev) + '</div>' : '') + '</section>';
     });
     h += '<div class="hint">このアルバムは、' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。写真をタップすると大きく見られ、保存できます。' + (ST.me.admin ? '元の写真は共用アカウントのGoogleドライブにあります（管理メニュー）。' : '') + '</div>';
     view.innerHTML = h;
     on('[data-amore]', function () { open[this.dataset.amore] = true; render(); });
-    on('[data-photo]', function () { showPhoto(this.dataset.photo); });
-    loadThumbs();
+    bindPhotos({ key: '' });
   }
   /** スマホの大きな写真は、送る前に小さくする（長い辺1600px） */
   function readImage(file, done) {
@@ -1342,13 +1348,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-photo]', function () { showPhoto(this.dataset.photo); });
     view.querySelectorAll('[data-upl]').forEach(function (inp) {
       inp.addEventListener('change', function () {
-        var p = this.dataset.upl, i = p.indexOf('|'), file = this.files && this.files[0];
-        if (!file) return;
-        document.getElementById('busy').hidden = false;
-        readImage(file, function (data) {
-          if (!data) { document.getElementById('busy').hidden = true; S.toast = '⚠ 写真を読み込めませんでした'; S.toastErr = true; render(); return; }
-          call('uploadPhoto', { key: e.key, kind: p.slice(0, i), target: p.slice(i + 1), data: data });
-        });
+        var p = this.dataset.upl, i = p.indexOf('|');
+        if (this.files && this.files.length) dispatchFiles({ mode: 'photo', key: this.dataset.key || e.key, kind: p.slice(0, i), target: p.slice(i + 1) }, this.files);
       });
     });
     loadThumbs();
@@ -1412,7 +1413,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function docsOf(key) { return ST.docs.filter(function (x) { return x.key === key; }); }
   function docsCard(e) {
     var list = docsOf(e.key), det = e.detail || {}, man = canManage(e.key), Dc = S.doc && S.doc.key === e.key ? S.doc : null;
-    var h = '<section class="card"><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>';
+    var h = '<section class="card"' + (man ? dropAttr('doc', e.key, '', '') : '') + '><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>' + (man ? '<div class="hint wide-only">💻 要項やプログラムのPDF・写真を、この枠にドラッグ＆ドロップすると追加できます（種類はファイル名から判断）。</div>' : '');
     if (det.url) h += '<div class="between"><span><span class="pill p-gray">要項</span> 主催者のページ</span><a class="btn small ghost" href="' + esc(det.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a></div>';
     if (list.length) h += '<div class="list">' + list.map(function (x) {
       return '<div class="between"><span><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '<br><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + (x.type === 'pdf' ? '・PDF' : x.type === 'image' ? '・写真' : '') + '</span></span><span class="row">' +
@@ -1508,7 +1509,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var list = commentsOf(e.key).filter(function (c) { return !(c.kind === '変更連絡' && !c.measure); }), C = S.cmt && S.cmt.key === e.key ? S.cmt : (S.cmt = { key: e.key, kind: 'コメント', body: '', place: '', adminOnly: false });
     var nm = C.kind === 'ヒヤリハット';
     var h = '<section class="card"><h2>コメント・ヒヤリハット<small>' + list.length + '件</small></h2>' + (list.length ? '<div class="list">' + list.map(function (c) { return commentHtml(c); }).join('') + '</div>' : '') +
-      '<form class="f" id="cmtForm"><div class="choice">' + [['コメント', '💬 コメント'], ['ヒヤリハット', '⚠ ヒヤリハット']].map(function (x) { return '<button type="button" data-ck="' + x[0] + '" aria-pressed="' + (C.kind === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<form class="f" id="cmtForm"' + dropAttr('form', '', 'cmt', '') + '><div class="choice">' + [['コメント', '💬 コメント'], ['ヒヤリハット', '⚠ ヒヤリハット']].map(function (x) { return '<button type="button" data-ck="' + x[0] + '" aria-pressed="' + (C.kind === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       (nm ? '<div class="hint">けがにはならなかったけれど「ヒヤッ」「ハッ」としたことを共有してください。だれのせいかではなく、次に防ぐためのものです。役員にLINEで届き、役員が対策を書きこみます。</div><label>場所<input id="cm-place" value="' + esc(C.place) + '" placeholder="例：駐車場の出入口、ハードルの横"></label>' : '') +
       '<label>' + (nm ? '何があったか' : 'コメント') + '<textarea id="cm-body" placeholder="' + (nm ? '例：練習中、駐車場から車が急に出てきて、走っていた子とぶつかりそうになった' : '例：今日は暑かったので、水筒を2本持たせると安心です') + '">' + esc(C.body) + '</textarea></label>' +
       '<div class="row"><label class="btn small ghost upl">📷 写真<input type="file" accept="image/*" id="cm-photo" hidden></label><span class="hint" id="cm-file">' + (C.data ? '写真を選びました' : '') + '</span>' +
@@ -1521,6 +1522,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     function keep() { if (!f) return; C.body = val('cm-body'); C.place = val('cm-place'); C.adminOnly = document.getElementById('cm-admin').checked; }
     on('[data-ck]', function () { keep(); C.kind = this.dataset.ck; render(); });
     if (f) {
+      FORMDROP.cmt = function (data) { C.data = data; var el = document.getElementById('cm-file'); if (el) el.textContent = '写真を選びました'; };
       document.getElementById('cm-photo').addEventListener('change', function () { var file = this.files && this.files[0]; if (file) readImage(file, function (data) { C.data = data; document.getElementById('cm-file').textContent = data ? '写真を選びました' : '写真を読み込めませんでした'; }); });
       f.addEventListener('submit', function (x) {
         x.preventDefault(); keep();
@@ -1597,7 +1599,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       }).join('') + '</div>';
     }).join('') + '</div>' : '<div class="sub">まだ結果はありません。</div>') + '</section>';
     var t = taskOf(e.key, 'リザルト', '') || { photos: [] };
-    h += '<section class="card"><h2>リザルトの写真</h2>' + photosHtml(t.photos) + '<div class="row">' + photoBtn('リザルト', '', 'リザルトを撮って載せる') + '</div><div class="hint">掲示されたリザルトの写真です。メンバー全員が見られます。</div></section>';
+    h += '<section class="card"' + dropAttr('photo', e.key, 'リザルト', '', true) + '><h2>リザルトの写真</h2>' + photosHtml(t.photos) + DROP_HINT + '<div class="row">' + photoBtn('リザルト', '', 'リザルトを撮って載せる') + '</div><div class="hint">掲示されたリザルトの写真です。メンバー全員が見られます。</div></section>';
     return h;
   }
   function bindResults(e) {
@@ -1769,7 +1771,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function adminLedger() {
     var L = S.led || (S.led = { kind: '支払い' }), years = {};
     ST.ledger.forEach(function (x) { var y = x.date.slice(0, 4); (years[y] = years[y] || []).push(x); });
-    var h = backBtn() + toastHtml() + '<section class="card"><h2>会計を記録する<small>大会に結びつかないもの</small></h2><form class="f" id="ledForm"><div class="choice">' + ['支払い', '入金'].map(function (k) { return '<button type="button" data-lk="' + k + '" aria-pressed="' + (L.kind === k) + '">' + k + '</button>'; }).join('') + '</div>' +
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>会計を記録する<small>大会に結びつかないもの</small></h2><form class="f" id="ledForm"' + dropAttr('form', '', 'led', '', true) + '><div class="choice">' + ['支払い', '入金'].map(function (k) { return '<button type="button" data-lk="' + k + '" aria-pressed="' + (L.kind === k) + '">' + k + '</button>'; }).join('') + '</div>' +
       '<div class="two"><label>金額（円）<input id="ld-amount" inputmode="numeric" value="' + esc(L.amount || '') + '"></label><label>日付<input type="date" id="ld-date" value="' + esc(L.date || ST.today) + '"></label></div>' +
       '<label>相手<input id="ld-payee" value="' + esc(L.payee || '') + '" placeholder="例：スポーツ店、陸上競技協会"></label><label>但し書き<input id="ld-note" value="' + esc(L.note || '') + '" placeholder="例：登録料、ビブス代"></label>' +
       '<label class="btn small ghost upl" style="justify-self:start">📷 領収書の写真<input type="file" accept="image/*" id="ld-photo" hidden></label><span class="hint" id="ld-file">' + (L.data ? '写真を選びました' : '写真はなくてもOK') + '</span>' +
@@ -1787,6 +1789,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     bindBack();
     function keep() { L.amount = val('ld-amount'); L.date = val('ld-date'); L.payee = val('ld-payee'); L.note = val('ld-note'); }
     on('[data-lk]', function () { keep(); L.kind = this.dataset.lk; render(); });
+    FORMDROP.led = function (data) { L.data = data; var el = document.getElementById('ld-file'); if (el) el.textContent = '写真を選びました'; };
     document.getElementById('ld-photo').addEventListener('change', function () { var file = this.files && this.files[0]; if (file) readImage(file, function (data) { L.data = data; document.getElementById('ld-file').textContent = data ? '写真を選びました' : '写真を読み込めませんでした'; }); });
     document.getElementById('ledForm').addEventListener('submit', function (x) { x.preventDefault(); keep(); call('saveLedger', { kind: L.kind, amount: L.amount, date: L.date, payee: L.payee, note: L.note, data: L.data || '' }, function () { S.led = null; }); });
     on('[data-ldel]', function () { if (confirm('この記録を消しますか？')) call('deleteLedger', { id: this.dataset.ldel }); });
@@ -1828,6 +1831,73 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#leaveFam', function () { if (confirm('家族のまとまりから外れますか？　お子さんの登録は、ほかの家族の人に残ります。')) call('leaveFamily', {}, function () { S.kidsDraft = null; }); });
   }
 
+  // ---- ドラッグ＆ドロップ・貼り付け（PC） ----
+  var CURKEY = '', FORMDROP = {}, dropOver = null;
+  function parseDrop(el) { var p = el.dataset.drop.split('|'); return { mode: p[0], key: p[1] || CURKEY, kind: p[2], target: p.slice(3).join('|') }; }
+  function guessDocKind(name) { return /要項|要綱/.test(name) ? '要項' : /申込|申し込み|エントリー/.test(name) ? '申込書' : /プログラム|番組|組合せ|組み合わせ/.test(name) ? 'プログラム' : /地図|マップ|map|駐車/i.test(name) ? '地図' : /リザルト|結果|記録/.test(name) ? 'リザルト' : 'その他'; }
+  function readAny(file, done) {
+    if (file.type === 'application/pdf') { var r = new FileReader(); r.onload = function () { done(r.result); }; r.onerror = function () { done(null); }; r.readAsDataURL(file); }
+    else if (/^image\//.test(file.type)) readImage(file, done);
+    else done(null);
+  }
+  /** ドロップ・貼り付け・選んだファイルを、1枚ずつ順番に保存する */
+  function dispatchFiles(d, list) {
+    var files = Array.prototype.slice.call(list).filter(function (f) { return /^image\//.test(f.type) || (d.mode === 'doc' && f.type === 'application/pdf'); });
+    if (!files.length) { S.toast = '⚠ 写真' + (d.mode === 'doc' ? 'かPDF' : '') + 'を入れてください'; S.toastErr = true; render(); return; }
+    if (d.mode === 'form') { readImage(files[0], function (data) { if (data && FORMDROP[d.kind]) FORMDROP[d.kind](data); }); return; }
+    var busy = document.getElementById('busy'), i = 0, ok = 0, lastErr = '';
+    (function next() {
+      if (i >= files.length) {
+        busy.hidden = true; busy.textContent = '保存しています…';
+        S.toast = ok ? '✅ ' + ok + '件を追加しました' + (lastErr ? '（' + (files.length - ok) + '件は失敗：' + lastErr + '）' : '') : '⚠ ' + (lastErr || '追加できませんでした'); S.toastErr = !ok || !!lastErr;
+        render(); return;
+      }
+      var f = files[i++];
+      busy.hidden = false; busy.textContent = (d.mode === 'doc' ? '資料' : '写真') + 'を保存しています… ' + i + '/' + files.length;
+      readAny(f, function (data) {
+        if (!data) { lastErr = '読み込めないファイル'; return next(); }
+        var doc = d.mode === 'doc';
+        rpc(doc ? 'addDoc' : 'uploadPhoto', doc ? { key: d.key, kind: guessDocKind(f.name), name: f.name.replace(/\.[^.]+$/, ''), data: data } : { key: d.key, kind: d.kind, target: d.target, data: data },
+          function (st) { ST = fillDefaults(st); ok++; next(); }, function (err) { lastErr = String(err.message || err); next(); });
+      });
+    })();
+  }
+  function dropTargetAt(el) { var t = el && el.closest ? el.closest('[data-drop]') : null; return t || view.querySelector('[data-drop-default]'); }
+  function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
+  function clearDrop() { if (dropOver) dropOver.classList.remove('drop-on'); dropOver = null; }
+  document.addEventListener('dragover', function (e) {
+    if (!ST || !hasFiles(e)) return;
+    e.preventDefault();
+    var t = dropTargetAt(e.target);
+    if (dropOver !== t) { clearDrop(); dropOver = t; if (t) t.classList.add('drop-on'); }
+    e.dataTransfer.dropEffect = t ? 'copy' : 'none';
+  });
+  document.addEventListener('dragleave', function (e) { if (!e.relatedTarget) clearDrop(); });
+  document.addEventListener('drop', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    var t = dropTargetAt(e.target);
+    clearDrop();
+    if (!ST) return;
+    if (!t) { S.toast = '⚠ ここには追加できません。写真や資料の枠にドロップしてください'; S.toastErr = true; render(); return; }
+    dispatchFiles(parseDrop(t), e.dataTransfer.files);
+  });
+  // スクリーンショットなどを Ctrl+V で貼り付け
+  document.addEventListener('paste', function (e) {
+    var files = e.clipboardData && e.clipboardData.files;
+    if (!ST || !files || !files.length) return;
+    var a = document.activeElement, t = (a && a.closest && a.closest('[data-drop]')) || view.querySelector('[data-drop-default]');
+    if (!t) return;
+    e.preventDefault();
+    dispatchFiles(parseDrop(t), files);
+  });
+  // Ctrl+Enter（Macは ⌘+Enter）で、入力中のフォームを保存
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+    var f = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
+    if (f) { e.preventDefault(); if (f.requestSubmit) f.requestSubmit(); else f.dispatchEvent(new Event('submit', { cancelable: true })); }
+  });
+
   // ---- ナビ ----
   var ICONS = {
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
@@ -1847,6 +1917,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     nav.querySelectorAll('[data-nav]').forEach(function (b) { b.addEventListener('click', function () { if (this.dataset.nav === 'admin') S.admin = 'menu'; if (this.dataset.nav === 'family') S.kidsDraft = null; go(this.dataset.nav); }); });
   }
   function render() {
+    CURKEY = ''; FORMDROP = {};
     document.getElementById('clubName').textContent = ST.club + ' ポータル';
     document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.admin ? '・役員' : '');
     document.getElementById('reload').hidden = false;

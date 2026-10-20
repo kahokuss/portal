@@ -442,6 +442,33 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(gas.calendar.events.some((x) => x.location === '河北中学校 体育館' && gas.ctx.Utilities.formatDate(x.start, '', 'HH:mm') === '18:00'));
       await a.setViewportSize({ width: 420, height: 900 });
     });
+    await step('PC: 写真・PDFをドラッグ＆ドロップで追加できる（何枚でも）', async () => {
+      await a.setViewportSize({ width: 1280, height: 900 });
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("秋季記録会")');
+      await a.click('[data-et="写真"]');
+      const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      const before = gas.rows('写真').length;
+      const drop = async (sel, files) => {
+        const dt = await a.evaluateHandle((fs) => {
+          const d = new DataTransfer();
+          fs.forEach((f) => d.items.add(new File([Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0))], f.name, { type: f.type })));
+          return d;
+        }, files);
+        await a.dispatchEvent(sel, 'dragover', { dataTransfer: dt });
+        await a.dispatchEvent(sel, 'drop', { dataTransfer: dt });
+      };
+      await drop('[data-drop-default]', [{ name: 'a.png', type: 'image/png', b64: png }, { name: 'b.png', type: 'image/png', b64: png }]);
+      await a.waitForFunction(() => /2件を追加しました/.test(document.getElementById('view').textContent));
+      assert.strictEqual(gas.rows('写真').length, before + 2, '2枚まとめて');
+      await a.click('[data-et="概要"]');
+      await drop('[data-drop^="doc|"]', [{ name: '大会要項.pdf', type: 'application/pdf', b64: 'JVBERi0xLjQ=' }]);
+      await a.waitForFunction(() => /1件を追加しました/.test(document.getElementById('view').textContent));
+      const doc = gas.rows('資料').find((d) => d['名前'] === '大会要項' && d['形式'] === 'pdf');
+      assert.ok(doc && doc['種類'] === '要項' && doc['形式'] === 'pdf', 'ファイル名から種類を判断');
+      await a.shot('13-dnd-pc');
+      await a.setViewportSize({ width: 420, height: 900 });
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

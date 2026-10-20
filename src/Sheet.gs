@@ -15,7 +15,7 @@ const SHEETS = {
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
-  COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時'] },
+  COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時', '提案'] },
   DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
   HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },

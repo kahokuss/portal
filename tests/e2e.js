@@ -408,6 +408,24 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(gas.rows('手続き').some((t) => t['種類'] === '進出' && t['状態'] === '済'));
       await p.shot('11-final');
     });
+    await step('グループの変更連絡が練習に出て、役員がボタンで予定に反映する', async () => {
+      gas.line({ type: 'group', groupId: 'G1', userId: 'U2' }, '明日の練習について連絡です\n5時半から競技場で練習します');
+      await a.click('[data-nav="home"]');
+      await a.click('#reload');
+      await a.idle();
+      assert.ok((await a.textContent('#view')).includes('📣 変更連絡'));
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("📣変更")');
+      const text = await a.textContent('#view');
+      assert.ok(text.includes('変更の連絡があります') && text.includes('10/15(木) 17:30〜・競技場'), text);
+      await a.shot('11-notice');
+      a.once('dialog', (d) => d.accept());
+      await a.click('[data-apply]');
+      await a.idle();
+      const ce = gas.calendar.events.find((x) => x.location === '競技場');
+      assert.ok(ce, 'カレンダーも直る');
+      assert.ok((await a.textContent('#view')).includes('予定に反映しました'));
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

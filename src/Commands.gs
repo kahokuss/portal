@@ -74,7 +74,7 @@ function parseCommand_(text) {
 const PUBLIC_COMMANDS = [];
 
 /** グループで「ダウン入ります」「ダウンに入りました」などと送られたか（返事はしない） */
-const DOWN_PATTERN = /^(?:クール)?ダウン(?:に)?(?:入|はい|開始|始|スタート)/;
+const DOWN_PATTERN = /^(?:今から|いまから)?(?:クール)?ダウン(?:です|でーす|になります|します|しま|中|に入|入|はい|開始|始|スタート)/;
 
 function handleText_(ev) {
   if (ev.source.type === 'group' && DOWN_PATTERN.test(String(ev.message.text).trim())) {
@@ -82,6 +82,8 @@ function handleText_(ev) {
     recordDown_(new Date(ev.timestamp), getDisplayName_(ev.source));
     return;
   }
+  // 練習の変更の連絡（「次の木曜日は16時50分から競技場で練習します」など）は、記録だけして返事はしない
+  if (ev.source.type === 'group' && !parseCommand_(ev.message.text) && recordScheduleNotice_(ev)) return;
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;

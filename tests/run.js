@@ -614,6 +614,59 @@ test('ダウン: グループの「ダウン入ります」で時刻だけ記録
   st = gas.ctx.api(k2, 'markDown', { key: st.events[0].key, clear: true });
   assert.strictEqual(st.events[0].down, '');
 });
+test('変更連絡: 読み取り（日にち・時刻・場所・中止）', () => {
+  const gas = createGas({ now: '2026-10-20T18:40:00+09:00' });
+  const parse = (x) => plain(gas.run('parseScheduleNotice_(' + JSON.stringify(x) + ', "2026-10-20")'));
+  assert.deepStrictEqual(parse('次の木曜日の練習について連絡です🫡\n\n16時50分から競技場で練習します🏃\n暗くなるのが早いので、少し早めに始められたらと思います。'), { date: '2026-10-22', start: '16:50', end: '', place: '競技場', cancel: false });
+  assert.deepStrictEqual(parse('明日の練習は雨のため中止です'), { date: '2026-10-21', start: '', end: '', place: '', cancel: true });
+  assert.deepStrictEqual(parse('10/24(土)の練習は9時〜11時、場所：河北中学校'), { date: '2026-10-24', start: '09:00', end: '11:00', place: '河北中学校', cancel: false });
+  assert.deepStrictEqual(parse('来週の火曜の練習は5時半からです'), { date: '2026-10-27', start: '17:30', end: '', place: '', cancel: false });
+  assert.strictEqual(parse('今日の練習ありがとうございました！'), null, '時刻・場所・中止がなければ連絡ではない');
+  assert.strictEqual(parse('お疲れ様です！用事の為お休みします'), null);
+});
+
+test('変更連絡: グループの連絡を練習に結びつけ（返事なし）、役員がボタンで予定に反映', () => {
+  const gas = createGas({ now: '2026-10-20T18:40:00+09:00' });
+  gas.init();
+  const jst = (x) => new Date(x + '+09:00');
+  gas.calendar.add({ title: '練習', start: jst('2026-10-22T17:00:00'), end: jst('2026-10-22T18:30:00'), location: '第二小学校' });
+  gas.calendar.add({ title: '練習', start: jst('2026-10-21T17:00:00'), end: jst('2026-10-21T18:30:00'), location: '第二小学校' });
+  Object.assign(gas.profiles, { U1: '山田', U2: '彩' });
+  ['U1', 'U2'].forEach((u) => gas.members.add(u));
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kAdmin, 'bootstrap');
+  const before = gas.fetches.filter((f) => /push|reply/.test(f.url)).length;
+  assert.strictEqual(gas.line(group('U2'), '次の木曜日の練習について連絡です\n16時50分から競技場で練習します'), '');
+  gas.line(group('U2'), '明日の練習は雨のため中止です');
+  gas.line(group('U2'), '10/31の練習は9時から河北中で練習します');
+  assert.strictEqual(gas.fetches.filter((f) => /push|reply/.test(f.url)).length, before, '返事はしない（通数なし）');
+  let st = gas.ctx.api(k2, 'bootstrap');
+  const notes = st.comments.filter((c) => c.kind === '変更連絡');
+  assert.strictEqual(notes.length, 3);
+  const thu = st.events.find((e) => e.date === '2026-10-22');
+  assert.strictEqual(notes[0].key, thu.key, '木曜の練習に結びつく');
+  assert.ok(gas.line(dm('U1'), '予定').includes('📣 変更連絡あり（彩さん）'));
+  assert.ok(gas.line(dm('U1'), '新着').includes('予定にまだ反映していない変更連絡 3件'));
+  assert.throws(() => gas.ctx.api(k2, 'applyNotice', { id: notes[0].id }), /役員だけ/);
+  st = gas.ctx.api(kAdmin, 'applyNotice', { id: notes[0].id });
+  const moved = st.events.find((e) => e.key === thu.key);
+  assert.deepStrictEqual([moved.start, moved.end, moved.place], ['16:50', '18:20', '競技場'], '長さはそのまま');
+  st = gas.ctx.api(kAdmin, 'applyNotice', { id: notes[1].id });
+  assert.strictEqual(st.events.find((e) => e.date === '2026-10-21').cancelled, true, '中止');
+  st = gas.ctx.api(kAdmin, 'applyNotice', { id: notes[2].id });
+  const made = st.events.find((e) => e.date === '2026-10-31');
+  assert.deepStrictEqual([made.start, made.end, made.place], ['09:00', '10:30', '河北中'], '予定にない日は練習をつくる');
+  assert.ok(st.comments.filter((c) => c.kind === '変更連絡').every((c) => c.measure === '予定に反映しました'));
+});
+
+test('ダウン: 「ダウンです。」でも記録する', () => {
+  const gas = createGas();
+  assert.ok(gas.run("DOWN_PATTERN.test('ダウンです。')"));
+  assert.ok(gas.run("DOWN_PATTERN.test('今からダウンします')"));
+  assert.ok(!gas.run("DOWN_PATTERN.test('ダウンジャケット忘れた')"));
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

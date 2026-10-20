@@ -193,7 +193,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "847e8723f0";
+var BUILD = "7640ebcaa7";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -301,6 +301,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         return '<div class="between"><span><b>' + esc(c.r.start || '') + '</b> ' + esc(c.k.name) + '・' + esc(c.r.race) + ' <span class="sub">' + (c.r.call ? '招集 ' + esc(c.r.call) : '') + '</span></span>' + (c.done ? '<span class="pill p-ok">招集OK</span>' : '') + '</div>';
       }).join('') + '</div><button class="btn small" type="button" data-gott="' + today.key + '">タイムテーブル・招集 ›</button></section>';
     }
+    var orphan = ST.comments.filter(function (c) { return c.kind === '変更連絡' && !c.key && !c.measure && c.date >= ST.today; });
+    if (orphan.length) h += '<section class="card"><h2>予定にない日の連絡<small>' + orphan.length + '件</small></h2><div class="list">' + orphan.map(noticeHtml).join('') + '</div></section>';
     var nms = ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && c.date >= addDays(ST.today, -30); });
     if (nms.length) h += '<section class="card"><h2>最近のヒヤリハット<small>' + nms.length + '件（30日以内）</small></h2><div class="list">' + nms.slice(0, 3).map(function (c) {
       return '<button class="ev" type="button" data-ev="' + esc(c.key) + '"><span class="main"><span class="pill p-nm">⚠</span> <b>' + md(c.date) + '</b> ' + esc(c.body.slice(0, 40)) + (c.body.length > 40 ? '…' : '') + '<br><span class="sub">' + (c.measure ? '✅ 対策：' + esc(c.measure.slice(0, 30)) : '対策：まだ') + '</span></span>›</button>';
@@ -312,6 +314,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var off = absentOn(np.date);
       h += '<button class="ev" type="button" data-ev="' + np.key + '"><span class="main"><span class="big">' + when(np) + '</span>' + (np.place ? '<br><span class="sub">📍 ' + esc(np.place) + '</span>' : '') + '</span>›</button>' +
         (np.down ? '<div class="toast">' + downText(np) + '</div>' : '') +
+        (noticesOf(np.key).length ? '<div class="toast" style="background:var(--sky-soft);color:var(--sky)">📣 変更連絡：' + esc(noticesOf(np.key)[0].body.slice(0, 50)) + '</div>' : '') +
         '<div class="sub">休み：' + (off.length ? off.map(function (a) { return esc(a.child); }).join('・') + '（' + off.length + '人）' : 'いまのところなし') + (dutyOf(np.key).length ? '　当番：' + esc(dutyText(np.key)) : '') + '</div>';
     }
     else h += '<div class="sub">カレンダーに練習の予定がありません</div>';
@@ -350,6 +353,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '</section>';
     view.innerHTML = h;
     bindCommon();
+    bindNotices();
+    on('[data-cdel]', function () { if (confirm('このコメントを消しますか？')) call('deleteComment', { id: this.dataset.cdel }); });
     on('#absBtn', function () { S.absForm = !S.absForm; S.toast = ''; render(); });
     on('#absCancel', function () { S.absForm = false; render(); });
     var sel = document.getElementById('absDate');
@@ -397,7 +402,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + typePill(e) + (e.cancelled ? ' <span class="pill p-gray">中止</span>' : '') +
         (!e.cancelled && e.date >= ST.today && absentOn(e.date).length && !isRace(e) ? ' <span class="pill p-warn">休み' + absentOn(e.date).length + '</span>' : '') +
         (dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; }) ? ' <span class="pill p-race">当番</span>' : '') +
-        (commentsOf(e.key).some(function (c) { return c.kind === 'ヒヤリハット'; }) ? ' <span class="pill p-nm">⚠</span>' : commentsOf(e.key).length ? ' <span class="pill p-gray">💬' + commentsOf(e.key).length + '</span>' : '') +
+        (noticesOf(e.key).length ? ' <span class="pill p-prac">📣変更</span>' : '') +
+        (commentsOf(e.key).some(function (c) { return c.kind === 'ヒヤリハット'; }) ? ' <span class="pill p-nm">⚠</span>' : commentsOf(e.key).filter(function (c) { return c.kind !== '変更連絡'; }).length ? ' <span class="pill p-gray">💬' + commentsOf(e.key).filter(function (c) { return c.kind !== '変更連絡'; }).length + '</span>' : '') +
         ' ' + (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') + '〜 ' : '') + esc(e.place || '') + '</div></div>›</button>';
     });
     if (open) h += '</div></section>'; else h += '<div class="card empty">予定がありません</div>';
@@ -413,7 +419,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<section class="card"><div class="row">' + typePill(e) + (det && det.target ? '<span class="pill p-gray">' + esc(det.target) + '</span>' : '') + (e.cancelled ? '<span class="pill p-gray">中止</span>' : past ? '<span class="pill p-gray">終了</span>' : '') + '</div>' +
       '<div class="big">' + esc(e.title) + '</div><div class="sub">' + when(e) + (e.place ? '　📍 ' + esc(e.place) : '') + '</div>' + (isRace(e) && ST.me.children.length ? '<div class="row">' + myStatus(e) + '</div>' : '') + '</section>';
     if (!isRace(e)) {
-      h += toastHtml() + downCard(e) + (e.cancelled ? '' : attendCard(e)) + dutyCard(e) +
+      var nts = noticesOf(e.key);
+      h += toastHtml() + (nts.length ? '<section class="card banner"><h2>変更の連絡があります</h2>' + nts.map(noticeHtml).join('') + '</section>' : '') + downCard(e) + (e.cancelled ? '' : attendCard(e)) + dutyCard(e) +
         '<section class="card"><div class="sub">お休みするときはホームの「休みを連絡する」からどうぞ。</div>' +
         (ST.me.admin ? '<button class="btn small ghost" data-type="大会" type="button" style="justify-self:start">この予定を大会として扱う</button>' : '') + '</section>' +
         commentsCard(e) + (ST.me.admin && !e.cancelled ? eventEditCard(e) : '');
@@ -1440,7 +1447,33 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   // ---- コメント・ヒヤリハット ----
   function commentsOf(key) { return ST.comments.filter(function (c) { return c.key === key; }); }
+  function suggestText(sg) {
+    if (!sg) return '';
+    return md(sg.date) + ' ' + (sg.cancel ? '中止' : [sg.start ? sg.start.replace(/^0/, '') + (sg.end ? '〜' + sg.end.replace(/^0/, '') : '〜') : '', sg.place].filter(Boolean).join('・'));
+  }
+  function noticesOf(key) { return ST.comments.filter(function (c) { return c.kind === '変更連絡' && c.key === key && !c.measure; }); }
+  function noticeHtml(c) {
+    var ev = c.key && evByKey(c.key);
+    return '<div class="cmt nm" style="background:var(--sky-soft)"><div class="between"><span><span class="pill p-prac">📣 LINEの変更連絡</span> <span class="sub">' + esc(c.by) + 'さん・' + esc(String(c.at).slice(5, 16).replace('-', '/')) + '</span></span></div>' +
+      '<div class="b">' + esc(c.body) + '</div>' +
+      (c.measure ? '<div class="measure">✅ ' + esc(c.measure) + '（' + esc(c.measureBy) + 'さん）</div>' :
+        '<div class="sub">読み取った内容：<b>' + esc(suggestText(c.suggest)) + '</b>' + (ev ? '' : '（この日は予定に入っていません）') + '</div>' +
+        (ST.me.admin ? '<div class="row"><button class="btn small" type="button" data-apply="' + esc(c.id) + '">' + (c.suggest && c.suggest.cancel ? 'この練習を中止にする' : ev ? '予定に反映する' : 'この日に練習をつくる') + '</button><button class="btn small ghost" type="button" data-applyfix="' + esc(c.id) + '">直してから反映</button><button class="icon-btn" type="button" data-cdel="' + esc(c.id) + '" aria-label="消す">×</button></div>' : '<div class="hint">役員が予定（カレンダー）に反映します。</div>')) + '</div>';
+  }
+  function bindNotices() {
+    on('[data-apply]', function () {
+      var c = ST.comments.find(function (x) { return x.id === this.dataset.apply; }, this);
+      if (confirm('「' + suggestText(c.suggest) + '」で予定（Googleカレンダー）を直しますか？')) call('applyNotice', { id: c.id });
+    });
+    on('[data-applyfix]', function () {
+      var c = ST.comments.find(function (x) { return x.id === this.dataset.applyfix; }, this), sg = c.suggest || {};
+      var st = prompt('始まりの時刻（例：16:50）', sg.start || ''); if (st === null) return;
+      var pl = prompt('場所', sg.place || (c.key && evByKey(c.key) ? evByKey(c.key).place : '') || ''); if (pl === null) return;
+      call('applyNotice', { id: c.id, start: fmtTime(st), place: pl });
+    });
+  }
   function commentHtml(c, withEvent) {
+    if (c.kind === '変更連絡') return noticeHtml(c);
     var nm = c.kind === 'ヒヤリハット';
     return '<div class="cmt' + (nm ? ' nm' : '') + '"><div class="between"><span>' + (nm ? '<span class="pill p-nm">⚠ ヒヤリハット</span> ' : '') + (c.adminOnly ? '<span class="pill p-gray">役員だけ</span> ' : '') +
       '<span class="sub">' + esc(c.by) + 'さん・' + esc(String(c.at).slice(5, 16).replace('-', '/')) + '</span></span>' +
@@ -1451,7 +1484,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         (ST.me.admin ? '<div class="row"><input class="mi" data-mid="' + esc(c.id) + '" value="' + esc(c.measure || '') + '" placeholder="対策を書く（例：コーンを置く、大人が見守る）" style="flex:1;min-width:0;font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)"><button class="btn small" type="button" data-msave="' + esc(c.id) + '">保存</button></div>' : '') : '') + '</div>';
   }
   function commentsCard(e) {
-    var list = commentsOf(e.key), C = S.cmt && S.cmt.key === e.key ? S.cmt : (S.cmt = { key: e.key, kind: 'コメント', body: '', place: '', adminOnly: false });
+    var list = commentsOf(e.key).filter(function (c) { return !(c.kind === '変更連絡' && !c.measure); }), C = S.cmt && S.cmt.key === e.key ? S.cmt : (S.cmt = { key: e.key, kind: 'コメント', body: '', place: '', adminOnly: false });
     var nm = C.kind === 'ヒヤリハット';
     var h = '<section class="card"><h2>コメント・ヒヤリハット<small>' + list.length + '件</small></h2>' + (list.length ? '<div class="list">' + list.map(function (c) { return commentHtml(c); }).join('') + '</div>' : '') +
       '<form class="f" id="cmtForm"><div class="choice">' + [['コメント', '💬 コメント'], ['ヒヤリハット', '⚠ ヒヤリハット']].map(function (x) { return '<button type="button" data-ck="' + x[0] + '" aria-pressed="' + (C.kind === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
@@ -1478,6 +1511,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     bindCommentActions();
   }
   function bindCommentActions() {
+    bindNotices();
     on('[data-cdel]', function () { if (confirm('このコメントを消しますか？')) call('deleteComment', { id: this.dataset.cdel }); });
     on('[data-msave]', function () { var id = this.dataset.msave, inp = view.querySelector('[data-mid="' + id + '"]'); call('setMeasure', { id: id, measure: inp.value }); });
     on('[data-photo]', function () { showPhoto(this.dataset.photo); });

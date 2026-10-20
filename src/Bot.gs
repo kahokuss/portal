@@ -46,6 +46,19 @@ function famLabelMap_() {
   return map;
 }
 
+/** まだ予定に反映していない、LINEの変更連絡（その予定の分） */
+function pendingNotices_() {
+  const out = {};
+  readRows_(SHEETS.COMMENTS).forEach((c) => {
+    if (c.id && c['種類'] === '変更連絡' && !c['対策'] && c.eventKey) (out[c.eventKey] = out[c.eventKey] || []).push(c);
+  });
+  return out;
+}
+
+function noticeLine_(list) {
+  return list && list.length ? '📣 変更連絡あり（' + list[list.length - 1]['表示名'] + 'さん）：' + String(list[list.length - 1]['本文']).replace(/\s+/g, ' ').slice(0, 60) : '';
+}
+
 function whenText_(e) {
   return formatWhen_(e.row) + ' ' + e.title + (e.place ? '（' + e.place + '）' : '');
 }
@@ -81,6 +94,8 @@ function handleNews_(ev) {
     const off = absences.filter((a) => a['日付'] === np.date);
     const duty = duties.filter((x) => x.eventKey === np.key).map((x) => labels[x['家族ID']] || '').filter(Boolean);
     lines.push('', '🏃 次の練習（' + dayWord_(np.date, d.today) + '）', whenText_(np), '休み ' + off.length + '人' + (duty.length ? '・当番 ' + duty.join('、') : ''));
+    const nl = noticeLine_(pendingNotices_()[np.key]);
+    if (nl) lines.push(nl);
   }
 
   const mine = duties.filter((x) => x['家族ID'] === u.famId && x['日付'] <= addDays_(d.today, 14));
@@ -120,6 +135,8 @@ function handleNews_(ev) {
       adminLines.push('🙋 確認していない休みの連絡 ' + unack.length + '件');
       unack.slice(0, 8).forEach((a) => adminLines.push('・' + formatDate_(a['日付']) + ' ' + a['子ども'] + '（' + a['理由'] + (a['メモ'] ? '・' + a['メモ'] : '') + '）'));
     }
+    const pend = readRows_(SHEETS.COMMENTS).filter((c) => c.id && c['種類'] === '変更連絡' && !c['対策']);
+    if (pend.length) adminLines.push('📣 予定にまだ反映していない変更連絡 ' + pend.length + '件（ポータルの練習のページで「予定に反映する」）');
     const open = readRows_(SHEETS.COMMENTS).filter((c) => c.id && c['種類'] === 'ヒヤリハット' && !c['対策']);
     if (open.length) adminLines.push('⚠ 対策がまだのヒヤリハット ' + open.length + '件');
     const tasks = readRows_(SHEETS.TASKS);
@@ -159,8 +176,10 @@ function handleToday_(ev) {
   }
   const tasks = readRows_(SHEETS.TASKS);
   const entries = readRows_(SHEETS.ENTRIES);
+  const notices = pendingNotices_();
   const out = todays.map((e) => {
     const lines = ['📅 今日 ' + whenText_(e)];
+    if (notices[e.key]) lines.push(noticeLine_(notices[e.key]));
     if (e.race && e.detail && (e.detail.meetTime || e.detail.meetPlace)) lines.push('集合 ' + [e.detail.meetTime, e.detail.meetPlace].filter(Boolean).join(' '));
     if (e.race) {
       const rows = readRows_(SHEETS.TIMETABLE).filter((r) => r.id && r.eventKey === e.key);
@@ -192,7 +211,8 @@ function handleSchedule_(ev) {
   const list = d.events.slice(0, 6);
   if (!list.length) return respond_(ev, botMessages_(['これからの予定はありません。']));
   const lines = ['📅 これからの予定'];
-  list.forEach((e) => lines.push((e.race ? '🏅 ' : '・') + whenText_(e) + (e.race && e.detail && e.detail.deadline && e.detail.deadline >= d.today ? '\n　締切 ' + formatDate_(e.detail.deadline) : '')));
+  const notices = pendingNotices_();
+  list.forEach((e) => lines.push((e.race ? '🏅 ' : '・') + whenText_(e) + (e.race && e.detail && e.detail.deadline && e.detail.deadline >= d.today ? '\n　締切 ' + formatDate_(e.detail.deadline) : '') + (notices[e.key] ? '\n　' + noticeLine_(notices[e.key]) : '')));
   lines.push('', 'ぜんぶ見るときはポータルで\n' + portalUrl_());
   respond_(ev, botMessages_([lines.join('\n')]));
 }

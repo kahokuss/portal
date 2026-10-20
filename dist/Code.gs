@@ -51,6 +51,19 @@ function famLabelMap_() {
   return map;
 }
 
+/** まだ予定に反映していない、LINEの変更連絡（その予定の分） */
+function pendingNotices_() {
+  const out = {};
+  readRows_(SHEETS.COMMENTS).forEach((c) => {
+    if (c.id && c['種類'] === '変更連絡' && !c['対策'] && c.eventKey) (out[c.eventKey] = out[c.eventKey] || []).push(c);
+  });
+  return out;
+}
+
+function noticeLine_(list) {
+  return list && list.length ? '📣 変更連絡あり（' + list[list.length - 1]['表示名'] + 'さん）：' + String(list[list.length - 1]['本文']).replace(/\s+/g, ' ').slice(0, 60) : '';
+}
+
 function whenText_(e) {
   return formatWhen_(e.row) + ' ' + e.title + (e.place ? '（' + e.place + '）' : '');
 }
@@ -86,6 +99,8 @@ function handleNews_(ev) {
     const off = absences.filter((a) => a['日付'] === np.date);
     const duty = duties.filter((x) => x.eventKey === np.key).map((x) => labels[x['家族ID']] || '').filter(Boolean);
     lines.push('', '🏃 次の練習（' + dayWord_(np.date, d.today) + '）', whenText_(np), '休み ' + off.length + '人' + (duty.length ? '・当番 ' + duty.join('、') : ''));
+    const nl = noticeLine_(pendingNotices_()[np.key]);
+    if (nl) lines.push(nl);
   }
 
   const mine = duties.filter((x) => x['家族ID'] === u.famId && x['日付'] <= addDays_(d.today, 14));
@@ -125,6 +140,8 @@ function handleNews_(ev) {
       adminLines.push('🙋 確認していない休みの連絡 ' + unack.length + '件');
       unack.slice(0, 8).forEach((a) => adminLines.push('・' + formatDate_(a['日付']) + ' ' + a['子ども'] + '（' + a['理由'] + (a['メモ'] ? '・' + a['メモ'] : '') + '）'));
     }
+    const pend = readRows_(SHEETS.COMMENTS).filter((c) => c.id && c['種類'] === '変更連絡' && !c['対策']);
+    if (pend.length) adminLines.push('📣 予定にまだ反映していない変更連絡 ' + pend.length + '件（ポータルの練習のページで「予定に反映する」）');
     const open = readRows_(SHEETS.COMMENTS).filter((c) => c.id && c['種類'] === 'ヒヤリハット' && !c['対策']);
     if (open.length) adminLines.push('⚠ 対策がまだのヒヤリハット ' + open.length + '件');
     const tasks = readRows_(SHEETS.TASKS);
@@ -164,8 +181,10 @@ function handleToday_(ev) {
   }
   const tasks = readRows_(SHEETS.TASKS);
   const entries = readRows_(SHEETS.ENTRIES);
+  const notices = pendingNotices_();
   const out = todays.map((e) => {
     const lines = ['📅 今日 ' + whenText_(e)];
+    if (notices[e.key]) lines.push(noticeLine_(notices[e.key]));
     if (e.race && e.detail && (e.detail.meetTime || e.detail.meetPlace)) lines.push('集合 ' + [e.detail.meetTime, e.detail.meetPlace].filter(Boolean).join(' '));
     if (e.race) {
       const rows = readRows_(SHEETS.TIMETABLE).filter((r) => r.id && r.eventKey === e.key);
@@ -197,7 +216,8 @@ function handleSchedule_(ev) {
   const list = d.events.slice(0, 6);
   if (!list.length) return respond_(ev, botMessages_(['これからの予定はありません。']));
   const lines = ['📅 これからの予定'];
-  list.forEach((e) => lines.push((e.race ? '🏅 ' : '・') + whenText_(e) + (e.race && e.detail && e.detail.deadline && e.detail.deadline >= d.today ? '\n　締切 ' + formatDate_(e.detail.deadline) : '')));
+  const notices = pendingNotices_();
+  list.forEach((e) => lines.push((e.race ? '🏅 ' : '・') + whenText_(e) + (e.race && e.detail && e.detail.deadline && e.detail.deadline >= d.today ? '\n　締切 ' + formatDate_(e.detail.deadline) : '') + (notices[e.key] ? '\n　' + noticeLine_(notices[e.key]) : '')));
   lines.push('', 'ぜんぶ見るときはポータルで\n' + portalUrl_());
   respond_(ev, botMessages_([lines.join('\n')]));
 }
@@ -632,7 +652,7 @@ function parseCommand_(text) {
 const PUBLIC_COMMANDS = [];
 
 /** グループで「ダウン入ります」「ダウンに入りました」などと送られたか（返事はしない） */
-const DOWN_PATTERN = /^(?:クール)?ダウン(?:に)?(?:入|はい|開始|始|スタート)/;
+const DOWN_PATTERN = /^(?:今から|いまから)?(?:クール)?ダウン(?:です|でーす|になります|します|しま|中|に入|入|はい|開始|始|スタート)/;
 
 function handleText_(ev) {
   if (ev.source.type === 'group' && DOWN_PATTERN.test(String(ev.message.text).trim())) {
@@ -640,6 +660,8 @@ function handleText_(ev) {
     recordDown_(new Date(ev.timestamp), getDisplayName_(ev.source));
     return;
   }
+  // 練習の変更の連絡（「次の木曜日は16時50分から競技場で練習します」など）は、記録だけして返事はしない
+  if (ev.source.type === 'group' && !parseCommand_(ev.message.text) && recordScheduleNotice_(ev)) return;
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
@@ -1293,6 +1315,130 @@ function syncNow() {
   console.log('同期しました');
 }
 
+// ===== Notice.gs =====
+/**
+ * グループに流れた「練習の変更の連絡」を拾って、その日の練習に結びつけて残す（Botは返事をしない）。
+ *   例：「次の木曜日の練習について連絡です。16時50分から競技場で練習します」
+ *       「明日の練習は雨のため中止です」
+ * ポータルの練習のページとBotの「今日」「予定」「新着」に出し、役員がボタン1つで予定（カレンダー）に反映できる。
+ * カレンダーを勝手には書きかえない。
+ */
+
+const WEEKDAY_CHARS = '日月火水木金土';
+
+/**
+ * 変更の連絡かどうかを読み取る。ちがえば null
+ * @return {{date: string, start: string, end: string, place: string, cancel: boolean}|null}
+ */
+function parseScheduleNotice_(text, today) {
+  const t = toHalfWidth_(text || '').replace(/\s+/g, ' ');
+  if (!/練習|れんしゅう/.test(t)) return null;
+  const date = noticeDate_(t, today);
+  if (!date) return null;
+  const cancel = /中止|練習(?:は|も)?(?:なし|ありません|お休み(?:です|にします|になります))/.test(t);
+  const times = [];
+  const re = /(\d{1,2})(?:時(?:(\d{1,2})分|半)?|:(\d{2}))/g;
+  let m;
+  while ((m = re.exec(t))) {
+    let h = +m[1];
+    const mi = m[2] ? +m[2] : m[3] ? +m[3] : /半/.test(m[0]) ? 30 : 0;
+    if (h < 9) h += 12; // 「5時から」は夕方
+    if (h <= 23 && mi <= 59) times.push(('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2));
+  }
+  const pm = t.match(/(?:場所[はは:：]?\s*)([^\s、。]{2,15})/) || t.match(/([^\s、。]{2,15}?)(?:で|にて)(?:の)?(?:練習|集合|行い|やり|実施|します)/) || t.match(/([^\s、。]{2,15}?)に(?:集合|変更)/);
+  let place = pm ? pm[1].replace(/^.*(?:から|は|、)/, '').replace(/^(?:の|で)/, '') : '';
+  if (/^(?:今日|明日|次|練習|こちら|現地|いつも)/.test(place) || /\d/.test(place)) place = '';
+  if (!cancel && !times.length && !place) return null;
+  return { date: date, start: cancel ? '' : times[0] || '', end: cancel ? '' : times[1] || '', place: cancel ? '' : place, cancel: cancel };
+}
+
+/** 「今日」「明日」「あさって」「次の木曜日」「木曜」「10/23」「10月23日」「23日」を日付にする */
+function noticeDate_(t, today) {
+  if (/今日|本日/.test(t)) return today;
+  if (/明日|あした/.test(t)) return addDays_(today, 1);
+  if (/あさって|明後日/.test(t)) return addDays_(today, 2);
+  let m = t.match(/(\d{1,2})[\/月](\d{1,2})日?/);
+  if (m) return parseDateCell_(m[1] + '/' + m[2]);
+  m = t.match(/(次の|来週の?|今週の?)?([日月火水木金土])曜/);
+  if (m) {
+    const want = WEEKDAY_CHARS.indexOf(m[2]);
+    const now = new Date(today + 'T00:00:00Z').getUTCDay();
+    if (/来週/.test(m[1] || '')) {
+      const toMonday = (8 - now) % 7 || 7;
+      return addDays_(today, toMonday + (want + 6) % 7);
+    }
+    let n = (want - now + 7) % 7;
+    if (n === 0 && m[1]) n = 7;
+    return addDays_(today, n);
+  }
+  m = t.match(/(\d{1,2})日(?:\(.\)|（.）)?の/);
+  if (m) {
+    const d = +m[1];
+    let mo = +today.slice(5, 7);
+    if (d < +today.slice(8, 10)) mo = mo % 12 + 1;
+    return parseDateCell_(mo + '/' + d);
+  }
+  return '';
+}
+
+/** グループのメッセージが練習の変更の連絡なら、「コメント」シートに「変更連絡」として残す */
+function recordScheduleNotice_(ev) {
+  const text = String(ev.message.text || '');
+  const today = fmt_(new Date(ev.timestamp), 'yyyy-MM-dd');
+  const p = parseScheduleNotice_(text, today);
+  if (!p) return false;
+  const target = readRows_(SHEETS.EVENTS).find((e) => e['日付'] === p.date && e['状態'] !== '中止' && (e['種別'] || guessType_(e['タイトル'])) === '練習');
+  withLock_(() => {
+    appendRow_(SHEETS.COMMENTS, {
+      id: randomKey_().slice(0, 10), eventKey: target ? target.eventKey : '', '種類': '変更連絡', '本文': text.slice(0, 1000), '場所': p.place,
+      '公開': '全員', '写真ID': '', userId: ev.source.userId, '表示名': getDisplayName_(ev.source), '日時': now_(), '提案': JSON.stringify(p),
+    });
+  });
+  return true;
+}
+
+/** 変更連絡の内容で、予定（カレンダー）を直す・中止にする・ない日なら練習をつくる（役員） */
+function applyNoticeAction_(ctx, p) {
+  const row = readRows_(SHEETS.COMMENTS).find((x) => x.id && x.id === p.id && x['種類'] === '変更連絡');
+  if (!row) throw new Error('変更連絡が見つかりません。');
+  let s;
+  try { s = JSON.parse(row['提案'] || '{}'); } catch (err) { s = {}; }
+  if (p.start !== undefined) s.start = parseTimeCell_(p.start) || '';
+  if (p.end !== undefined) s.end = parseTimeCell_(p.end) || '';
+  if (p.place !== undefined) s.place = String(p.place || '').trim().slice(0, 80);
+  const ev = row.eventKey ? findEvent_(row.eventKey) : null;
+  let msg;
+  if (s.cancel) {
+    if (!ev) throw new Error('この日の練習は、もともと予定に入っていません。');
+    msg = cancelEventAction_(ctx, { key: ev.eventKey });
+  } else if (ev) {
+    const len = ev['開始'] && ev['終了'] && ev['開始'] !== '終日' ? toMin_(ev['終了']) - toMin_(ev['開始']) : 90;
+    const start = s.start || (ev['開始'] === '終日' ? '' : ev['開始']);
+    const end = s.end || (s.start ? minToHm_(toMin_(s.start) + len) : ev['終了']);
+    msg = editEventAction_(ctx, { key: ev.eventKey, date: ev['日付'], start: start, end: end, title: ev['タイトル'], place: s.place || ev['場所'] });
+  } else {
+    if (!s.start) throw new Error('時刻が分からないので、ポータルの「練習の予定をつくる」から入れてください。');
+    msg = savePracticesAction_(ctx, { dates: [s.date], start: s.start, end: s.end || minToHm_(toMin_(s.start) + 90), title: '練習', place: s.place });
+  }
+  withLock_(() => {
+    const r = readRows_(SHEETS.COMMENTS).find((x) => x.id === p.id);
+    if (!r) return;
+    if (!r.eventKey) {
+      const made = readRows_(SHEETS.EVENTS).find((e) => e['日付'] === s.date && e['状態'] !== '中止');
+      if (made) r.eventKey = made.eventKey;
+    }
+    r['対策'] = '予定に反映しました';
+    r['対策者'] = ctx.name;
+    r['対策日時'] = now_();
+    updateRow_(SHEETS.COMMENTS, r);
+  });
+  return msg;
+}
+
+function minToHm_(n) {
+  return ('0' + Math.floor(n / 60)).slice(-2) + ':' + ('0' + (n % 60)).slice(-2);
+}
+
 // ===== Photos.gs =====
 const EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
 
@@ -1402,6 +1548,7 @@ const API_ACTIONS = {
   doc: { raw: true, run: docAction_ },
   setDeadline: { run: setDeadlineAction_ },
   markDown: { run: markDownAction_ },
+  applyNotice: { admin: true, run: applyNoticeAction_ },
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
@@ -2264,6 +2411,10 @@ function setMeasureAction_(ctx, p) {
 }
 
 /** 画面に渡すコメント（1年分）。「役員だけ」のものは、書いた人と役員にだけ */
+function parseSuggest_(s) {
+  try { return JSON.parse(s || '{}'); } catch (err) { return {}; }
+}
+
 function commentsFor_(ctx) {
   const from = addDays_(today_(), -400);
   const all = {};
@@ -2276,7 +2427,12 @@ function commentsFor_(ctx) {
         id: x.id, key: x.eventKey, kind: x['種類'], body: x['本文'], place: x['場所'], adminOnly: x['公開'] === '役員', photo: x['写真ID'],
         by: x['表示名'], at: x['日時'], mine: x.userId === ctx.userId, measure: x['対策'], measureBy: x['対策者'],
         date: ev ? ev['日付'] : String(x['日時']).slice(0, 10), title: ev ? ev['タイトル'] : '',
+        suggest: x['種類'] === '変更連絡' ? parseSuggest_(x['提案']) : null,
       };
+    })
+    .map((c) => {
+      if (c.kind === '変更連絡' && !c.key && c.suggest && c.suggest.date) c.date = c.suggest.date;
+      return c;
     });
 }
 
@@ -2639,7 +2795,7 @@ const SHEETS = {
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
-  COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時'] },
+  COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時', '提案'] },
   DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
   HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },

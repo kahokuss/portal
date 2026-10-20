@@ -487,6 +487,10 @@ function setMeasureAction_(ctx, p) {
 }
 
 /** 画面に渡すコメント（1年分）。「役員だけ」のものは、書いた人と役員にだけ */
+function parseSuggest_(s) {
+  try { return JSON.parse(s || '{}'); } catch (err) { return {}; }
+}
+
 function commentsFor_(ctx) {
   const from = addDays_(today_(), -400);
   const all = {};
@@ -499,7 +503,12 @@ function commentsFor_(ctx) {
         id: x.id, key: x.eventKey, kind: x['種類'], body: x['本文'], place: x['場所'], adminOnly: x['公開'] === '役員', photo: x['写真ID'],
         by: x['表示名'], at: x['日時'], mine: x.userId === ctx.userId, measure: x['対策'], measureBy: x['対策者'],
         date: ev ? ev['日付'] : String(x['日時']).slice(0, 10), title: ev ? ev['タイトル'] : '',
+        suggest: x['種類'] === '変更連絡' ? parseSuggest_(x['提案']) : null,
       };
+    })
+    .map((c) => {
+      if (c.kind === '変更連絡' && !c.key && c.suggest && c.suggest.date) c.date = c.suggest.date;
+      return c;
     });
 }
 

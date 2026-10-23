@@ -207,11 +207,9 @@ form.f, .f { display: grid; gap: 8px; }
 .tally .lb { font-size: 11.5px; color: var(--muted); font-weight: 700; }
 .tally .num { font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .tally .t-y .num { color: var(--field); } .tally .t-n .num { color: var(--track); } .tally .t-q .num { color: var(--warn); }
-.faces { display: flex; justify-content: center; flex-wrap: nowrap; gap: 2px; min-height: 24px; }
 .kid .yn button:not([aria-pressed="true"]), .kid .choice button:not([aria-pressed="true"]) { background: var(--surface); }
-.face { width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
-.face.me { background: var(--sky); color: #fff; }
-.face.more { background: none; border: 0; color: var(--muted); width: auto; padding: 0 2px; }
+.tally .who { font-size: 11.5px; color: var(--fg); line-height: 1.4; min-height: 16px; text-align: center; overflow-wrap: anywhere; }
+.tally .who .me { color: var(--sky); font-weight: 700; }
 .tally-names { font-size: 13px; display: grid; gap: 4px; }
 .tally-names .g { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .tally-names .g > b { font-size: 11.5px; color: var(--muted); width: 2.6em; flex: none; }
@@ -338,7 +336,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "2f8de15ef8";
+var BUILD = "6181d1e3ee";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "ca3f6d893b";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -1202,11 +1200,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function bindDuty(e) { on('[data-duty]', function () { call('setDuty', { key: e.key, fam: this.dataset.duty, on: !!this.dataset.on }); }); }
 
   // ---- 出欠ボタン（大きな ✓ ✕ と、出席・欠席・未回答の人数） ----
-  function initial(n) { var m = String(n).match(/[ぁ-んァ-ヶ]/); return m ? m[0] : String(n).charAt(0); }
-  function faces(list, cols) {
+  /** 集計の数字の下：お休み・不参加・未回答の子だけ名前を出す（出席はみんななので出さない）。名前は名字を省く */
+  function shortName(n) {
+    var same = ST.kids.filter(function (x) { return x.name !== n && given(x.name) === given(n); }).length;
+    return same ? n : given(n);
+    function given(x) { var m = String(x).match(/^[一-龥々]+([ぁ-んァ-ヶー].*)$/); return m ? m[1] : x; }
+  }
+  function whoLine(list, color, cols) {
+    var max = cols === 2 ? 3 : 2;
+    if (color === 't-y' || !list.length) return '<span class="who"></span>';
     var mine = myNames();
-    var max = cols === 2 ? 4 : 2;
-    return '<span class="faces">' + list.slice(0, max).map(function (k) { return '<span class="face' + (mine.indexOf(k.name) >= 0 ? ' me' : '') + '" title="' + esc(k.name) + '">' + esc(initial(k.name)) + '</span>'; }).join('') + (list.length > max ? '<span class="face more">+' + (list.length - max) + '</span>' : '') + '</span>';
+    return '<span class="who">' + list.slice(0, max).map(function (k) { return '<span' + (mine.indexOf(k.name) >= 0 ? ' class="me"' : '') + '>' + esc(shortName(k.name)) + '</span>'; }).join('、') + (list.length > max ? ' ほか' + (list.length - max) + '人' : '') + '</span>';
   }
   function ynHtml(yOn, nOn, attr, dis, labels) {
     labels = labels || ['出席', '欠席'];
@@ -1225,7 +1229,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function tallyHtml(e) {
     var cols = rsvpCols(e), open = S.tally && S.tally.split('|')[0] === e.key ? +S.tally.split('|')[1] : -1;
     var h = '<div class="tally' + (cols.length === 2 ? ' two' : '') + '">' + cols.map(function (c, i) {
-      return '<button type="button" class="' + c[2] + '" data-tally="' + e.key + '|' + i + '" aria-expanded="' + (open === i) + '"><span class="lb">' + c[0] + '</span><span class="num">' + c[1].length + '</span>' + faces(c[1], cols.length) + '</button>';
+      return '<button type="button" class="' + c[2] + '" data-tally="' + e.key + '|' + i + '" aria-expanded="' + (open === i) + '"><span class="lb">' + c[0] + '</span><span class="num">' + c[1].length + '</span>' + whoLine(c[1], c[2], cols.length) + '</button>';
     }).join('') + '</div>';
     if (open >= 0 && cols[open]) {
       var groups = {};

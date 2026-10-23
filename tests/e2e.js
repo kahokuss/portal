@@ -167,9 +167,12 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-nav="home"]');
       await a.click('#reload');
       await a.idle();
+      assert.ok(!(await a.$('[data-ack]')), 'ホームにはほかの家の休みを並べない');
+      await a.click('#absAll');
       await a.click('[data-ack]');
       await a.idle();
       assert.strictEqual(gas.rows('休み')[0]['確認'], '済');
+      await a.click('[data-nav="home"]');
       await a.click('.btn[data-entry]');
       await a.click('[data-pay="鈴木けんた"]');
       await a.idle();

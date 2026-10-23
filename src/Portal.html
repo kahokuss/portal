@@ -25,7 +25,7 @@ html, body { margin: 0; }
 body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.6;
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 .app { max-width: 520px; margin: 0 auto; display: grid; gap: 10px; }
-.frame { background: var(--surface-2); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; min-height: calc(100vh - 24px); }
+.frame { background: var(--surface-2); border: 0; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; min-height: calc(100vh - 24px); }
 .top { background: var(--surface); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
 .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--track); display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 13px; flex: none; }
 .top h1 { font-family: var(--font-display); font-size: 1.05rem; margin: 0; line-height: 1.3; }
@@ -39,7 +39,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .nav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 8px 0 7px; cursor: pointer; display: grid; justify-items: center; gap: 2px; }
 .nav button svg { width: 22px; height: 22px; }
 .nav button[aria-current="page"] { color: var(--track); font-weight: 700; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.card { background: var(--surface); border: 0; border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
 .card h2 { font-family: var(--font-display); font-size: 1.02rem; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card h2 small { font-family: var(--font-body); font-weight: 400; font-size: 11.5px; color: var(--muted); }
 .big { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; line-height: 1.35; }
@@ -52,9 +52,9 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .p-prac { background: var(--sky-soft); color: var(--sky); }
 .p-ok { background: var(--field-soft); color: var(--field); }
 .p-warn { background: var(--warn-soft); color: var(--warn); }
-.p-gray { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.p-gray { background: var(--surface-2); color: var(--muted); }
 .btn { border: 0; border-radius: 10px; padding: 10px 16px; min-height: 42px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; background: var(--track); color: #fff; }
-.btn.ghost { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+.btn.ghost { background: var(--surface-2); color: var(--fg); border: 0; }
 .btn.small { padding: 6px 12px; min-height: 32px; font-size: 12.5px; border-radius: 9px; white-space: nowrap; flex: none; }
 .btn.ok { background: var(--field); }
 .btn:disabled { opacity: .5; cursor: wait; }
@@ -65,7 +65,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .list > *:first-child { border-top: 0; padding-top: 0; }
 .notice .t { font-weight: 700; }
 .notice .b { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
-.date { flex: none; width: 46px; text-align: center; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); padding: 3px 0; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.date { flex: none; width: 46px; text-align: center; border-radius: 10px; background: var(--surface-2); border: 0; padding: 3px 0; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .date b { display: block; font-size: 15px; }
 .date span { font-size: 10.5px; color: var(--muted); }
 .date.race { background: var(--track-soft); border-color: transparent; }
@@ -81,7 +81,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .tabs.grid button { padding: 9px 2px; border-radius: 10px; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip; letter-spacing: -.02em; min-width: 0; }
 @media (max-width: 380px) { .tabs.grid button { font-size: 11.5px; } }
 @media (min-width: 900px) { .tabs.grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
-.tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.tabs button { border: 0; background: var(--surface-2); color: var(--muted); font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
 .tabs button[aria-pressed="true"] { background: var(--track); border-color: var(--track); color: #fff; font-weight: 700; }
 .kv { display: grid; grid-template-columns: 4.5em 1fr; gap: 4px 10px; font-size: 13px; margin: 0; }
 .kv dt { color: var(--muted); }
@@ -91,9 +91,9 @@ table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-
 th, td { padding: 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 th { font-weight: 500; color: var(--muted); font-size: 11.5px; }
 tr.hl td { background: var(--track-soft); }
-.kid { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
+.kid { border: 0; background: var(--surface-2); border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
 .choice { display: flex; gap: 6px; flex-wrap: wrap; }
-.choice button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 7px 14px; min-height: 36px; font: inherit; font-size: 13.5px; cursor: pointer; }
+.choice button { border: 0; background: var(--surface-2); color: var(--fg); border-radius: 999px; padding: 7px 14px; min-height: 36px; font: inherit; font-size: 13.5px; cursor: pointer; }
 .choice button[aria-pressed="true"] { background: var(--field); border-color: var(--field); color: #fff; font-weight: 700; }
 .choice button.no[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); }
 .choice button:disabled { opacity: .45; cursor: not-allowed; }
@@ -103,24 +103,24 @@ tr.hl td { background: var(--track-soft); }
 .stat span { font-size: 11px; color: var(--muted); }
 form.f, .f { display: grid; gap: 8px; }
 .f label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
-.f select, .f input, .f textarea { font: inherit; font-size: 16px; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; }
+.f select, .f input, .f textarea { font: inherit; font-size: 16px; color: var(--fg); background: var(--surface-2); border: 1px solid transparent; border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; }
 .f textarea { min-height: 90px; resize: vertical; font-size: 16px; }
 .f .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .f .lbl { font-size: 12px; color: var(--muted); margin-bottom: -4px; }
 .f input::placeholder, .f textarea::placeholder { color: var(--muted); opacity: .7; }
 .filled { background: var(--field-soft) !important; border-color: var(--field) !important; }
 .quick { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.quick button { border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 11px; min-height: 30px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.quick button { border: 0; background: var(--surface-2); color: var(--muted); border-radius: 999px; padding: 5px 11px; min-height: 30px; font: inherit; font-size: 12.5px; cursor: pointer; }
 .toast { background: var(--field-soft); color: var(--field); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; font-weight: 700; }
 .toast.err { background: var(--track-soft); color: var(--track); }
-.copybox { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 12.5px; user-select: all; }
+.copybox { white-space: pre-wrap; background: var(--surface-2); border: 0; border-radius: 10px; padding: 10px; font-size: 12.5px; user-select: all; }
 .menu { display: grid; gap: 8px; }
-.menu button { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 14px; padding: 10px 12px; font: inherit; cursor: pointer; }
+.menu button { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; text-align: left; border: 0; background: var(--surface); color: var(--fg); border-radius: 14px; padding: 10px 12px; font: inherit; cursor: pointer; }
 .menu b { display: block; font-size: 14px; }
 .menu span.d { font-size: 12px; color: var(--muted); }
 .busy { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--surface); padding: 6px 14px; border-radius: 999px; font-size: 12.5px; z-index: 10; }
 .childrow { display: grid; grid-template-columns: minmax(0, 1fr) 6.5em 32px; gap: 6px; align-items: center; }
-.icon-btn { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; font: inherit; cursor: pointer; }
+.icon-btn { border: 0; background: var(--surface-2); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; font: inherit; cursor: pointer; }
 .empty { padding: 24px 8px; text-align: center; color: var(--muted); }
 /* PC：メニューを左に、中身を広く */
 @media (min-width: 900px) {
@@ -163,9 +163,9 @@ form.f, .f { display: grid; gap: 8px; }
 .tte:first-child { border-top: 0; }
 .tte .w2 { grid-column: span 2; }
 .tte .w3 { grid-column: span 3; }
-.tte input { font: inherit; font-size: 13px; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; min-width: 0; width: 100%; }
+.tte input { font: inherit; font-size: 13px; color: var(--fg); background: var(--surface-2); border: 0; border-radius: 8px; padding: 5px 6px; min-width: 0; width: 100%; }
 .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
-.thumb { border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; aspect-ratio: 1; background: var(--surface-2); cursor: pointer; }
+.thumb { border: 0; border-radius: 10px; padding: 0; overflow: hidden; aspect-ratio: 1; background: var(--surface-2); cursor: pointer; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .upl { display: inline-block; }
 .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 20; display: grid; place-items: center; padding: 12px; }
@@ -175,7 +175,7 @@ form.f, .f { display: grid; gap: 8px; }
 .viewer .vcap { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; color: #fff; font-size: 12px; text-align: center; }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
 .cal .wd { font-size: 11px; color: var(--muted); }
-.cal button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 6px 0 4px; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cal button { border: 0; background: var(--surface-2); color: var(--fg); border-radius: 8px; padding: 6px 0 4px; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .cal button small { display: block; font-size: 9px; color: var(--muted); height: 10px; }
 .cal button[aria-pressed="true"] { background: var(--field); border-color: var(--field); color: #fff; font-weight: 700; }
 .cal button[aria-pressed="true"] small { color: #fff; }
@@ -192,15 +192,15 @@ form.f, .f { display: grid; gap: 8px; }
 .yn button.n[aria-pressed="true"] { background: var(--track); border-color: var(--track); color: #fff; }
 .yn button:disabled { opacity: .45; cursor: not-allowed; }
 .reasons { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 6px; }
-.tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; border: 0; border-radius: 14px; overflow: hidden; }
 .tally.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.tally button { border: 0; border-left: 1px solid var(--line); background: var(--surface); font: inherit; color: var(--fg); padding: 8px 4px 10px; display: grid; justify-items: center; gap: 2px; cursor: pointer; min-width: 0; }
-.tally button:first-child { border-left: 0; }
-.tally button[aria-expanded="true"] { background: var(--surface-2); }
+.tally button { border: 0; border-radius: 12px; background: var(--surface-2); font: inherit; color: var(--fg); padding: 8px 4px 10px; display: grid; justify-items: center; gap: 2px; cursor: pointer; min-width: 0; }
+.tally button[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--line); }
 .tally .lb { font-size: 11.5px; color: var(--muted); font-weight: 700; }
 .tally .num { font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .tally .t-y .num { color: var(--field); } .tally .t-n .num { color: var(--track); } .tally .t-q .num { color: var(--warn); }
-.faces { display: flex; justify-content: center; flex-wrap: wrap; gap: 2px; min-height: 24px; }
+.faces { display: flex; justify-content: center; flex-wrap: nowrap; gap: 2px; min-height: 24px; }
+.kid .yn button:not([aria-pressed="true"]), .kid .choice button:not([aria-pressed="true"]) { background: var(--surface); }
 .face { width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
 .face.me { background: var(--sky); color: #fff; }
 .face.more { background: none; border: 0; color: var(--muted); width: auto; padding: 0 2px; }
@@ -210,22 +210,22 @@ form.f, .f { display: grid; gap: 8px; }
 .nav button { position: relative; }
 .nav .badge { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--track); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 17px; text-align: center; }
 .todo button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; cursor: pointer; padding: 8px 0; }
-.todo .ic { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; background: var(--surface-2); border: 1px solid var(--line); }
-.todo .ic.hot { background: var(--track-soft); border-color: transparent; }
+.todo .ic { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; background: var(--surface-2); }
+.todo .ic.hot { background: var(--track-soft); }
 .todo .main { flex: 1; min-width: 0; display: grid; }
 .todo .main b { font-size: 13.5px; }
 .todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
 .newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
 .p-imp { background: var(--track); color: #fff; }
 .pollopt { display: grid; gap: 6px; }
-.pollopt button { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 13.5px; cursor: pointer; text-align: left; }
-.pollopt button[aria-pressed="true"] { border-color: var(--track); box-shadow: inset 0 0 0 1px var(--track); font-weight: 700; }
+.pollopt button { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 0; background: var(--surface-2); color: var(--fg); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 13.5px; cursor: pointer; text-align: left; }
+.pollopt button[aria-pressed="true"] { box-shadow: inset 4px 0 0 var(--track); font-weight: 700; }
 .pollopt button:disabled { cursor: default; }
 .pollopt .fill { position: absolute; inset: 0 auto 0 0; background: var(--track-soft); z-index: 0; }
 .pollopt span { position: relative; z-index: 1; }
 .pollopt .n { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .feekids { display: flex; flex-wrap: wrap; gap: 6px; }
-.feekids button { border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.feekids button { border: 0; background: var(--surface-2); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
 .feekids button[aria-pressed="true"] { background: var(--field-soft); color: var(--field); border-color: transparent; font-weight: 700; }
 .meter { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--field); border-radius: 999px; }
@@ -234,15 +234,15 @@ form.f, .f { display: grid; gap: 8px; }
 .check .ok { color: var(--field); font-weight: 800; width: 1.2em; }
 .check .ng { color: var(--muted); width: 1.2em; }
 .callink { font-size: 12.5px; color: var(--sky); text-decoration: none; justify-self: start; }
-.relay-round { border-top: 1px dashed var(--line); padding-top: 6px; display: grid; gap: 4px; }
+.relay-round { border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 4px; }
 .mcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .mcal .wd { font-size: 11px; color: var(--muted); text-align: center; padding: 2px 0; }
 .mcal .sun { color: var(--track); }
 .mcal .sat { color: var(--sky); }
-.mcal .day { min-height: 62px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); padding: 2px; display: flex; flex-direction: column; gap: 2px; align-items: stretch; font: inherit; cursor: pointer; text-align: left; overflow: hidden; }
+.mcal .day { min-height: 62px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); padding: 2px; display: flex; flex-direction: column; gap: 2px; align-items: stretch; font: inherit; cursor: pointer; text-align: left; overflow: hidden; }
 .mcal .day.empty { border: 0; background: transparent; cursor: default; }
 .mcal .day.past { opacity: .6; }
-.mcal .day.today { border-color: var(--track); border-width: 2px; }
+.mcal .day.today { box-shadow: inset 0 0 0 2px var(--track); }
 .mcal .day.sel { background: var(--track-soft); }
 .mcal .n { font-size: 12px; font-weight: 700; line-height: 1.2; }
 .mcal .chip { font-size: 9.5px; line-height: 1.35; border-radius: 4px; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -262,9 +262,9 @@ form.f, .f { display: grid; gap: 8px; }
 .rchart .pt.pr { fill: var(--viz-pb); }
 .recpick { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .f .recpick select { width: auto; }
-.recpick select { font: inherit; font-size: 18px; font-variant-numeric: tabular-nums; padding: 6px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--fg); min-width: 3.4em; text-align: center; }
+.recpick select { font: inherit; font-size: 18px; font-variant-numeric: tabular-nums; padding: 6px 4px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); min-width: 3.4em; text-align: center; }
 .recpick .u { font-size: 13px; color: var(--muted); margin-right: 6px; }
-.tbin { font: inherit; font-size: 12.5px; width: 7.2em; padding: 1px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--fg); }
+.tbin { font: inherit; font-size: 12.5px; width: 7.2em; padding: 1px 4px; border: 0; border-radius: 6px; background: var(--surface-2); color: var(--fg); }
 .kidpick button { font-size: 12px; padding: 2px 10px; }
 .ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .tm { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -296,7 +296,7 @@ form.f, .f { display: grid; gap: 8px; }
 .rtip { font-size: 12px; color: var(--fg); background: var(--surface-2); border-radius: 8px; padding: 4px 8px; min-height: 1.6em; }
 @media (min-width: 900px) { .mcal .day { min-height: 92px; } .mcal .chip { font-size: 11px; } }
 .steps { display: flex; gap: 3px; flex-wrap: wrap; }
-.steps span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.steps span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 .steps span.done { background: var(--field-soft); color: var(--field); border-color: transparent; }
 .steps span.now { background: var(--track); color: #fff; border-color: transparent; font-weight: 700; }
 .cmt { display: grid; gap: 4px; }
@@ -425,7 +425,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function serverOld() { return !!(API_URL && EXPECT_SERVER && ST && ST.server !== EXPECT_SERVER); }
   function serverBanner() {
     if (!serverOld()) return '';
-    return '<section class="card" style="border-color:var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
+    return '<section class="card" style="box-shadow:inset 4px 0 0 var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
       (ST.me.admin ? '<div class="sub">PCで dist/Code.gs を「コード.gs」に貼り替えて保存 →「setup」を実行 →「デプロイ」→「デプロイを管理」→ 鉛筆 →「新バージョン」→「デプロイ」をしてください。<b>保存だけでは変わりません。</b></div>' : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
   }
   // ---- やること・お知らせの既読・アンケート・集金 ----
@@ -602,7 +602,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           '<div class="hint">グループには流れません。役員とその日の当番が、ポータルやBotで確認します。理由とひとことは役員と本人だけに見えます。</div></form>';
       }
     }
-    var abs = ST.absences.filter(function (a) { return a.date >= ST.today; });
+    // ホームには、わが家の休みだけ。役員には全体の件数と、一覧へのボタン
+    var allAbs = ST.absences.filter(function (a) { return a.date >= ST.today; });
+    var abs = allAbs.filter(function (a) { return a.mine || myNames().indexOf(a.child) >= 0; });
+    if (ST.me.admin && allAbs.length) {
+      var unack = allAbs.filter(function (a) { return !a.ack; }).length;
+      h += '<button class="btn small ghost" id="absAll" type="button" style="justify-self:start">休みの連絡 ' + allAbs.length + '件' + (unack ? '（未確認 ' + unack + '）' : '') + ' ›</button>';
+    }
     if (abs.length) {
       h += '<div class="list">' + abs.map(function (a) {
         var right = a.ack ? '<span class="pill p-ok">確認済み</span>' : '<span class="pill p-warn">未確認</span>';
@@ -641,6 +647,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
     on('[data-unabs]', function () { call('cancelAbsence', { id: this.dataset.unabs }); });
+    on('#absAll', function () { S.tab = 'admin'; S.admin = 'absences'; S.toast = ''; render(); window.scrollTo(0, 0); });
     bindTodo(); bindPolls(); bindRsvp(); markSeen();
   }
 
@@ -1188,9 +1195,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   // ---- 出欠ボタン（大きな ✓ ✕ と、出席・欠席・未回答の人数） ----
   function initial(n) { var m = String(n).match(/[ぁ-んァ-ヶ]/); return m ? m[0] : String(n).charAt(0); }
-  function faces(list) {
+  function faces(list, cols) {
     var mine = myNames();
-    return '<span class="faces">' + list.slice(0, 7).map(function (k) { return '<span class="face' + (mine.indexOf(k.name) >= 0 ? ' me' : '') + '" title="' + esc(k.name) + '">' + esc(initial(k.name)) + '</span>'; }).join('') + (list.length > 7 ? '<span class="face more">+' + (list.length - 7) + '</span>' : '') + '</span>';
+    var max = cols === 2 ? 4 : 2;
+    return '<span class="faces">' + list.slice(0, max).map(function (k) { return '<span class="face' + (mine.indexOf(k.name) >= 0 ? ' me' : '') + '" title="' + esc(k.name) + '">' + esc(initial(k.name)) + '</span>'; }).join('') + (list.length > max ? '<span class="face more">+' + (list.length - max) + '</span>' : '') + '</span>';
   }
   function ynHtml(yOn, nOn, attr, dis, labels) {
     labels = labels || ['出席', '欠席'];
@@ -1209,7 +1217,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function tallyHtml(e) {
     var cols = rsvpCols(e), open = S.tally && S.tally.split('|')[0] === e.key ? +S.tally.split('|')[1] : -1;
     var h = '<div class="tally' + (cols.length === 2 ? ' two' : '') + '">' + cols.map(function (c, i) {
-      return '<button type="button" class="' + c[2] + '" data-tally="' + e.key + '|' + i + '" aria-expanded="' + (open === i) + '"><span class="lb">' + c[0] + '</span><span class="num">' + c[1].length + '</span>' + faces(c[1]) + '</button>';
+      return '<button type="button" class="' + c[2] + '" data-tally="' + e.key + '|' + i + '" aria-expanded="' + (open === i) + '"><span class="lb">' + c[0] + '</span><span class="num">' + c[1].length + '</span>' + faces(c[1], cols.length) + '</button>';
     }).join('') + '</div>';
     if (open >= 0 && cols[open]) {
       var groups = {};
@@ -1994,7 +2002,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       (withEvent ? '<button class="link" type="button" data-ev="' + esc(c.key) + '">' + md(c.date) + ' ' + esc(c.title || '') + ' ›</button>' : '') +
       (c.place ? '<div class="sub">📍 ' + esc(c.place) + '</div>' : '') + '<div class="b">' + esc(c.body) + '</div>' + (c.photo ? photosHtml([c.photo]) : '') +
       (nm ? (c.measure ? '<div class="measure">✅ 対策（' + esc(c.measureBy) + 'さん）：' + esc(c.measure) + '</div>' : '<div class="sub">対策：まだ</div>') +
-        (ST.me.admin ? '<div class="row"><input class="mi" data-mid="' + esc(c.id) + '" value="' + esc(c.measure || '') + '" placeholder="対策を書く（例：コーンを置く、大人が見守る）" style="flex:1;min-width:0;font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)"><button class="btn small" type="button" data-msave="' + esc(c.id) + '">保存</button></div>' : '') : '') + '</div>';
+        (ST.me.admin ? '<div class="row"><input class="mi" data-mid="' + esc(c.id) + '" value="' + esc(c.measure || '') + '" placeholder="対策を書く（例：コーンを置く、大人が見守る）" style="flex:1;min-width:0;font:inherit;font-size:13px;padding:5px 8px;border:0;border-radius:8px;background:var(--surface-2)"><button class="btn small" type="button" data-msave="' + esc(c.id) + '">保存</button></div>' : '') : '') + '</div>';
   }
   function commentsCard(e) {
     var list = commentsOf(e.key).filter(function (c) { return !(c.kind === '変更連絡' && !c.measure); }), C = S.cmt && S.cmt.key === e.key ? S.cmt : (S.cmt = { key: e.key, kind: 'コメント', body: '', place: '', adminOnly: false });
@@ -2079,7 +2087,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<div class="lbl">種目</div><div class="choice">' + races.map(function (r) { return '<button type="button" data-rrace="' + esc(r) + '" aria-pressed="' + (R.race === r) + '">' + esc(r) + '</button>'; }).join('') + '</div>' +
         '<div class="lbl">ラウンド</div><div class="choice">' + ST.choices.rounds.map(function (r) { return '<button type="button" data-rround="' + r + '" aria-pressed="' + (R.round === r) + '">' + r + '</button>'; }).join('') + '</div>' +
         recordPicker(R) +
-        '<div class="lbl">順位（なくてもOK）</div><div class="choice">' + ['1', '2', '3', '4', '5', '6', '7', '8'].map(function (n) { return '<button type="button" data-rplace="' + n + '" aria-pressed="' + (R.place === n) + '">' + n + '位</button>'; }).join('') + '<input id="rs-place" inputmode="numeric" value="' + esc(R.place || '') + '" placeholder="9位〜" style="width:5em;font:inherit;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)"></div>' +
+        '<div class="lbl">順位（なくてもOK）</div><div class="choice">' + ['1', '2', '3', '4', '5', '6', '7', '8'].map(function (n) { return '<button type="button" data-rplace="' + n + '" aria-pressed="' + (R.place === n) + '">' + n + '位</button>'; }).join('') + '<input id="rs-place" inputmode="numeric" value="' + esc(R.place || '') + '" placeholder="9位〜" style="width:5em;font:inherit;font-size:13px;padding:3px 8px;border:0;border-radius:999px;background:var(--surface-2)"></div>' +
         '<div class="lbl">記録の種類</div><div class="choice">' + ['公式', '練習'].map(function (x) { return '<button type="button" data-rkd="' + x + '" aria-pressed="' + ((R.kind || '公式') === x) + '">' + (x === '公式' ? '公式（大会の記録）' : '練習（試技・計測）') + '</button>'; }).join('') + '</div>' +
         '<label>メモ（なくてもOK）<input id="rs-memo" placeholder="例：自己ベスト！、向かい風" value="' + esc(R.memo || '') + '"></label>' +
         '<button class="btn" type="submit">記録する</button><div class="hint">走る種目は「15.21」「1:01.27」、跳ぶ・投げる種目は「3m20」のように入れると、自己ベストを自動で出します。</div></form></section>';
@@ -2234,7 +2242,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var e = evByKey(T.key), h = backBtn() + toastHtml();
     if (!races.length) return (view.innerHTML = h + '<div class="card empty">これからの大会がありません。先に「大会・記録会をつくる」で大会をつくってください。</div>', bindBack());
     if (T.view === 'print') return ttbPrint(T, e);
-    h += '<section class="card"><h2>タイムテーブルをつくる</h2><label class="f">大会<select id="tb-ev" style="font:inherit;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--fg)">' + races.map(function (x) { return '<option value="' + x.key + '"' + (x.key === T.key ? ' selected' : '') + '>' + md(x.date) + ' ' + esc(x.title) + '</option>'; }).join('') + '</select></label>' +
+    h += '<section class="card"><h2>タイムテーブルをつくる</h2><label class="f">大会<select id="tb-ev" style="font:inherit;padding:6px;border:0;border-radius:8px;background:var(--surface-2);color:var(--fg)">' + races.map(function (x) { return '<option value="' + x.key + '"' + (x.key === T.key ? ' selected' : '') + '>' + md(x.date) + ' ' + esc(x.title) + '</option>'; }).join('') + '</select></label>' +
       '<div class="f"><div class="two"><label>集合<input id="tb-meet" inputmode="numeric" value="' + esc(T.meet) + '" placeholder="7:40"></label><label>全体アップ<input id="tb-warm" value="' + esc(T.warmAll) + '" placeholder="7:50〜8:50"></label></div>' +
       '<div class="hint">招集の目安：トラックは開始の' + T.trackCall + '〜' + (T.trackCall - 10) + '分前、フィールドは' + T.fieldCall + '〜' + (T.fieldCall - 10) + '分前（あとから直せます）　<button class="link" type="button" id="tb-callcfg">変える</button></div></div></section>';
     // 種目の一覧（時刻順）
@@ -2254,7 +2262,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<section class="card"><h2>' + (T.edit >= 0 ? '種目を直す' : '種目を足す') + '</h2><div class="f">' +
       '<div class="lbl">学年（いくつでも）</div><div class="choice">' + [1, 2, 3, 4, 5, 6].map(function (g) { return '<button type="button" data-tfg="' + g + '" aria-pressed="' + (F.grades.indexOf(g) >= 0) + '">' + g + '年</button>'; }).join('') + '</div>' +
       '<div class="lbl">男女</div><div class="choice">' + ['男子', '女子', '男女', '混成'].map(function (x) { return '<button type="button" data-tfs="' + x + '" aria-pressed="' + (F.sex === x) + '">' + x + '</button>'; }).join('') + '</div>' +
-      '<div class="lbl">種目</div><div class="choice">' + TTB_RACES.map(function (x) { return '<button type="button" data-tfr="' + x + '" aria-pressed="' + (F.race === x) + '">' + x + '</button>'; }).join('') + '<input id="tb-race" value="' + esc(TTB_RACES.indexOf(F.race) < 0 ? F.race : '') + '" placeholder="ほかの種目" style="width:7em;font:inherit;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)"></div>' +
+      '<div class="lbl">種目</div><div class="choice">' + TTB_RACES.map(function (x) { return '<button type="button" data-tfr="' + x + '" aria-pressed="' + (F.race === x) + '">' + x + '</button>'; }).join('') + '<input id="tb-race" value="' + esc(TTB_RACES.indexOf(F.race) < 0 ? F.race : '') + '" placeholder="ほかの種目" style="width:7em;font:inherit;font-size:13px;padding:3px 8px;border:0;border-radius:999px;background:var(--surface-2)"></div>' +
       '<div class="lbl">ラウンド</div><div class="choice">' + TTB_ROUNDS.map(function (x) { return '<button type="button" data-tfo="' + x + '" aria-pressed="' + (F.round === x) + '">' + x + '</button>'; }).join('') + '<button type="button" data-tfo="" aria-pressed="' + (!F.round) + '">なし</button></div>' +
       '<label>競技開始<input id="tb-start" inputmode="numeric" value="' + esc(F.start) + '" placeholder="1020 → 10:20"></label>' +
       '<div class="quick">' + ['-10', '-5', '+5', '+10', '+15'].map(function (x) { return '<button type="button" data-tft="' + x + '">' + x + '分</button>'; }).join('') + '<span class="hint">　ひとつ前の種目の時刻から</span></div>' +

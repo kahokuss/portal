@@ -39,7 +39,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .nav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 8px 0 7px; cursor: pointer; display: grid; justify-items: center; gap: 2px; }
 .nav button svg { width: 22px; height: 22px; }
 .nav button[aria-current="page"] { color: var(--track); font-weight: 700; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
 .card h2 { font-family: var(--font-display); font-size: 1.02rem; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card h2 small { font-family: var(--font-body); font-weight: 400; font-size: 11.5px; color: var(--muted); }
 .big { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; line-height: 1.35; }
@@ -184,9 +184,10 @@ form.f, .f { display: grid; gap: 8px; }
 .rsvp-kid { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
 .rsvp-kid .nm { min-width: 0; display: grid; }
 .rsvp-kid .nm b { font-size: 15px; }
-.yn { display: flex; gap: 14px; flex: none; }
-.yn label { display: grid; justify-items: center; gap: 2px; font-size: 10.5px; color: var(--muted); }
-.yn button { width: 54px; height: 54px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); color: var(--muted); font: inherit; font-size: 26px; font-weight: 800; line-height: 1; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.yn { display: flex; gap: 6px; flex: none; }
+.yn label { display: contents; }
+.yn button { min-width: 76px; height: 44px; border-radius: 10px; border: 0; background: var(--surface-2); color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; padding: 0 12px; }
+.yn button .mk { font-size: 16px; }
 .yn button.y[aria-pressed="true"] { background: var(--field); border-color: var(--field); color: #fff; }
 .yn button.n[aria-pressed="true"] { background: var(--track); border-color: var(--track); color: #fff; }
 .yn button:disabled { opacity: .45; cursor: not-allowed; }
@@ -200,8 +201,8 @@ form.f, .f { display: grid; gap: 8px; }
 .tally .num { font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .tally .t-y .num { color: var(--field); } .tally .t-n .num { color: var(--track); } .tally .t-q .num { color: var(--warn); }
 .faces { display: flex; justify-content: center; flex-wrap: wrap; gap: 2px; min-height: 24px; }
-.face { width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); color: var(--fg); }
-.face.me { box-shadow: 0 0 0 2px var(--sky); }
+.face { width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700; display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
+.face.me { background: var(--sky); color: #fff; }
 .face.more { background: none; border: 0; color: var(--muted); width: auto; padding: 0 2px; }
 .tally-names { font-size: 13px; display: grid; gap: 4px; }
 .tally-names .g { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -781,7 +782,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           if (!inTarget(det.target, k.grade)) return '<div class="kid"><b>' + esc(k.name) + '（' + k.grade + '年）</b><span class="sub">この大会の対象外です</span></div>';
           var x = entryOf(e.key, k.name) || { join: '', races: [] }, dis = locked ? ' disabled' : '';
           return '<div class="kid" data-kid="' + esc(k.name) + '"><div class="between"><b>' + esc(k.name) + (k.grade ? '（' + k.grade + '年）' : '') + '</b>' + (x.join === '参加' && det.fee ? '<span class="pill ' + (x.paid ? 'p-ok' : 'p-warn') + '">参加費 ' + yen(det.fee) + (x.paid ? ' 支払い済み' : ' 未払い') + '</span>' : '') + '</div>' +
-            '<span class="yn">' + ['参加', '不参加'].map(function (j) { return '<label><button type="button" class="' + (j === '参加' ? 'y' : 'n') + '" data-join="' + j + '" aria-pressed="' + (x.join === j) + '" aria-label="' + j + '"' + dis + '>' + (j === '参加' ? '✓' : '✕') + '</button>' + j + '</label>'; }).join('') + '</span>' +
+            '<span class="yn">' + ['参加', '不参加'].map(function (j) { return '<button type="button" class="' + (j === '参加' ? 'y' : 'n') + '" data-join="' + j + '" aria-pressed="' + (x.join === j) + '"' + dis + '><span class="mk" aria-hidden="true">' + (j === '参加' ? '✓' : '✕') + '</span>' + j + '</button>'; }).join('') + '</span>' +
             (x.join === '参加' && det.races.length > 1 ? '<div class="sub">出る種目</div><div class="choice">' + det.races.map(function (r) { return '<button type="button" data-race="' + esc(r) + '" aria-pressed="' + (x.races.indexOf(r) >= 0) + '"' + dis + '>' + esc(r) + '</button>'; }).join('') + '</div>' : '') + '</div>';
         }).join('') + '</section>';
     }
@@ -1193,8 +1194,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function ynHtml(yOn, nOn, attr, dis, labels) {
     labels = labels || ['出席', '欠席'];
-    return '<span class="yn"><label><button type="button" class="y" ' + attr + ' data-yn="y" aria-pressed="' + !!yOn + '" aria-label="' + labels[0] + '"' + (dis ? ' disabled' : '') + '>✓</button>' + labels[0] + '</label>' +
-      '<label><button type="button" class="n" ' + attr + ' data-yn="n" aria-pressed="' + !!nOn + '" aria-label="' + labels[1] + '"' + (dis ? ' disabled' : '') + '>✕</button>' + labels[1] + '</label></span>';
+    return '<span class="yn"><button type="button" class="y" ' + attr + ' data-yn="y" aria-pressed="' + !!yOn + '"' + (dis ? ' disabled' : '') + '><span class="mk" aria-hidden="true">✓</span>' + labels[0] + '</button>' +
+      '<button type="button" class="n" ' + attr + ' data-yn="n" aria-pressed="' + !!nOn + '"' + (dis ? ' disabled' : '') + '><span class="mk" aria-hidden="true">✕</span>' + labels[1] + '</button></span>';
   }
   /** 出欠の集計：[[見出し, 子どもの配列, 色], ...] */
   function rsvpCols(e) {

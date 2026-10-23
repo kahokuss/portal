@@ -184,6 +184,33 @@ form.f, .f { display: grid; gap: 8px; }
 .cal button[aria-pressed="true"] small { color: #fff; }
 .cal button:disabled { opacity: .35; cursor: not-allowed; }
 .banner { background: var(--track-soft); border-color: transparent; }
+.nav button { position: relative; }
+.nav .badge { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--track); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 17px; text-align: center; }
+.todo button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; cursor: pointer; padding: 8px 0; }
+.todo .ic { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; background: var(--surface-2); border: 1px solid var(--line); }
+.todo .ic.hot { background: var(--track-soft); border-color: transparent; }
+.todo .main { flex: 1; min-width: 0; display: grid; }
+.todo .main b { font-size: 13.5px; }
+.todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
+.newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
+.p-imp { background: var(--track); color: #fff; }
+.pollopt { display: grid; gap: 6px; }
+.pollopt button { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 13.5px; cursor: pointer; text-align: left; }
+.pollopt button[aria-pressed="true"] { border-color: var(--track); box-shadow: inset 0 0 0 1px var(--track); font-weight: 700; }
+.pollopt button:disabled { cursor: default; }
+.pollopt .fill { position: absolute; inset: 0 auto 0 0; background: var(--track-soft); z-index: 0; }
+.pollopt span { position: relative; z-index: 1; }
+.pollopt .n { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.feekids { display: flex; flex-wrap: wrap; gap: 6px; }
+.feekids button { border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.feekids button[aria-pressed="true"] { background: var(--field-soft); color: var(--field); border-color: transparent; font-weight: 700; }
+.meter { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--field); border-radius: 999px; }
+.check { display: grid; gap: 6px; }
+.check > div { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.check .ok { color: var(--field); font-weight: 800; width: 1.2em; }
+.check .ng { color: var(--muted); width: 1.2em; }
+.callink { font-size: 12.5px; color: var(--sky); text-decoration: none; justify-self: start; }
 .relay-round { border-top: 1px dashed var(--line); padding-top: 6px; display: grid; gap: 4px; }
 .mcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .mcal .wd { font-size: 11px; color: var(--muted); text-align: center; padding: 2px 0; }
@@ -280,9 +307,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9390d36411";
+var BUILD = "909570f082";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "a86779f25a";
+var EXPECT_SERVER = "ca3f6d893b";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -347,7 +374,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
   function fillDefaults(st) {
-    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
@@ -378,17 +405,137 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return '<section class="card" style="border-color:var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
       (ST.me.admin ? '<div class="sub">PCで dist/Code.gs を「コード.gs」に貼り替えて保存 →「setup」を実行 →「デプロイ」→「デプロイを管理」→ 鉛筆 →「新バージョン」→「デプロイ」をしてください。<b>保存だけでは変わりません。</b></div>' : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
   }
+  // ---- やること・お知らせの既読・アンケート・集金 ----
+  /** 自分の家でまだやっていないこと（エントリー・集金・アンケート・お知らせ・当番） */
+  function todoItems() {
+    var out = [], names = myNames();
+    upcoming(isRace).forEach(function (e) {
+      var det = e.detail || {};
+      if (!det.target && !e.detail) return;
+      if (det.deadline && det.deadline < ST.today) return;
+      var miss = ST.me.children.filter(function (k) { return inTarget(det.target, k.grade) && !entryOf(e.key, k.name); });
+      if (!miss.length) return;
+      var left = det.deadline ? diff(ST.today, det.deadline) : 99;
+      out.push({ ic: '🏃', hot: left <= 3, t: esc(e.title) + 'のエントリー', s: miss.map(function (k) { return esc(k.name); }).join('・') + (det.deadline ? '　締切 ' + md(det.deadline) + (left === 0 ? '（今日）' : '（あと' + left + '日）') : ''), a: 'data-entry="' + e.key + '"', order: left });
+    });
+    ST.fees.filter(function (f) { return !f.closed; }).forEach(function (f) {
+      var due = f.kids.filter(function (k) { return names.indexOf(k) >= 0 && f.paid.indexOf(k) < 0; });
+      if (!due.length) return;
+      var left = f.deadline ? diff(ST.today, f.deadline) : 99;
+      out.push({ ic: '💴', hot: left <= 3, t: esc(f.name) + ' ' + yen(f.amount * due.length), s: (due.length > 1 ? due.length + '人分　' : '') + (f.deadline ? '期限 ' + md(f.deadline) + (left < 0 ? '（過ぎています）' : '') : '役員に渡してください'), a: 'data-todo="fees"', order: left });
+    });
+    ST.polls.filter(function (p) { return !p.closed && !p.mine.length; }).forEach(function (p) {
+      var left = p.deadline ? diff(ST.today, p.deadline) : 99;
+      out.push({ ic: '🗳', hot: left <= 1, t: 'アンケート：' + esc(p.title), s: p.deadline ? '締切 ' + md(p.deadline) : 'ボタンで答えられます', a: 'data-todo="poll-' + p.id + '"', order: left });
+    });
+    var unread = ST.notices.filter(function (n) { return !n.read; });
+    if (unread.length) out.push({ ic: '📢', hot: unread.some(function (n) { return n.important; }), t: '新しいお知らせ ' + unread.length + '件', s: esc(unread[0].title), a: 'data-todo="notices"', order: unread.some(function (n) { return n.important; }) ? 0 : 50 });
+    var du = myDuties()[0], dE = du && evByKey(du.key);
+    if (dE && diff(ST.today, dE.date) <= 7) out.push({ ic: '🙋', hot: diff(ST.today, dE.date) <= 1, t: md(dE.date) + ' ' + esc(du.type) + '当番', s: esc(dE.title), a: 'data-ev="' + dE.key + '"', order: diff(ST.today, dE.date) });
+    return out.sort(function (a, b) { return a.order - b.order; });
+  }
+  function todoCard() {
+    if (!ST.me.children.length) return '';
+    var items = todoItems();
+    if (!items.length) return '<section class="card"><div class="todo-done">✓ いまやることはありません</div></section>';
+    return '<section class="card"><h2>やること<small>' + items.length + '件</small></h2><div class="list todo">' + items.map(function (x) {
+      return '<button type="button" ' + x.a + '><span class="ic' + (x.hot ? ' hot' : '') + '" aria-hidden="true">' + x.ic + '</span><span class="main"><b>' + x.t + '</b><span class="sub">' + x.s + '</span></span>›</button>';
+    }).join('') + '</div></section>';
+  }
+  function bindTodo() {
+    on('[data-todo]', function () {
+      var el = document.getElementById(this.dataset.todo);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  /** はじめての人向け：やっておくことのチェック */
+  function startCard() {
+    var kids = ST.me.children, sexOk = kids.length && kids.every(function (k) { return k.sex && k.grade; });
+    if (kids.length && sexOk) return '';
+    var row = function (ok, t) { return '<div><span class="' + (ok ? 'ok' : 'ng') + '">' + (ok ? '✓' : '○') + '</span>' + t + '</div>'; };
+    return '<section class="card banner"><h2>' + (kids.length ? 'あと少しで登録完了' : 'はじめての方へ') + '</h2><div class="check">' + row(true, 'LINEでログイン') + row(kids.length, 'お子さんの名前を登録') + row(sexOk, '学年と男女を入れる（大会の種目分けに使います）') +
+      row(ST.me.family.length > 1, '家族のスマホでも使う（なくてもOK）') + '</div><button class="btn" data-tab="family" type="button">「わが家」で登録する</button></section>';
+  }
+  function homeNotices() {
+    var list = ST.notices.filter(function (n, i) { return i < 3 || !n.read || n.important; });
+    return list.slice(0, 5);
+  }
+  function noticeItem(n) {
+    var h = '<div class="notice"><div class="between"><span class="t">' + (n.read ? '' : '<span class="newdot" aria-label="未読"></span>') + (n.important ? '<span class="pill p-imp">重要</span> ' : '') + esc(n.title) + '</span><span class="sub">' + md(n.date) + '</span></div>' + (n.body ? '<div class="b">' + esc(n.body) + '</div>' : '') +
+      (n.key && evByKey(n.key) ? '<button class="link" data-ev="' + n.key + '" type="button">詳しく見る ›</button>' : '');
+    if (ST.me.admin && n.readCount !== undefined) h += readersHtml(n);
+    return h + '</div>';
+  }
+  function readersHtml(n) {
+    return '<details class="hint"><summary>既読 ' + n.readCount + '/' + n.members + '人</summary>' + (n.unread.length ? 'まだ：' + n.unread.map(esc).join('、') : '全員読みました') + '</details>';
+  }
+  /** ホームに出したお知らせを「読んだ」にする（画面は変えず、裏で送る） */
+  function markSeen() {
+    var ids = homeNotices().filter(function (n) { return !n.read; }).map(function (n) { return n.id; });
+    if (!ids.length || serverOld()) return;
+    rpc('markRead', { ids: ids }, function () {
+      ST.notices.forEach(function (n) { if (ids.indexOf(n.id) >= 0) n.read = true; });
+      saveState(ST);
+    }, function () {});
+  }
+  function pollCard(p, inAdmin) {
+    var showResult = p.mine.length || p.closed || ST.me.admin, max = Math.max(1, p.total);
+    var h = '<section class="card" id="poll-' + p.id + '"><h2>' + (inAdmin ? esc(p.title) : 'アンケート') + '<small>' + (p.closed ? '終了' : p.deadline ? '締切 ' + md(p.deadline) : '') + (p.multi ? '・いくつでも' : '') + '</small></h2>' +
+      (inAdmin ? '' : '<div class="big" style="font-size:1rem">' + esc(p.title) + '</div>') + (p.body ? '<div class="sub" style="white-space:pre-wrap">' + esc(p.body) + '</div>' : '') +
+      (p.key && evByKey(p.key) ? '<button class="link" data-ev="' + p.key + '" type="button">' + esc(evByKey(p.key).title) + ' ›</button>' : '') + '<div class="pollopt">';
+    h += p.options.map(function (o) {
+      var c = p.counts[o] || 0, on = p.mine.indexOf(o) >= 0;
+      return '<button type="button" data-poll="' + p.id + '" data-opt="' + esc(o) + '" aria-pressed="' + on + '"' + (p.closed || inAdmin ? ' disabled' : '') + '>' + (showResult ? '<i class="fill" style="width:' + Math.round(c / max * 100) + '%"></i>' : '') +
+        '<span>' + (on ? '✓ ' : '') + esc(o) + '</span>' + (showResult ? '<span class="n">' + c + '</span>' : '') + '</button>';
+    }).join('') + '</div>';
+    h += '<div class="hint">' + p.total + '/' + p.families + '家族が回答' + (p.mine.length && !p.closed ? '・押しなおすと変えられます' : !p.closed ? '・家族で1つの回答です' : '') + '</div>';
+    if (ST.me.admin && (inAdmin || showResult)) {
+      h += '<details class="hint"><summary>だれが答えたか</summary>' + p.options.map(function (o) { return '<div><b>' + esc(o) + '</b>：' + ((p.who[o] || []).map(esc).join('、') || 'なし') + '</div>'; }).join('') +
+        (p.unanswered.length ? '<div><b>まだ</b>：' + p.unanswered.map(esc).join('、') + '</div>' : '') + '</details>';
+    }
+    return h + '</section>';
+  }
+  function bindPolls() {
+    on('[data-poll]', function () {
+      var p = ST.polls.find(function (x) { return x.id === this.dataset.poll; }, this);
+      if (!p || p.closed) return;
+      var o = this.dataset.opt, ans;
+      if (p.multi) ans = p.mine.indexOf(o) >= 0 ? p.mine.filter(function (x) { return x !== o; }) : p.mine.concat([o]);
+      else ans = p.mine.length === 1 && p.mine[0] === o ? [] : [o];
+      call('answerPoll', { id: p.id, answers: ans });
+    });
+  }
+  function myFeesCard() {
+    var names = myNames();
+    var list = ST.fees.filter(function (f) { return !f.closed && f.kids.some(function (k) { return names.indexOf(k) >= 0; }); });
+    if (!list.length) return '';
+    return '<section class="card" id="fees"><h2>集金</h2><div class="list">' + list.map(function (f) {
+      var mine = f.kids.filter(function (k) { return names.indexOf(k) >= 0; });
+      return '<div><div class="between"><b>' + esc(f.name) + '</b><span>' + yen(f.amount) + '<span class="sub">／人</span></span></div>' + (f.memo ? '<div class="sub">' + esc(f.memo) + '</div>' : '') +
+        '<div class="row">' + mine.map(function (k) { var ok = f.paid.indexOf(k) >= 0; return '<span class="pill ' + (ok ? 'p-ok' : 'p-warn') + '">' + esc(k) + '：' + (ok ? '受け取り済み' : 'まだ') + '</span>'; }).join('') +
+        (f.deadline ? '<span class="sub">期限 ' + md(f.deadline) + '</span>' : '') + '</div></div>';
+    }).join('') + '</div><div class="hint">お金は役員に渡してください。受け取ると役員が「済み」にします。</div></section>';
+  }
+  /** Googleカレンダーに入れるリンク */
+  function calLink(e) {
+    var ymd = function (s) { return s.replace(/-/g, ''); }, hm = function (t) { var m = String(t).match(/(\d{1,2}):(\d{2})/); return m ? pad(m[1]) + m[2] + '00' : ''; };
+    var st = e.start && e.start !== '終日' ? hm(e.start) : '', en = e.end ? hm(e.end) : '';
+    var det = e.detail || {};
+    if (det.meetTime && !st) st = hm(det.meetTime);
+    var dates = st ? ymd(e.date) + 'T' + st + '/' + ymd(e.date) + 'T' + (en && en > st ? en : st) : ymd(e.date) + '/' + ymd(addDays(e.date, 1));
+    var details = [det.meetTime || det.meetPlace ? '集合 ' + [det.meetTime, det.meetPlace].filter(Boolean).join(' ') : '', det.items && det.items.length ? '持ち物 ' + det.items.join('・') : '', HOME_URL].filter(Boolean).join('\n');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(e.title) + '&dates=' + dates + '&ctz=Asia%2FTokyo' + (e.place ? '&location=' + encodeURIComponent(e.place) : '') + '&details=' + encodeURIComponent(details);
+  }
+
   function home() {
     var h = serverBanner() + toastHtml();
-    if (!ST.me.children.length) {
-      h += '<section class="card"><h2>はじめに</h2><div class="sub">お子さんの名前と学年を登録してください。</div><button class="btn" data-tab="family" type="button">お子さんを登録する</button></section>';
-    }
+    h += startCard() + todoCard();
     if (ST.notices.length) {
-      h += '<section class="card"><h2>お知らせ</h2><div class="list">' + ST.notices.slice(0, 3).map(function (n) {
-        return '<div class="notice"><div class="between"><span class="t">' + esc(n.title) + '</span><span class="sub">' + md(n.date) + '</span></div>' + (n.body ? '<div class="b">' + esc(n.body) + '</div>' : '') +
-          (n.key && evByKey(n.key) ? '<button class="link" data-ev="' + n.key + '" type="button">詳しく見る ›</button>' : '') + '</div>';
-      }).join('') + '</div></section>';
+      var shown = homeNotices();
+      h += '<section class="card" id="notices"><h2>お知らせ' + (ST.notices.length > shown.length ? '<small>新しい' + shown.length + '件</small>' : '') + '</h2><div class="list">' + shown.map(noticeItem).join('') + '</div></section>';
     }
+    ST.polls.filter(function (p) { return !p.closed; }).forEach(function (p) { h += pollCard(p); });
+    h += myFeesCard();
 
     var md0 = myDuties()[0], mdE = md0 && evByKey(md0.key);
     if (mdE && diff(ST.today, mdE.date) <= 14) {
@@ -471,6 +618,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
     on('[data-unabs]', function () { call('cancelAbsence', { id: this.dataset.unabs }); });
+    bindTodo(); bindPolls(); markSeen();
   }
 
   function eligible(e) {
@@ -560,7 +708,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var det = e.detail, past = e.date < ST.today;
     var h = '<button class="link" id="back" type="button">‹ 予定一覧</button>' +
       '<section class="card"><div class="row">' + typePill(e) + (det && det.target ? '<span class="pill p-gray">' + esc(det.target) + '</span>' : '') + (e.cancelled ? '<span class="pill p-gray">中止</span>' : past ? '<span class="pill p-gray">終了</span>' : '') + '</div>' +
-      '<div class="big">' + esc(e.title) + '</div><div class="sub">' + when(e) + (e.place ? '　📍 ' + esc(e.place) : '') + '</div>' + (isRace(e) && ST.me.children.length ? '<div class="row">' + myStatus(e) + '</div>' : '') + '</section>';
+      '<div class="big">' + esc(e.title) + '</div><div class="sub">' + when(e) + (e.place ? '　📍 ' + esc(e.place) : '') + '</div>' + (isRace(e) && ST.me.children.length ? '<div class="row">' + myStatus(e) + '</div>' : '') +
+      (!past && !e.cancelled ? '<a class="callink" href="' + esc(calLink(e)) + '" target="_blank" rel="noopener">📅 自分のカレンダーに追加</a>' : '') + '</section>';
     if (!isRace(e)) {
       var nts = noticesOf(e.key);
       h += toastHtml() + (nts.length ? '<section class="card banner"><h2>変更の連絡があります</h2>' + nts.map(noticeHtml).join('') + '</section>' : '') + downCard(e) + (e.cancelled ? '' : attendCard(e)) + dutyCard(e) +
@@ -699,8 +848,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'table') return adminTable();
     if (S.admin === 'records') return adminRecords();
     if (S.admin === 'ttb') return adminTtb();
+    if (S.admin === 'polls') return adminPolls();
+    if (S.admin === 'fees') return adminFees();
     var items = [['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
-      ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'],
+      ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
@@ -841,6 +992,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return '<div class="copybox" id="copyText">' + esc(text) + '</div><button class="btn" id="copyBtn" type="button">LINEに貼る文章をコピー（無料）</button>' +
       (broadcast && ST.me.admin ? '<button class="btn line" id="bcBtn" type="button">BotからLINEグループに送る</button><div class="hint" id="bcInfo">グループの人数分の通数（無料枠は月200通）を使います。</div>' : '');
   }
+  function copyText(t) {
+    try { navigator.clipboard.writeText(t).then(function () { S.toast = '✅ コピーしました'; S.toastErr = false; render(); }, function () { prompt('コピーしてください', t); }); } catch (err) { prompt('コピーしてください', t); }
+  }
   function bindCopy() {
     var bc = document.getElementById('bcBtn');
     if (bc) {
@@ -874,26 +1028,91 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   var TEMPLATES = [['練習中止', '本日の練習は中止です', '雨のため、本日の練習は中止します。'], ['集合変更', '集合時間の変更', '集合時間が〇:〇〇に変更になりました。'], ['持ち物', '持ち物のお願い', '次回の練習は〇〇を持ってきてください。']];
   function adminNotice() {
-    var N = S.notice || (S.notice = { title: '', body: '', key: '', saved: false });
+    var N = S.notice || (S.notice = { title: '', body: '', key: '', saved: false, important: false });
     var races = upcoming(isRace);
     var h = backBtn() + toastHtml() + '<section class="card"><h2>お知らせを書く</h2><div class="lbl" style="font-size:12px;color:var(--muted)">ひな形から選ぶ</div><div class="quick">' + TEMPLATES.map(function (t, i) { return '<button type="button" data-tpl="' + i + '">' + t[0] + '</button>'; }).join('') + '</div>' +
       '<form class="f" id="nForm"><label>タイトル<input id="n-title" value="' + esc(N.title) + '"></label><label>本文<textarea id="n-body">' + esc(N.body) + '</textarea></label>' +
       '<label>関係する大会（なくてもOK）<select id="n-key"><option value="">なし</option>' + races.map(function (e) { return '<option value="' + e.key + '"' + (N.key === e.key ? ' selected' : '') + '>' + md(e.date) + ' ' + esc(e.title) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="row" style="font-weight:400"><input type="checkbox" id="n-imp"' + (N.important ? ' checked' : '') + ' style="width:auto"> 重要（ホームの上に出して、だれが読んだか確認する）</label>' +
       '<button class="btn" type="submit">ホームに載せる</button></form></section>';
     if (N.saved) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox('📢 ' + N.title + '\n' + N.body + '\n\n詳しくはポータルで👇\n' + HOME_URL, true) + '</section>';
-    if (ST.notices.length) h += '<section class="card"><h2>載せているお知らせ</h2><div class="list">' + ST.notices.map(function (n) { return '<div class="between"><span>' + md(n.date) + ' ' + esc(n.title) + '</span><button class="btn small ghost" data-ndel="' + n.id + '" type="button">消す</button></div>'; }).join('') + '</div></section>';
+    if (ST.notices.length) h += '<section class="card"><h2>載せているお知らせ</h2><div class="list">' + ST.notices.map(function (n) { return '<div><div class="between"><span>' + md(n.date) + ' ' + (n.important ? '<span class="pill p-imp">重要</span> ' : '') + esc(n.title) + '</span><button class="btn small ghost" data-ndel="' + n.id + '" type="button">消す</button></div>' + (n.readCount !== undefined ? readersHtml(n) : '') + '</div>'; }).join('') + '</div></section>';
     view.innerHTML = h;
     bindBack(); bindCopy();
     on('[data-tpl]', function () { var t = TEMPLATES[+this.dataset.tpl]; N.title = t[1]; N.body = t[2]; N.saved = false; render(); });
     document.getElementById('n-title').addEventListener('input', function () { N.title = this.value; });
     document.getElementById('n-body').addEventListener('input', function () { N.body = this.value; });
     document.getElementById('n-key').addEventListener('change', function () { N.key = this.value; });
+    document.getElementById('n-imp').addEventListener('change', function () { N.important = this.checked; });
     document.getElementById('nForm').addEventListener('submit', function (x) {
       x.preventDefault();
       if (!N.title.trim()) { S.toast = 'タイトルを入れてください。'; S.toastErr = true; render(); return; }
-      call('saveNotice', { title: N.title, body: N.body, key: N.key }, function (st) { if (st.message) N.saved = true; });
+      call('saveNotice', { title: N.title, body: N.body, key: N.key, important: N.important }, function (st) { if (st.message) N.saved = true; });
     });
     on('[data-ndel]', function () { call('deleteNotice', { id: this.dataset.ndel }); });
+  }
+  var POLL_PRESETS = [['参加・不参加', ['参加', '不参加', '未定']], ['○・×', ['○', '×']], ['できる・できない', ['できる', 'できない']]];
+  function adminPolls() {
+    var P = S.pollDraft || (S.pollDraft = { title: '', body: '', options: '参加\n不参加\n未定', multi: false, deadline: '', key: '' });
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>アンケートをつくる</h2><form class="f" id="pForm">' +
+      '<label>しつもん<input id="p-title" value="' + esc(P.title) + '" placeholder="例：11/3 の記録会の送迎、車を出せますか？"></label>' +
+      '<label>説明（なくてもOK）<textarea id="p-body">' + esc(P.body) + '</textarea></label>' +
+      '<div class="lbl" style="font-size:12px;color:var(--muted)">選択肢（1行に1つ）</div><div class="quick">' + POLL_PRESETS.map(function (x, i) { return '<button type="button" data-pp="' + i + '">' + x[0] + '</button>'; }).join('') + '</div>' +
+      '<textarea id="p-opts" rows="4">' + esc(P.options) + '</textarea>' +
+      '<div class="two"><label>締切（なくてもOK）<input type="date" id="p-dl" value="' + esc(P.deadline) + '" min="' + ST.today + '"></label>' +
+      '<label>関係する予定<select id="p-key"><option value="">なし</option>' + upcoming(function () { return true; }).slice(0, 30).map(function (e) { return '<option value="' + e.key + '"' + (P.key === e.key ? ' selected' : '') + '>' + md(e.date) + ' ' + esc(e.title) + '</option>'; }).join('') + '</select></label></div>' +
+      '<label class="row" style="font-weight:400"><input type="checkbox" id="p-multi"' + (P.multi ? ' checked' : '') + ' style="width:auto"> いくつでも選べる</label>' +
+      '<button class="btn" type="submit">ホームに出す</button><div class="hint">1家族1回答です（家族のだれが答えても同じ回答）。ホームと「やること」に出ます。</div></form></section>';
+    ST.polls.forEach(function (p) {
+      h += pollCard(p, true).replace(/<\/section>$/, '') + '<div class="row">' + (p.closed ? '<button class="btn small ghost" data-preopen="' + p.id + '" type="button">再開する</button>' : '<button class="btn small ghost" data-pclose="' + p.id + '" type="button">締め切る</button>') +
+        '<button class="btn small ghost" data-pcopy="' + p.id + '" type="button">結果をコピー</button><button class="btn small ghost" data-pdel="' + p.id + '" type="button">消す</button></div></section>';
+    });
+    view.innerHTML = h;
+    bindBack(); bindCommon();
+    var sync = function () { P.title = document.getElementById('p-title').value; P.body = document.getElementById('p-body').value; P.options = document.getElementById('p-opts').value; P.deadline = document.getElementById('p-dl').value; P.key = document.getElementById('p-key').value; P.multi = document.getElementById('p-multi').checked; };
+    on('[data-pp]', function () { sync(); P.options = POLL_PRESETS[+this.dataset.pp][1].join('\n'); render(); });
+    document.getElementById('pForm').addEventListener('submit', function (x) {
+      x.preventDefault(); sync();
+      var opts = P.options.split('\n').map(function (o) { return o.trim(); }).filter(Boolean);
+      if (!P.title.trim()) { S.toast = 'しつもんを入れてください。'; S.toastErr = true; render(); return; }
+      if (opts.length < 2) { S.toast = '選択肢を2つ以上入れてください。'; S.toastErr = true; render(); return; }
+      call('savePoll', { title: P.title, body: P.body, options: opts, multi: P.multi, deadline: P.deadline, key: P.key }, function (st) { if (st.message) S.pollDraft = null; });
+    });
+    on('[data-pclose]', function () { call('closePoll', { id: this.dataset.pclose }); });
+    on('[data-preopen]', function () { call('closePoll', { id: this.dataset.preopen, reopen: true }); });
+    on('[data-pdel]', function () { if (confirm('このアンケートと回答を消しますか？')) call('closePoll', { id: this.dataset.pdel, remove: true }); });
+    on('[data-pcopy]', function () {
+      var p = ST.polls.find(function (x) { return x.id === this.dataset.pcopy; }, this);
+      var t = '🗳 ' + p.title + '（' + p.total + '/' + p.families + '家族）\n' + p.options.map(function (o) { return o + '：' + (p.counts[o] || 0) + '（' + (p.who[o] || []).join('、') + '）'; }).join('\n') + (p.unanswered.length ? '\nまだ：' + p.unanswered.join('、') : '');
+      copyText(t);
+    });
+  }
+  function adminFees() {
+    var F = S.feeDraft || (S.feeDraft = { name: '', amount: '', target: '全員', deadline: '', memo: '' });
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>集金をつくる</h2><form class="f" id="fForm"><div class="quick">' + ['年会費', 'ユニフォーム代', 'スポーツ保険', '合宿費'].map(function (x) { return '<button type="button" data-fn="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<div class="two"><label>名前<input id="f-name" value="' + esc(F.name) + '" placeholder="例：年会費"></label><label>1人あたり（円）<input id="f-amt" inputmode="numeric" value="' + esc(F.amount) + '"></label></div>' +
+      '<div class="two"><label>対象<select id="f-target">' + ST.choices.targets.map(function (t) { return '<option' + (F.target === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></label><label>期限（なくてもOK）<input type="date" id="f-dl" value="' + esc(F.deadline) + '"></label></div>' +
+      '<label>メモ（なくてもOK）<input id="f-memo" value="' + esc(F.memo) + '" placeholder="例：封筒に名前を書いて練習のときに"></label>' +
+      '<button class="btn" type="submit">つくる</button><div class="hint">対象のお子さんの家に「やること」として出ます。だれが払ったかは役員だけに見えます。</div></form></section>';
+    ST.fees.forEach(function (f) {
+      var done = f.paid.length, all = f.kids.length;
+      h += '<section class="card"><h2>' + esc(f.name) + '<small>' + yen(f.amount) + '／人' + (f.deadline ? '・期限 ' + md(f.deadline) : '') + (f.closed ? '・終了' : '') + '</small></h2>' +
+        '<div class="between"><span><b>' + done + '</b>/' + all + '人　' + yen(done * f.amount) + '<span class="sub"> / ' + yen(all * f.amount) + '</span></span>' + (all - done ? '<span class="pill p-warn">まだ ' + (all - done) + '人</span>' : '<span class="pill p-ok">全員済み</span>') + '</div>' +
+        '<div class="meter" role="img" aria-label="' + done + '/' + all + '人"><i style="width:' + (all ? Math.round(done / all * 100) : 0) + '%"></i></div>' +
+        (f.memo ? '<div class="sub">' + esc(f.memo) + '</div>' : '') +
+        '<div class="feekids">' + f.kids.map(function (k) { var ok = f.paid.indexOf(k) >= 0; return '<button type="button" data-fee="' + f.id + '" data-kid="' + esc(k) + '" aria-pressed="' + ok + '">' + (ok ? '✓ ' : '') + esc(k) + '</button>'; }).join('') + '</div>' +
+        '<div class="hint">名前を押すと「受け取った」になります。もう一度押すと戻ります。</div>' +
+        '<div class="row">' + (f.closed ? '<button class="btn small ghost" data-freopen="' + f.id + '" type="button">再開する</button>' : '<button class="btn small ghost" data-fclose="' + f.id + '" type="button">終わりにする</button>') + '<button class="btn small ghost" data-fdel="' + f.id + '" type="button">消す</button></div></section>';
+    });
+    view.innerHTML = h;
+    bindBack();
+    var sync = function () { F.name = document.getElementById('f-name').value; F.amount = document.getElementById('f-amt').value; F.target = document.getElementById('f-target').value; F.deadline = document.getElementById('f-dl').value; F.memo = document.getElementById('f-memo').value; };
+    on('[data-fn]', function () { sync(); F.name = this.dataset.fn; render(); });
+    document.getElementById('fForm').addEventListener('submit', function (x) { x.preventDefault(); sync(); call('saveFee', F, function (st) { if (st.message) S.feeDraft = null; }); });
+    on('[data-fee]', function () { call('setFeePaid', { id: this.dataset.fee, child: this.dataset.kid, paid: this.getAttribute('aria-pressed') !== 'true' }); });
+    on('[data-fclose]', function () { call('closeFee', { id: this.dataset.fclose }); });
+    on('[data-freopen]', function () { call('closeFee', { id: this.dataset.freopen, reopen: true }); });
+    on('[data-fdel]', function () { if (confirm('この集金と記録を消しますか？')) call('closeFee', { id: this.dataset.fdel, remove: true }); });
   }
   function adminAbsences() {
     var list = ST.absences.slice(), h = backBtn() + toastHtml(), date = '';
@@ -2504,8 +2723,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var nav = document.getElementById('nav');
     nav.hidden = false;
     nav.className = 'nav' + (ST.me.admin ? ' admin' : '');
+    var badges = { home: ST.me.children.length ? todoItems().length : 0, events: 0, admin: 0 };
+    if (ST.me.admin) badges.admin = ST.absences.filter(function (a) { return a.date >= ST.today && !a.ack; }).length + ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; }).length;
     nav.innerHTML = NAV.filter(function (n) { return n[0] !== 'admin' || ST.me.admin; }).map(function (n) {
-      return '<button type="button" data-nav="' + n[0] + '"' + (S.tab === n[0] ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n[0]] + '</svg>' + n[1] + '</button>';
+      var b = badges[n[0]] ? '<span class="badge" aria-label="' + badges[n[0]] + '件">' + badges[n[0]] + '</span>' : '';
+      return '<button type="button" data-nav="' + n[0] + '"' + (S.tab === n[0] ? ' aria-current="page"' : '') + '>' + b + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n[0]] + '</svg>' + n[1] + '</button>';
     }).join('');
     nav.querySelectorAll('[data-nav]').forEach(function (b) { b.addEventListener('click', function () { if (this.dataset.nav === 'admin') S.admin = 'menu'; if (this.dataset.nav === 'family') S.kidsDraft = null; go(this.dataset.nav); }); });
   }

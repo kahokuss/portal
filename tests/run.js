@@ -813,6 +813,54 @@ test('ポータル画面: URLに付けたキーでは開けない（ログイン
   assert.ok(html.includes(encodeURIComponent('https://script.google.com/macros/s/TEST/exec')), 'Apps Script の画面から始めたログインは Apps Script に戻る');
 });
 
+test('既読・アンケート・集金（未納は本人と役員だけに見える）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤ゆい 2年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  // 既読
+  gas.ctx.api(kA, 'saveNotice', { title: 'ゼッケン配布', body: '次の練習で', important: true });
+  let st = gas.ctx.api(k2, 'bootstrap');
+  const n = st.notices[0];
+  assert.ok(n.important && !n.read && n.unread === undefined, '保護者には既読の一覧を見せない');
+  assert.strictEqual(gas.ctx.api(k2, 'markRead', { ids: [n.id] }), '', '既読は軽く返す');
+  gas.ctx.api(k2, 'markRead', { ids: [n.id] });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').notices[0].read);
+  st = gas.ctx.api(kA, 'bootstrap');
+  assert.strictEqual(st.notices[0].readCount, 1, '2回押しても1人');
+  assert.ok(st.notices[0].unread.includes('佐藤') && !st.notices[0].unread.includes('鈴木'), JSON.stringify(st.notices[0]));
+  // アンケート
+  assert.throws(() => gas.ctx.api(k2, 'savePoll', { title: 'x', options: ['a', 'b'] }), /役員/);
+  gas.ctx.api(kA, 'savePoll', { title: '送迎の車を出せますか', options: ['出せる', '出せない'], deadline: '2026-10-30' });
+  let p = gas.ctx.api(k2, 'bootstrap').polls[0];
+  gas.ctx.api(k2, 'answerPoll', { id: p.id, answers: ['出せる', 'ずる'] });
+  gas.ctx.api(k3, 'answerPoll', { id: p.id, answers: ['出せない'] });
+  gas.ctx.api(k3, 'answerPoll', { id: p.id, answers: ['出せる'] });
+  p = gas.ctx.api(kA, 'bootstrap').polls[0];
+  assert.deepStrictEqual(plain(p.counts), { '出せる': 2, '出せない': 0 }, '答え直しは上書き・選択肢にないものは捨てる');
+  assert.strictEqual(p.total, 2);
+  assert.ok(p.unanswered.some((x) => x.includes('山田')), JSON.stringify(p.unanswered));
+  gas.ctx.api(kA, 'closePoll', { id: p.id });
+  assert.throws(() => gas.ctx.api(k2, 'answerPoll', { id: p.id, answers: ['出せない'] }), /締め切/);
+  gas.ctx.api(kA, 'closePoll', { id: p.id, reopen: true });
+  assert.ok(!gas.ctx.api(k2, 'bootstrap').polls[0].closed);
+  // 集金
+  gas.ctx.api(kA, 'saveFee', { name: '年会費', amount: '３,０００', target: '3年生以上', deadline: '2026-11-30' });
+  let f = gas.ctx.api(kA, 'bootstrap').fees[0];
+  assert.strictEqual(f.amount, 3000);
+  assert.deepStrictEqual(plain(f.kids).sort(), ['山田たろう', '鈴木けんた'].sort(), '対象の学年だけ');
+  gas.ctx.api(kA, 'setFeePaid', { id: f.id, child: '山田たろう', paid: true });
+  assert.throws(() => gas.ctx.api(k2, 'setFeePaid', { id: f.id, child: '鈴木けんた', paid: true }), /役員/);
+  const f2 = gas.ctx.api(k2, 'bootstrap').fees[0];
+  assert.deepStrictEqual(plain(f2.kids), ['鈴木けんた'], '保護者には自分の子の分だけ');
+  assert.deepStrictEqual(plain(f2.paid), [], 'ほかの家が払ったかは見えない');
+  assert.strictEqual(gas.ctx.api(k3, 'bootstrap').fees[0].kids.length, 0, '対象外の家');
+  gas.ctx.api(kA, 'setFeePaid', { id: f.id, child: '山田たろう', paid: false });
+  assert.deepStrictEqual(plain(gas.ctx.api(kA, 'bootstrap').fees[0].paid), []);
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

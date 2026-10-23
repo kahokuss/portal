@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'a86779f25a';
+const SERVER_VERSION = 'ca3f6d893b';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1683,6 +1683,13 @@ const API_ACTIONS = {
   saveRace: { admin: true, run: saveRaceAction_ },
   setEventType: { admin: true, run: setEventTypeAction_ },
   saveNotice: { admin: true, run: saveNoticeAction_ },
+  markRead: { raw: true, run: markReadAction_ },
+  savePoll: { admin: true, run: savePollAction_ },
+  closePoll: { admin: true, run: closePollAction_ },
+  answerPoll: { run: answerPollAction_ },
+  saveFee: { admin: true, run: saveFeeAction_ },
+  closeFee: { admin: true, run: closeFeeAction_ },
+  setFeePaid: { admin: true, run: setFeePaidAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
 };
 
@@ -1764,7 +1771,16 @@ function buildState_(ctx) {
     .filter((n) => n.id)
     .sort((a, b) => (a['日時'] < b['日時'] ? 1 : -1))
     .slice(0, 10)
-    .map((n) => ({ id: n.id, date: n['日付'], title: n['タイトル'], body: n['本文'], key: n.eventKey, by: n['作成者'] }));
+    .map((n) => ({ id: n.id, date: n['日付'], title: n['タイトル'], body: n['本文'], key: n.eventKey, by: n['作成者'], important: n['重要'] === '○' }));
+  // 既読：自分が読んだか。役員には、読んだ人数と、まだの人
+  const reads = readRows_(SHEETS.READS);
+  const memberNames = {};
+  readRows_(SHEETS.FAMILIES).forEach((f) => (memberNames[f.userId] = f['表示名'] || '（名前なし）'));
+  notices.forEach((n) => {
+    const who = reads.filter((r) => r['お知らせid'] === n.id).map((r) => r.userId);
+    n.read = who.indexOf(ctx.userId) >= 0;
+    if (ctx.admin) { n.readCount = who.length; n.members = Object.keys(memberNames).length; n.unread = Object.keys(memberNames).filter((u) => who.indexOf(u) < 0).map((u) => memberNames[u]); }
+  });
 
   const children = activeChildren_();
   const familyRows = readRows_(SHEETS.FAMILIES);
@@ -1829,6 +1845,8 @@ function buildState_(ctx) {
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
     comments: commentsFor_(ctx),
+    polls: pollsFor_(ctx, families),
+    fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
     choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
@@ -2033,9 +2051,20 @@ function saveNoticeAction_(ctx, p) {
   const title = String(p.title || '').trim().slice(0, 80);
   if (!title) throw new Error('タイトルを入れてください。');
   withLock_(() => {
-    appendRow_(SHEETS.NOTICES, { id: randomKey_().slice(0, 10), '日付': today_(), 'タイトル': title, '本文': String(p.body || '').slice(0, 2000), eventKey: p.key || '', '作成者': ctx.name, '日時': now_() });
+    appendRow_(SHEETS.NOTICES, { id: randomKey_().slice(0, 10), '日付': today_(), 'タイトル': title, '本文': String(p.body || '').slice(0, 2000), eventKey: p.key || '', '作成者': ctx.name, '日時': now_(), '重要': p.important ? '○' : '' });
   });
   return 'お知らせを載せました';
+}
+
+/** お知らせを読んだ（画面に出たら、まとめて呼ぶ） */
+function markReadAction_(ctx, p) {
+  const ids = (p.ids || []).slice(0, 20).map(String);
+  if (!ids.length) return '';
+  withLock_(() => {
+    const have = readRows_(SHEETS.READS).filter((r) => r.userId === ctx.userId).map((r) => r['お知らせid']);
+    ids.filter((id) => have.indexOf(id) < 0).forEach((id) => appendRow_(SHEETS.READS, { 'お知らせid': id, userId: ctx.userId, '日時': now_() }));
+  });
+  return '';
 }
 
 function deleteNoticeAction_(ctx, p) {
@@ -2831,6 +2860,121 @@ function saveTimetableDraftAction_(ctx, p) {
   return p.clear ? '下書きを消しました' : '下書きを保存しました（まだ大会には出ていません）';
 }
 
+// ---- アンケート（出欠・投票） ----
+
+/** アンケートをつくる（役員）。選択肢はボタンで答える。家族ごとに1つの回答 */
+function savePollAction_(ctx, p) {
+  const title = String(p.title || '').trim().slice(0, 80);
+  const options = (p.options || []).map((x) => String(x).trim().slice(0, 30)).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).slice(0, 12);
+  if (!title) throw new Error('タイトルを入れてください。');
+  if (options.length < 2) throw new Error('選択肢を2つ以上入れてください。');
+  withLock_(() => appendRow_(SHEETS.POLLS, {
+    id: randomKey_().slice(0, 10), 'タイトル': title, '説明': String(p.body || '').slice(0, 1000), '選択肢': JSON.stringify(options), '複数': p.multi ? '○' : '',
+    '締切': /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '', eventKey: p.key || '', '作成者': ctx.name, '日時': now_(), '終了': '',
+  }));
+  return 'アンケートをつくりました';
+}
+
+function closePollAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.POLLS).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('アンケートが見つかりません。');
+    if (p.remove) clearRow_(SHEETS.POLLS, row);
+    else {
+      row['終了'] = p.reopen ? '' : '○';
+      if (p.reopen && row['締切'] && row['締切'] < today_()) row['締切'] = '';
+      updateRow_(SHEETS.POLLS, row);
+    }
+  });
+  return p.remove ? 'アンケートを消しました' : p.reopen ? 'アンケートを再開しました' : 'アンケートを締め切りました';
+}
+
+function answerPollAction_(ctx, p) {
+  const poll = readRows_(SHEETS.POLLS).find((x) => x.id && x.id === p.id);
+  if (!poll) throw new Error('アンケートが見つかりません。');
+  if (poll['終了'] === '○' || (poll['締切'] && today_() > poll['締切'])) throw new Error('このアンケートは締め切りました。');
+  const options = JSON.parse(poll['選択肢'] || '[]');
+  let ans = (p.answers || []).map(String).filter((x) => options.indexOf(x) >= 0);
+  if (poll['複数'] !== '○') ans = ans.slice(0, 1);
+  withLock_(() => {
+    const row = readRows_(SHEETS.ANSWERS).find((x) => x['アンケートid'] === p.id && x['家族ID'] === ctx.famId);
+    const data = { 'アンケートid': p.id, '家族ID': ctx.famId, '回答': JSON.stringify(ans), 'コメント': String(p.comment || '').slice(0, 200), '更新者': ctx.name, '日時': now_() };
+    if (row) updateRow_(SHEETS.ANSWERS, Object.assign(row, data));
+    else appendRow_(SHEETS.ANSWERS, data);
+  });
+  return ans.length ? '回答しました：' + ans.join('・') : '回答を取り消しました';
+}
+
+/** 画面に渡すアンケート（終わってから60日まで）。結果の数・わが家の回答。役員には未回答の家族 */
+function pollsFor_(ctx, families) {
+  const answers = readRows_(SHEETS.ANSWERS);
+  const label = {};
+  families.forEach((f) => (label[f.id] = f.label));
+  return readRows_(SHEETS.POLLS).filter((x) => x.id).reverse().map((x) => {
+    const options = JSON.parse(x['選択肢'] || '[]');
+    const mine = answers.filter((a) => a['アンケートid'] === x.id);
+    const counts = {};
+    options.forEach((o) => (counts[o] = 0));
+    const who = {};
+    mine.forEach((a) => JSON.parse(a['回答'] || '[]').forEach((o) => { counts[o] = (counts[o] || 0) + 1; (who[o] = who[o] || []).push(label[a['家族ID']] || a['更新者']); }));
+    const my = mine.find((a) => a['家族ID'] === ctx.famId);
+    const closed = x['終了'] === '○' || (x['締切'] && today_() > x['締切']);
+    const answered = mine.filter((a) => JSON.parse(a['回答'] || '[]').length).map((a) => a['家族ID']);
+    return {
+      id: x.id, title: x['タイトル'], body: x['説明'], options: options, multi: x['複数'] === '○', deadline: x['締切'], key: x.eventKey, by: x['作成者'], at: x['日時'], closed: closed,
+      counts: counts, who: who, total: answered.length, families: families.length, mine: my ? JSON.parse(my['回答'] || '[]') : [], myComment: my ? my['コメント'] : '',
+      unanswered: ctx.admin ? families.filter((f) => answered.indexOf(f.id) < 0).map((f) => f.label) : [],
+    };
+  }).filter((p) => !p.closed || String(p.at).slice(0, 10) >= addDays_(today_(), -60));
+}
+
+// ---- 集金（年会費・ユニフォーム代など） ----
+
+function saveFeeAction_(ctx, p) {
+  const name = String(p.name || '').trim().slice(0, 40);
+  const amount = Number(toHalfWidth_(p.amount || '').replace(/[^0-9]/g, ''));
+  if (!name) throw new Error('名前を入れてください（例：年会費）。');
+  if (!amount) throw new Error('金額を入れてください。');
+  withLock_(() => appendRow_(SHEETS.FEES, {
+    id: randomKey_().slice(0, 10), '名前': name, '金額': String(amount), '対象': String(p.target || '全員').slice(0, 20),
+    '期限': /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '', 'メモ': String(p.memo || '').slice(0, 200), '作成者': ctx.name, '日時': now_(), '終了': '',
+  }));
+  return '集金「' + name + '」をつくりました';
+}
+
+function closeFeeAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.FEES).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('見つかりません。');
+    if (p.remove) clearRow_(SHEETS.FEES, row);
+    else { row['終了'] = p.reopen ? '' : '○'; updateRow_(SHEETS.FEES, row); }
+  });
+  return p.remove ? '集金を消しました' : p.reopen ? '集金を再開しました' : '集金を終わりにしました';
+}
+
+function setFeePaidAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.FEE_PAID).find((x) => x['集金id'] === p.id && x['子ども'] === p.child);
+    const data = { '集金id': p.id, '子ども': p.child, '状態': p.paid ? '済' : '', '更新者': ctx.name, '日時': now_() };
+    if (row) updateRow_(SHEETS.FEE_PAID, Object.assign(row, data));
+    else appendRow_(SHEETS.FEE_PAID, data);
+  });
+  return '';
+}
+
+/** 画面に渡す集金。対象の子ども（学年で決まる）と、済んだ子 */
+function feesFor_(ctx, children) {
+  const paid = readRows_(SHEETS.FEE_PAID).filter((x) => x['状態'] === '済');
+  return readRows_(SHEETS.FEES).filter((x) => x.id).reverse().map((x) => {
+    // 役員以外には、自分の子の分だけ見せる（だれが払ったかは役員だけ）
+    const target = children.filter((c) => inTarget_(x['対象'], c.grade) && (ctx.admin || c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
+    return {
+      id: x.id, name: x['名前'], amount: Number(x['金額']) || 0, target: x['対象'], deadline: x['期限'], memo: x['メモ'], closed: x['終了'] === '○', at: x['日時'],
+      kids: target, paid: paid.filter((y) => y['集金id'] === x.id && target.indexOf(y['子ども']) >= 0).map((y) => y['子ども']),
+    };
+  }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120));
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -3055,7 +3199,12 @@ const SHEETS = {
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
-  NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },
+  NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時', '重要'] },
+  READS: { name: '既読', headers: ['お知らせid', 'userId', '日時'] },
+  POLLS: { name: 'アンケート', headers: ['id', 'タイトル', '説明', '選択肢', '複数', '締切', 'eventKey', '作成者', '日時', '終了'] },
+  ANSWERS: { name: '回答', headers: ['アンケートid', '家族ID', '回答', 'コメント', '更新者', '日時'] },
+  FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
+  FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },

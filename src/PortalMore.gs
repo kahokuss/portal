@@ -781,3 +781,118 @@ function saveTimetableDraftAction_(ctx, p) {
   });
   return p.clear ? '下書きを消しました' : '下書きを保存しました（まだ大会には出ていません）';
 }
+
+// ---- アンケート（出欠・投票） ----
+
+/** アンケートをつくる（役員）。選択肢はボタンで答える。家族ごとに1つの回答 */
+function savePollAction_(ctx, p) {
+  const title = String(p.title || '').trim().slice(0, 80);
+  const options = (p.options || []).map((x) => String(x).trim().slice(0, 30)).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).slice(0, 12);
+  if (!title) throw new Error('タイトルを入れてください。');
+  if (options.length < 2) throw new Error('選択肢を2つ以上入れてください。');
+  withLock_(() => appendRow_(SHEETS.POLLS, {
+    id: randomKey_().slice(0, 10), 'タイトル': title, '説明': String(p.body || '').slice(0, 1000), '選択肢': JSON.stringify(options), '複数': p.multi ? '○' : '',
+    '締切': /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '', eventKey: p.key || '', '作成者': ctx.name, '日時': now_(), '終了': '',
+  }));
+  return 'アンケートをつくりました';
+}
+
+function closePollAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.POLLS).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('アンケートが見つかりません。');
+    if (p.remove) clearRow_(SHEETS.POLLS, row);
+    else {
+      row['終了'] = p.reopen ? '' : '○';
+      if (p.reopen && row['締切'] && row['締切'] < today_()) row['締切'] = '';
+      updateRow_(SHEETS.POLLS, row);
+    }
+  });
+  return p.remove ? 'アンケートを消しました' : p.reopen ? 'アンケートを再開しました' : 'アンケートを締め切りました';
+}
+
+function answerPollAction_(ctx, p) {
+  const poll = readRows_(SHEETS.POLLS).find((x) => x.id && x.id === p.id);
+  if (!poll) throw new Error('アンケートが見つかりません。');
+  if (poll['終了'] === '○' || (poll['締切'] && today_() > poll['締切'])) throw new Error('このアンケートは締め切りました。');
+  const options = JSON.parse(poll['選択肢'] || '[]');
+  let ans = (p.answers || []).map(String).filter((x) => options.indexOf(x) >= 0);
+  if (poll['複数'] !== '○') ans = ans.slice(0, 1);
+  withLock_(() => {
+    const row = readRows_(SHEETS.ANSWERS).find((x) => x['アンケートid'] === p.id && x['家族ID'] === ctx.famId);
+    const data = { 'アンケートid': p.id, '家族ID': ctx.famId, '回答': JSON.stringify(ans), 'コメント': String(p.comment || '').slice(0, 200), '更新者': ctx.name, '日時': now_() };
+    if (row) updateRow_(SHEETS.ANSWERS, Object.assign(row, data));
+    else appendRow_(SHEETS.ANSWERS, data);
+  });
+  return ans.length ? '回答しました：' + ans.join('・') : '回答を取り消しました';
+}
+
+/** 画面に渡すアンケート（終わってから60日まで）。結果の数・わが家の回答。役員には未回答の家族 */
+function pollsFor_(ctx, families) {
+  const answers = readRows_(SHEETS.ANSWERS);
+  const label = {};
+  families.forEach((f) => (label[f.id] = f.label));
+  return readRows_(SHEETS.POLLS).filter((x) => x.id).reverse().map((x) => {
+    const options = JSON.parse(x['選択肢'] || '[]');
+    const mine = answers.filter((a) => a['アンケートid'] === x.id);
+    const counts = {};
+    options.forEach((o) => (counts[o] = 0));
+    const who = {};
+    mine.forEach((a) => JSON.parse(a['回答'] || '[]').forEach((o) => { counts[o] = (counts[o] || 0) + 1; (who[o] = who[o] || []).push(label[a['家族ID']] || a['更新者']); }));
+    const my = mine.find((a) => a['家族ID'] === ctx.famId);
+    const closed = x['終了'] === '○' || (x['締切'] && today_() > x['締切']);
+    const answered = mine.filter((a) => JSON.parse(a['回答'] || '[]').length).map((a) => a['家族ID']);
+    return {
+      id: x.id, title: x['タイトル'], body: x['説明'], options: options, multi: x['複数'] === '○', deadline: x['締切'], key: x.eventKey, by: x['作成者'], at: x['日時'], closed: closed,
+      counts: counts, who: who, total: answered.length, families: families.length, mine: my ? JSON.parse(my['回答'] || '[]') : [], myComment: my ? my['コメント'] : '',
+      unanswered: ctx.admin ? families.filter((f) => answered.indexOf(f.id) < 0).map((f) => f.label) : [],
+    };
+  }).filter((p) => !p.closed || String(p.at).slice(0, 10) >= addDays_(today_(), -60));
+}
+
+// ---- 集金（年会費・ユニフォーム代など） ----
+
+function saveFeeAction_(ctx, p) {
+  const name = String(p.name || '').trim().slice(0, 40);
+  const amount = Number(toHalfWidth_(p.amount || '').replace(/[^0-9]/g, ''));
+  if (!name) throw new Error('名前を入れてください（例：年会費）。');
+  if (!amount) throw new Error('金額を入れてください。');
+  withLock_(() => appendRow_(SHEETS.FEES, {
+    id: randomKey_().slice(0, 10), '名前': name, '金額': String(amount), '対象': String(p.target || '全員').slice(0, 20),
+    '期限': /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '', 'メモ': String(p.memo || '').slice(0, 200), '作成者': ctx.name, '日時': now_(), '終了': '',
+  }));
+  return '集金「' + name + '」をつくりました';
+}
+
+function closeFeeAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.FEES).find((x) => x.id && x.id === p.id);
+    if (!row) throw new Error('見つかりません。');
+    if (p.remove) clearRow_(SHEETS.FEES, row);
+    else { row['終了'] = p.reopen ? '' : '○'; updateRow_(SHEETS.FEES, row); }
+  });
+  return p.remove ? '集金を消しました' : p.reopen ? '集金を再開しました' : '集金を終わりにしました';
+}
+
+function setFeePaidAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.FEE_PAID).find((x) => x['集金id'] === p.id && x['子ども'] === p.child);
+    const data = { '集金id': p.id, '子ども': p.child, '状態': p.paid ? '済' : '', '更新者': ctx.name, '日時': now_() };
+    if (row) updateRow_(SHEETS.FEE_PAID, Object.assign(row, data));
+    else appendRow_(SHEETS.FEE_PAID, data);
+  });
+  return '';
+}
+
+/** 画面に渡す集金。対象の子ども（学年で決まる）と、済んだ子 */
+function feesFor_(ctx, children) {
+  const paid = readRows_(SHEETS.FEE_PAID).filter((x) => x['状態'] === '済');
+  return readRows_(SHEETS.FEES).filter((x) => x.id).reverse().map((x) => {
+    // 役員以外には、自分の子の分だけ見せる（だれが払ったかは役員だけ）
+    const target = children.filter((c) => inTarget_(x['対象'], c.grade) && (ctx.admin || c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
+    return {
+      id: x.id, name: x['名前'], amount: Number(x['金額']) || 0, target: x['対象'], deadline: x['期限'], memo: x['メモ'], closed: x['終了'] === '○', at: x['日時'],
+      kids: target, paid: paid.filter((y) => y['集金id'] === x.id && target.indexOf(y['子ども']) >= 0).map((y) => y['子ども']),
+    };
+  }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120));
+}

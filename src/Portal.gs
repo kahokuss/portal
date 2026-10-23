@@ -71,6 +71,13 @@ const API_ACTIONS = {
   saveRace: { admin: true, run: saveRaceAction_ },
   setEventType: { admin: true, run: setEventTypeAction_ },
   saveNotice: { admin: true, run: saveNoticeAction_ },
+  markRead: { raw: true, run: markReadAction_ },
+  savePoll: { admin: true, run: savePollAction_ },
+  closePoll: { admin: true, run: closePollAction_ },
+  answerPoll: { run: answerPollAction_ },
+  saveFee: { admin: true, run: saveFeeAction_ },
+  closeFee: { admin: true, run: closeFeeAction_ },
+  setFeePaid: { admin: true, run: setFeePaidAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
 };
 
@@ -152,7 +159,16 @@ function buildState_(ctx) {
     .filter((n) => n.id)
     .sort((a, b) => (a['日時'] < b['日時'] ? 1 : -1))
     .slice(0, 10)
-    .map((n) => ({ id: n.id, date: n['日付'], title: n['タイトル'], body: n['本文'], key: n.eventKey, by: n['作成者'] }));
+    .map((n) => ({ id: n.id, date: n['日付'], title: n['タイトル'], body: n['本文'], key: n.eventKey, by: n['作成者'], important: n['重要'] === '○' }));
+  // 既読：自分が読んだか。役員には、読んだ人数と、まだの人
+  const reads = readRows_(SHEETS.READS);
+  const memberNames = {};
+  readRows_(SHEETS.FAMILIES).forEach((f) => (memberNames[f.userId] = f['表示名'] || '（名前なし）'));
+  notices.forEach((n) => {
+    const who = reads.filter((r) => r['お知らせid'] === n.id).map((r) => r.userId);
+    n.read = who.indexOf(ctx.userId) >= 0;
+    if (ctx.admin) { n.readCount = who.length; n.members = Object.keys(memberNames).length; n.unread = Object.keys(memberNames).filter((u) => who.indexOf(u) < 0).map((u) => memberNames[u]); }
+  });
 
   const children = activeChildren_();
   const familyRows = readRows_(SHEETS.FAMILIES);
@@ -217,6 +233,8 @@ function buildState_(ctx) {
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
     comments: commentsFor_(ctx),
+    polls: pollsFor_(ctx, families),
+    fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
     choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
@@ -421,9 +439,20 @@ function saveNoticeAction_(ctx, p) {
   const title = String(p.title || '').trim().slice(0, 80);
   if (!title) throw new Error('タイトルを入れてください。');
   withLock_(() => {
-    appendRow_(SHEETS.NOTICES, { id: randomKey_().slice(0, 10), '日付': today_(), 'タイトル': title, '本文': String(p.body || '').slice(0, 2000), eventKey: p.key || '', '作成者': ctx.name, '日時': now_() });
+    appendRow_(SHEETS.NOTICES, { id: randomKey_().slice(0, 10), '日付': today_(), 'タイトル': title, '本文': String(p.body || '').slice(0, 2000), eventKey: p.key || '', '作成者': ctx.name, '日時': now_(), '重要': p.important ? '○' : '' });
   });
   return 'お知らせを載せました';
+}
+
+/** お知らせを読んだ（画面に出たら、まとめて呼ぶ） */
+function markReadAction_(ctx, p) {
+  const ids = (p.ids || []).slice(0, 20).map(String);
+  if (!ids.length) return '';
+  withLock_(() => {
+    const have = readRows_(SHEETS.READS).filter((r) => r.userId === ctx.userId).map((r) => r['お知らせid']);
+    ids.filter((id) => have.indexOf(id) < 0).forEach((id) => appendRow_(SHEETS.READS, { 'お知らせid': id, userId: ctx.userId, '日時': now_() }));
+  });
+  return '';
 }
 
 function deleteNoticeAction_(ctx, p) {

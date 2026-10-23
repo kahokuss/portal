@@ -440,6 +440,19 @@ test('記録: 役員が過去の記録をまとめて入れられる（大会な
   assert.ok(st.message.startsWith('1件の記録を入れました') && st.message.includes('登録されていません'), st.message);
   assert.deepStrictEqual([st.results[0].record, st.results[0].date, st.results[0].meet], ['15.80', '2026-06-01', '2026-06-01 春季記録会']);
 });
+test('記録: 大会のページで入れた結果は公式、練習の記録は練習（ベストは別々）', () => {
+  const gas = setupClub();
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  let st = gas.ctx.api(k2, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '15.2' });
+  assert.strictEqual(st.results[0].kind, '公式');
+  st = gas.ctx.api(k2, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '14.9', kind: '練習' });
+  assert.strictEqual(st.results[1].kind, '練習');
+  st = gas.ctx.api(kAdmin, 'addRecords', { kind: '練習', rows: [{ child: '鈴木けんた', race: '100m', record: '14.8' }] });
+  assert.strictEqual(st.results[2].kind, '練習');
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

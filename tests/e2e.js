@@ -296,7 +296,7 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(/14\.98\s*2位\s*自己ベスト/.test(t2), t2);
       await p.shot('8-results');
       await p.click('[data-nav="family"]');
-      assert.ok((await p.textContent('#view')).includes('100m 14.98'));
+      assert.ok(/100m\s*14\.98/.test(await p.textContent('#view')), 'わが家の記録の表に自己ベスト');
       await p.click('[data-nav="events"]');
       await p.click('.ev:has-text("秋季記録会")');
       await p.click('[data-et="手続き"]');
@@ -487,13 +487,24 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-go="records"]');
       await a.fill('#recIn', '鈴木けんた 100m 15.80 2026/6/1 春季記録会\n鈴木けんた 100m 15.45 2026/7/20 夏季記録会\nだれか 100m 14.0');
       await a.click('#recForm button[type=submit]');
-      assert.ok((await a.textContent('#recSave')).includes('3件'));
+      assert.ok((await a.textContent('#recSave')).includes('2件を入れる（公式）'), '名前が合わない行は入れない');
       await a.click('#recSave');
       await a.idle();
       assert.ok((await a.textContent('#view')).includes('2件の記録を入れました'));
+      // 横に種目が並ぶ表（Excelからコピー）を、練習の記録として
+      await a.fill('#recIn', '名前\t学年\t100m\t走幅跳\n鈴木 けんた\t6\t15.10 (10/10)\t3m60\n佐藤さくら\t4\t\t2m80');
+      await a.click('[data-ikind="練習"]');
+      await a.click('#recForm button[type=submit]');
+      assert.ok((await a.textContent('#recSave')).includes('3件を入れる（練習）'));
+      await a.click('#recSave');
+      await a.idle();
+      const prac = gas.rows('結果').filter((r) => r['区分'] === '練習');
+      assert.deepStrictEqual(prac.map((r) => [r['子ども'], r['種目'], r['記録']]), [['鈴木けんた', '100m', '15.10'], ['鈴木けんた', '走幅跳', '3m60'], ['佐藤さくら', '走幅跳', '2m80']]);
+      assert.ok(prac[0]['大会・練習'].startsWith('2026-10-10'), '（10/10）を日付として読む');
       await a.click('[data-rk="鈴木けんた"]');
-      await a.waitForSelector('.rchart .pt.pb');
-      assert.strictEqual(await a.locator('.rchart .pt').count(), 4, '4回分の点');
+      await a.waitForSelector('.rchart .pt');
+      assert.strictEqual(await a.locator('.rchart .pt').count(), 5, '公式4回と練習1回の点');
+      assert.ok(await a.isVisible('.legend'), '公式と練習の凡例');
       await a.click('.rchart .hit >> nth=0');
       assert.ok((await a.textContent('.rtip')).includes('春季記録会'));
       await a.shot('15-records');

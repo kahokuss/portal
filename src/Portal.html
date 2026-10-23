@@ -200,7 +200,11 @@ form.f, .f { display: grid; gap: 8px; }
 .rchart .ax { fill: var(--muted); font-size: 10px; }
 .rchart .ln { fill: none; stroke: var(--viz-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .rchart .pt { fill: var(--viz-line); stroke: var(--surface); stroke-width: 2; }
-.rchart .pt.pb { fill: var(--viz-pb); }
+.rchart .ln.pr { stroke: var(--viz-pb); stroke-dasharray: 5 4; }
+.rchart .pt.pr { fill: var(--viz-pb); }
+.legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); }
+.legend .k { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--viz-line); vertical-align: middle; margin-right: 4px; }
+.legend .k.pr { border-top: 2px dashed var(--viz-pb); }
 .rchart .lb { fill: var(--fg); font-size: 10.5px; font-weight: 700; }
 .rchart .hit { fill: transparent; cursor: pointer; }
 .rtip { font-size: 12px; color: var(--fg); background: var(--surface-2); border-radius: 8px; padding: 4px 8px; min-height: 1.6em; }
@@ -1220,7 +1224,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (relay) h += relaySection(e);
     var res = ST.results.filter(function (r) { return r.key === e.key && sameRace(r.race, race); });
     if (res.length) h += '<div class="lbl">結果</div><div class="list">' + res.map(function (r) {
-      return '<div class="between"><span>' + esc(r.child) + ' <b>' + esc(r.record) + '</b>' + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + (isPB(r) ? ' <span class="pill p-race">自己ベスト</span>' : '') + '</span></div>';
+      return '<div class="between"><span>' + esc(r.child) + ' <b>' + esc(r.record) + '</b>' + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + '</span></div>';
     }).join('') + '</div>';
     return h + '</section>';
   }
@@ -1684,16 +1688,18 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return null;
   }
   function isBetter(race, a, b) { var x = markValue(a), y = markValue(b); if (x === null) return false; if (y === null) return true; return higherBetter(race) ? x > y : x < y; }
-  /** 子どもの種目ごとの自己ベスト（種目名のちがいはそろえる） */
-  function bests(child) {
+  /** 子どもの種目ごとのベスト（種目名のちがいはそろえる）。kind：'公式'・'練習'（なしなら両方） */
+  function bests(child, kind) {
     var out = {};
-    ST.results.filter(function (r) { return r.child === child; }).forEach(function (r) {
+    ST.results.filter(function (r) { return r.child === child && (!kind || r.kind === kind); }).forEach(function (r) {
       var k = canon(r.race), cur = out[k];
       if (!cur || isBetter(r.race, r.record, cur.record)) out[k] = r;
     });
     return out;
   }
-  function isPB(r) { var b = bests(r.child)[canon(r.race)]; return b && b === r && ST.results.filter(function (x) { return x.child === r.child && canon(x.race) === canon(r.race); }).length > 1; }
+  function isPB(r) { var b = bests(r.child, r.kind)[canon(r.race)]; return b && b === r && ST.results.filter(function (x) { return x.child === r.child && x.kind === r.kind && canon(x.race) === canon(r.race); }).length > 1; }
+  function kindPill(r) { return r.kind === '練習' ? ' <span class="pill p-prac">練習</span>' : ''; }
+  function pbText(r) { return r.kind === '練習' ? '練習ベスト' : '自己ベスト'; }
   function canResult(e, child) { return ST.me.admin || canManage(e.key) || myNames().indexOf(child) >= 0; }
   function resultsTab(e) {
     var R = S.res || (S.res = {}), list = ST.results.filter(function (r) { return r.key === e.key; });
@@ -1708,6 +1714,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<div class="lbl">種目</div><div class="choice">' + races.map(function (r) { return '<button type="button" data-rrace="' + esc(r) + '" aria-pressed="' + (R.race === r) + '">' + esc(r) + '</button>'; }).join('') + '</div>' +
         '<div class="lbl">ラウンド</div><div class="choice">' + ST.choices.rounds.map(function (r) { return '<button type="button" data-rround="' + r + '" aria-pressed="' + (R.round === r) + '">' + r + '</button>'; }).join('') + '</div>' +
         '<div class="two"><label>記録<input id="rs-rec" placeholder="' + (higherBetter(R.race) ? '例：3m20' : '例：15.21、1:01.27') + '" value="' + esc(R.record || '') + '"></label><label>順位（なくてもOK）<input id="rs-place" inputmode="numeric" value="' + esc(R.place || '') + '"></label></div>' +
+        '<div class="lbl">記録の種類</div><div class="choice">' + ['公式', '練習'].map(function (x) { return '<button type="button" data-rkd="' + x + '" aria-pressed="' + ((R.kind || '公式') === x) + '">' + (x === '公式' ? '公式（大会の記録）' : '練習（試技・計測）') + '</button>'; }).join('') + '</div>' +
         '<label>メモ（なくてもOK）<input id="rs-memo" placeholder="例：自己ベスト！、向かい風" value="' + esc(R.memo || '') + '"></label>' +
         '<button class="btn" type="submit">記録する</button><div class="hint">走る種目は「15.21」「1:01.27」、跳ぶ・投げる種目は「3m20」のように入れると、自己ベストを自動で出します。</div></form></section>';
     }
@@ -1716,7 +1723,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var names = Object.keys(byChild).sort(function (a, b) { return byGrade(kidInfo(a), kidInfo(b)); });
     h += '<section class="card"><h2>この大会の結果<small>' + list.length + '件</small></h2>' + (names.length ? '<div class="list">' + names.map(function (n) {
       return '<div><b>' + esc(n) + '</b>' + byChild[n].map(function (r) {
-        return '<div class="between"><span>' + esc(r.race) + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + ' <b>' + esc(r.record) + '</b>' + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + (isPB(r) ? ' <span class="pill p-race">自己ベスト</span>' : '') + (r.memo ? ' <span class="sub">' + esc(r.memo) + '</span>' : '') + '</span>' +
+        return '<div class="between"><span>' + esc(r.race) + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + ' <b>' + esc(r.record) + '</b>' + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + (r.memo ? ' <span class="sub">' + esc(r.memo) + '</span>' : '') + '</span>' +
           (r.id && canResult(e, r.child) ? '<button class="icon-btn" type="button" data-rdel="' + esc(r.id) + '" aria-label="消す">×</button>' : '') + '</div>';
       }).join('') + '</div>';
     }).join('') + '</div>' : '<div class="sub">まだ結果はありません。</div>') + '</section>';
@@ -1731,38 +1738,44 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (cs) cs.addEventListener('change', function () { keep(); R.child = this.value; R.race = ''; render(); });
     on('[data-rrace]', function () { keep(); R.race = this.dataset.rrace; render(); });
     on('[data-rround]', function () { keep(); R.round = R.round === this.dataset.rround ? '' : this.dataset.rround; render(); });
+    on('[data-rkd]', function () { keep(); R.kind = this.dataset.rkd; render(); });
     var f = document.getElementById('resForm');
     if (f) f.addEventListener('submit', function (x) {
       x.preventDefault(); keep();
-      call('saveResult', { key: e.key, child: R.child, race: R.race, round: R.round || '', record: R.record, place: R.place, memo: R.memo }, function () { R.record = ''; R.place = ''; R.memo = ''; });
+      call('saveResult', { key: e.key, child: R.child, race: R.race, round: R.round || '', record: R.record, place: R.place, memo: R.memo, kind: R.kind || '公式' }, function () { R.record = ''; R.place = ''; R.memo = ''; });
     });
     on('[data-rdel]', function () { if (confirm('この記録を消しますか？')) call('deleteResult', { id: this.dataset.rdel }); });
     bindPhotos(e);
   }
-  /** 記録の折れ線グラフ（1種目・1人）。上ほどよい記録（走る種目は速いほど上）。自己ベストは赤い点 */
+  /** 記録の折れ線グラフ（1種目・1人）。上ほどよい記録。公式は青い実線、練習はオレンジの点線。★がそれぞれのベスト */
   function recordChart(child, key, race) {
-    var pts = ST.results.filter(function (r) { return r.child === child && canon(r.race) === key && markValue(r.record) !== null; })
+    var all = ST.results.filter(function (r) { return r.child === child && canon(r.race) === key && markValue(r.record) !== null; })
       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
-    if (pts.length < 2) return '';
-    var hb = higherBetter(race), vals = pts.map(function (r) { return markValue(r.record); });
+    if (all.length < 2) return '';
+    var hb = higherBetter(race), vals = all.map(function (r) { return markValue(r.record); });
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad0 = (hi - lo) * 0.15 || Math.max(0.1, hi * 0.02);
     lo -= pad0; hi += pad0;
-    var W = 320, H = 150, L = 40, R = 14, T = 16, B = 26;
-    var t0 = d(pts[0].date).getTime(), t1 = d(pts[pts.length - 1].date).getTime();
-    var X = function (r, i) { return L + (t1 > t0 ? (d(r.date).getTime() - t0) / (t1 - t0) : i / (pts.length - 1)) * (W - L - R); };
+    var W = 320, H = 156, L = 40, R = 14, T = 18, B = 26;
+    var t0 = d(all[0].date).getTime(), t1 = d(all[all.length - 1].date).getTime();
+    var X = function (r) { return L + (t1 > t0 ? (d(r.date).getTime() - t0) / (t1 - t0) : all.indexOf(r) / (all.length - 1)) * (W - L - R); };
     var Y = function (v) { var f = (v - lo) / (hi - lo); return T + (hb ? 1 - f : f) * (H - T - B); };
-    var fmtV = function (v) { if (hb) return v.toFixed(2) + 'm'; return v >= 60 ? Math.floor(v / 60) + ':' + pad(Math.floor(v % 60)) + (v % 1 ? '.' + String((v % 1).toFixed(2)).slice(2) : '') : v.toFixed(2); };
-    var best = bests(child)[key], ticks = [0, 0.5, 1].map(function (f) { return lo + f * (hi - lo); });
+    var fmtV = function (v) { if (hb) return v.toFixed(2) + 'm'; return v >= 60 ? Math.floor(v / 60) + ':' + pad(Math.floor(v % 60)) : v.toFixed(2); };
+    var ticks = [0, 0.5, 1].map(function (f) { return lo + f * (hi - lo); });
     var g = ticks.map(function (v) { var y = Y(v).toFixed(1); return '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text class="ax" x="' + (L - 4) + '" y="' + y + '" text-anchor="end" dominant-baseline="middle">' + fmtV(v) + '</text>'; }).join('');
-    var path = pts.map(function (r, i) { return (i ? 'L' : 'M') + X(r, i).toFixed(1) + ' ' + Y(vals[i]).toFixed(1); }).join(' ');
-    var dots = pts.map(function (r, i) {
-      var x = X(r, i).toFixed(1), y = Y(vals[i]).toFixed(1), isB = r === best, tip = md(r.date) + ' ' + r.meet.replace(/^\d{4}-\d{2}-\d{2}\s*/, '') + '：' + r.record + (r.round ? '（' + r.round + '）' : '') + (isB ? ' 自己ベスト' : '');
-      return '<circle class="pt' + (isB ? ' pb' : '') + '" cx="' + x + '" cy="' + y + '" r="' + (isB ? 5.5 : 4.5) + '"/><circle class="hit" cx="' + x + '" cy="' + y + '" r="14" data-tip="' + esc(tip) + '"><title>' + esc(tip) + '</title></circle>' +
-        (isB || i === pts.length - 1 ? '<text class="lb" x="' + x + '" y="' + (+y - 9) + '" text-anchor="' + (i === pts.length - 1 ? 'end' : 'middle') + '">' + esc(r.record) + (isB ? ' ★' : '') + '</text>' : '');
+    var series = ['公式', '練習'].map(function (kind) { return { kind: kind, pts: all.filter(function (r) { return r.kind === kind; }), best: bests(child, kind)[key] }; }).filter(function (s) { return s.pts.length; });
+    var body = series.map(function (s) {
+      var cls = s.kind === '練習' ? ' pr' : '';
+      var path = s.pts.length > 1 ? '<path class="ln' + cls + '" d="' + s.pts.map(function (r, i) { return (i ? 'L' : 'M') + X(r).toFixed(1) + ' ' + Y(markValue(r.record)).toFixed(1); }).join(' ') + '"/>' : '';
+      return path + s.pts.map(function (r) {
+        var x = X(r).toFixed(1), y = Y(markValue(r.record)).toFixed(1), isB = r === s.best, tip = md(r.date) + ' ' + r.meet.replace(/^\d{4}-\d{2}-\d{2}\s*/, '') + '（' + r.kind + '）：' + r.record + (r.round ? ' ' + r.round : '') + (isB ? ' ★' + pbText(r) : '');
+        return '<circle class="pt' + cls + '" cx="' + x + '" cy="' + y + '" r="' + (isB ? 6 : 4.5) + '"/><circle class="hit" cx="' + x + '" cy="' + y + '" r="14" data-tip="' + esc(tip) + '"><title>' + esc(tip) + '</title></circle>' +
+          (isB ? '<text class="lb" x="' + x + '" y="' + (+y - 10) + '" text-anchor="' + (+x > W - 60 ? 'end' : +x < L + 30 ? 'start' : 'middle') + '">★' + esc(r.record) + '</text>' : '');
+      }).join('');
     }).join('');
-    var xl = '<text class="ax" x="' + L + '" y="' + (H - 6) + '">' + md(pts[0].date) + '</text><text class="ax" x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + md(pts[pts.length - 1].date) + '</text>';
-    return '<div class="lbl">' + esc(race) + '<span class="sub">（' + (hb ? '上ほど遠く・高く' : '上ほど速い') + '・★が自己ベスト）</span></div>' +
-      '<svg class="rchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(child + 'の' + race + 'の記録の移り変わり') + '">' + g + '<path class="ln" d="' + path + '"/>' + dots + xl + '</svg><div class="rtip">記録の点をタップすると、日付と大会が出ます</div>';
+    var xl = '<text class="ax" x="' + L + '" y="' + (H - 6) + '">' + md(all[0].date) + '</text><text class="ax" x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + md(all[all.length - 1].date) + '</text>';
+    var legend = series.length > 1 ? '<div class="legend"><span><i class="k"></i>公式（大会）</span><span><i class="k pr"></i>練習</span></div>' : '';
+    return '<div class="lbl">' + esc(race) + '<span class="sub">（' + (hb ? '上ほど遠く・高く' : '上ほど速い') + (series.length === 1 ? '・' + series[0].kind : '') + '・★がベスト）</span></div>' + legend +
+      '<svg class="rchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(child + 'の' + race + 'の記録の移り変わり') + '">' + g + body + xl + '</svg><div class="rtip">記録の点をタップすると、日付と大会が出ます</div>';
   }
   function bindCharts() {
     view.querySelectorAll('.rchart .hit').forEach(function (c) {
@@ -1772,17 +1785,16 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function recordsCard() {
     if (!ST.me.children.length) return '';
-    var h = '<section class="card"><h2>記録<small>自己ベスト</small></h2>';
+    var h = '<section class="card"><h2>記録<small>公式（大会）と練習</small></h2>';
     ST.me.children.forEach(function (k) {
-      var b = bests(k.name), keys = Object.keys(b);
-      h += '<div class="kid"><b>' + esc(k.name) + '</b>' + (keys.length ? '<div class="list">' + keys.map(function (c) {
-        var r = b[c], n = ST.results.filter(function (x) { return x.child === k.name && canon(x.race) === c; }).length;
-        return '<div class="between"><span>' + esc(r.race) + ' <b>' + esc(r.record) + '</b></span><span class="sub">' + esc(r.meet) + (n > 1 ? '・' + n + '回中' : '') + '</span></div>';
-      }).join('') + '</div>' + keys.map(function (c) { return recordChart(k.name, c, b[c].race); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
+      var bo = bests(k.name, '公式'), bp = bests(k.name, '練習'), keys = Object.keys(bests(k.name));
+      h += '<div class="kid"><b>' + esc(k.name) + '</b>' + (keys.length ? '<div class="tbl-wrap"><table><thead><tr><th>種目</th><th>自己ベスト（公式）</th><th>練習ベスト</th></tr></thead><tbody>' + keys.map(function (c) {
+        var o = bo[c], p = bp[c], name = (o || p).race;
+        return '<tr><td>' + esc(name) + '</td><td>' + (o ? '<b>' + esc(o.record) + '</b> <span class="sub">' + esc(o.meet.replace(/^\d{4}-\d{2}-\d{2}\s*/, '')) + '</span>' : '—') + '</td><td>' + (p ? esc(p.record) + ' <span class="sub">' + md(p.date) + '</span>' : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' + keys.map(function (c) { return recordChart(k.name, c, (bo[c] || bp[c]).race); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
     });
     return h + '</section>';
   }
-
   // ---- 管理：予定をつくる・当番表・休みの通知・スプレッドシート ----
   function places(type) {
     var seen = {}, out = [];
@@ -1906,53 +1918,123 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
   }
 
-  /** 種目ごとの自己ベスト表（役員）。過去の記録を貼り付けで取り込める */
+  /** 種目ごとの自己ベスト表（役員）。公式・練習を切りかえ。過去の記録は表やファイルから取り込める */
   function adminRecords() {
-    var R = S.rec || (S.rec = { race: '', open: '', paste: '', preview: null });
+    var R = S.rec || (S.rec = { race: '', kind: '公式', open: '', paste: '', preview: null, impKind: '公式', impDate: '', impMeet: '' });
     var races = [], names = {};
     ST.results.forEach(function (r) { var c = canon(r.race); if (!names[c]) { names[c] = r.race; races.push(c); } });
     if (!R.race || races.indexOf(R.race) < 0) R.race = races[0] || '';
     var h = backBtn() + toastHtml();
     if (races.length) {
-      var rows = ST.kids.map(function (k) { var b = bests(k.name)[R.race]; return b ? { k: k, b: b, n: ST.results.filter(function (x) { return x.child === k.name && canon(x.race) === R.race; }).length } : null; }).filter(Boolean)
+      var rows = ST.kids.map(function (k) { var b = bests(k.name, R.kind)[R.race]; return b ? { k: k, b: b, n: ST.results.filter(function (x) { return x.child === k.name && x.kind === R.kind && canon(x.race) === R.race; }).length } : null; }).filter(Boolean)
         .sort(function (a, b) { return isBetter(a.b.race, a.b.record, b.b.record) ? -1 : isBetter(b.b.race, b.b.record, a.b.record) ? 1 : 0; });
-      h += '<section class="card"><h2>自己ベスト表<small>' + rows.length + '人</small></h2><div class="tabs">' + races.map(function (c) { return '<button type="button" data-rr="' + esc(c) + '" aria-pressed="' + (R.race === c) + '">' + esc(names[c]) + '</button>'; }).join('') + '</div>' +
-        '<div class="tbl-wrap"><table><thead><tr><th>順</th><th>名前</th><th>学年</th><th>自己ベスト</th><th>いつ・どこで</th><th>回数</th></tr></thead><tbody>' + rows.map(function (x, i) {
+      h += '<section class="card"><h2>' + (R.kind === '公式' ? '自己ベスト表（公式）' : '練習ベスト表') + '<small>' + rows.length + '人</small></h2>' +
+        '<div class="choice">' + ['公式', '練習'].map(function (x) { return '<button type="button" data-rkind="' + x + '" aria-pressed="' + (R.kind === x) + '">' + (x === '公式' ? '公式（大会）' : '練習') + '</button>'; }).join('') + '</div>' +
+        '<div class="tabs">' + races.map(function (c) { return '<button type="button" data-rr="' + esc(c) + '" aria-pressed="' + (R.race === c) + '">' + esc(names[c]) + '</button>'; }).join('') + '</div>' +
+        (rows.length ? '<div class="tbl-wrap"><table><thead><tr><th>順</th><th>名前</th><th>学年</th><th>記録</th><th>いつ・どこで</th><th>回数</th></tr></thead><tbody>' + rows.map(function (x, i) {
           return '<tr data-rk="' + esc(x.k.name) + '" style="cursor:pointer"' + (R.open === x.k.name ? ' class="hl"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.k.name) + '</td><td>' + (x.k.grade || '') + '</td><td><b>' + esc(x.b.record) + '</b></td><td>' + esc(x.b.meet) + '</td><td>' + x.n + '</td></tr>';
-        }).join('') + '</tbody></table></div>' + (R.open ? recordChart(R.open, R.race, names[R.race]) || '<div class="sub">' + esc(R.open) + 'さんの' + esc(names[R.race]) + 'は、記録が2つ以上になるとグラフが出ます。</div>' : '<div class="hint">名前を押すと、その子の記録の移り変わりがグラフで出ます。</div>') +
+        }).join('') + '</tbody></table></div>' : '<div class="sub">この種目の' + R.kind + 'の記録はまだありません。</div>') +
+        (R.open ? recordChart(R.open, R.race, names[R.race]) || '<div class="sub">' + esc(R.open) + 'さんは、記録が2つ以上になるとグラフが出ます。</div>' : '<div class="hint">名前を押すと、その子の記録の移り変わり（公式と練習）がグラフで出ます。</div>') +
         '<button class="btn small ghost" type="button" id="recCopy" style="justify-self:start">表計算に貼れる形でコピー</button></section>';
     } else h += '<div class="card empty">まだ記録がありません。</div>';
-    h += '<section class="card"><h2>過去の記録を取り込む</h2><div class="sub">いままで役員がつけていた自己ベストなどを、1行に1つずつ貼り付けてください。</div>' +
-      '<form class="f" id="recForm"><textarea id="recIn" placeholder="名前 種目 記録 日付 大会名（日付と大会名はなくてもOK）&#10;例：山田たろう 100m 15.21 2026/9/27 県小学生大会&#10;山田たろう 走幅跳 3m45 2026/6/1 春季記録会">' + esc(R.paste) + '</textarea><button class="btn ghost" type="submit">読み取って確認する</button></form>';
+    h += '<section class="card"' + dropAttr('form', '', 'rec', '', true) + '><h2>過去の記録を取り込む</h2>' +
+      '<div class="sub">いまつけている表を、<b>Excelやスプレッドシートからそのままコピーして貼り付け</b>るか、<b>ファイル（.xlsx・.csv）をドロップ</b>してください。1行目に見出し（名前・種目・記録・日付・大会、または 名前・100m・走幅跳…）があれば読み取ります。</div>' +
+      '<form class="f" id="recForm"><textarea id="recIn" placeholder="名前&#9;100m&#9;走幅跳&#10;山田たろう&#9;15.21&#9;3m45&#10;（横に種目が並ぶ表でも、1行に1記録の表でもOK）">' + esc(R.paste) + '</textarea>' +
+      '<div class="row"><label class="btn small ghost upl">📄 ファイルを選ぶ<input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" id="recFile" hidden></label><span class="hint" id="recFileName"></span></div>' +
+      '<div class="lbl">この記録は</div><div class="choice">' + ['公式', '練習'].map(function (x) { return '<button type="button" data-ikind="' + x + '" aria-pressed="' + (R.impKind === x) + '">' + (x === '公式' ? '公式（大会）' : '練習') + '</button>'; }).join('') + '</div>' +
+      '<div class="two"><label>日付（表にないとき）<input type="date" id="recDate" value="' + esc(R.impDate) + '"></label><label>大会名（表にないとき）<input id="recMeet" value="' + esc(R.impMeet) + '" placeholder="例：これまでの自己ベスト"></label></div>' +
+      '<button class="btn ghost" type="submit">読み取って確認する</button></form>';
     if (R.preview) {
-      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th><th>日付</th><th>大会</th></tr></thead><tbody>' + R.preview.map(function (r) {
+      var bad = R.preview.filter(function (r) { return !ST.kids.some(function (k) { return k.name === r.child; }); }).length;
+      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th><th>日付</th><th>大会</th></tr></thead><tbody>' + R.preview.slice(0, 200).map(function (r) {
         var ok = ST.kids.some(function (k) { return k.name === r.child; });
-        return '<tr' + (ok ? '' : ' class="hl"') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td><td>' + esc(r.date) + '</td><td>' + esc(r.meet) + '</td></tr>';
-      }).join('') + '</tbody></table></div><div class="hint">⚠ の名前は登録されていないので入りません（「わが家」の名前と同じ書き方にしてください）。</div><button class="btn" type="button" id="recSave">' + R.preview.length + '件を入れる</button>';
+        return '<tr' + (ok ? '' : ' class="hl"') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td><td>' + esc(r.date || R.impDate || '（今日）') + '</td><td>' + esc(r.meet || R.impMeet || '過去の記録') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' + (bad ? '<div class="hint">⚠ の ' + bad + '行は、名前が登録と合わないので入りません（「わが家」の名前と同じ書き方にしてください。空白はあってもなくてもOK）。</div>' : '') +
+        '<button class="btn" type="button" id="recSave">' + (R.preview.length - bad) + '件を入れる（' + R.impKind + '）</button>';
     }
     h += '</section>';
     view.innerHTML = h;
     bindBack(); bindCharts();
+    function keep() { R.paste = val('recIn'); R.impDate = val('recDate'); R.impMeet = val('recMeet'); }
+    on('[data-rkind]', function () { R.kind = this.dataset.rkind; R.open = ''; render(); });
     on('[data-rr]', function () { R.race = this.dataset.rr; R.open = ''; render(); });
     on('[data-rk]', function () { R.open = R.open === this.dataset.rk ? '' : this.dataset.rk; render(); });
+    on('[data-ikind]', function () { keep(); R.impKind = this.dataset.ikind; render(); });
     on('#recCopy', function () {
-      var rows = ST.kids.map(function (k) { var b = bests(k.name)[R.race]; return b ? [k.name, k.grade || '', b.race, b.record, b.meet].join('\t') : null; }).filter(Boolean);
-      var text = ['名前\t学年\t種目\t自己ベスト\tいつ・どこで'].concat(rows).join('\n'), b = this;
+      var rows = ST.kids.map(function (k) { var b = bests(k.name, R.kind)[R.race]; return b ? [k.name, k.grade || '', b.race, b.record, b.meet, R.kind].join('\t') : null; }).filter(Boolean);
+      var text = ['名前\t学年\t種目\t記録\tいつ・どこで\t区分'].concat(rows).join('\n'), b = this;
       try { navigator.clipboard.writeText(text).then(function () { b.textContent = 'コピーしました。表計算に貼り付けてください'; }); } catch (e) { b.textContent = 'コピーできませんでした'; }
     });
+    var useRows = function (rows, label) { keep(); R.preview = parseRecordTable(rows); if (label) R.paste = ''; S.toast = R.preview.length ? '✅ ' + R.preview.length + '件を読み取りました。下で確かめてください' : '⚠ 読み取れる記録がありませんでした'; S.toastErr = !R.preview.length; render(); };
+    FORMDROP.rec = function (file) { readTableFile(file, useRows); };
+    document.getElementById('recFile').addEventListener('change', function () { if (this.files[0]) readTableFile(this.files[0], useRows); });
     document.getElementById('recForm').addEventListener('submit', function (x) {
-      x.preventDefault();
-      R.paste = val('recIn');
-      R.preview = R.paste.split('\n').map(function (line) {
-        var t = toHalf(line).trim().split(/[\s\t,、]+/).filter(Boolean);
-        if (t.length < 3) return null;
-        var kid = ST.kids.filter(function (k) { return k.name === t[0] || k.name.indexOf(t[0]) >= 0; });
-        var dm = t[3] && t[3].match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/);
-        return { child: kid.length === 1 ? kid[0].name : t[0], race: t[1], record: t[2], date: dm ? dm[1] + '-' + pad(dm[2]) + '-' + pad(dm[3]) : '', meet: t.slice(dm ? 4 : 3).join(' ') };
-      }).filter(Boolean);
-      render();
+      x.preventDefault(); keep();
+      useRows(R.paste.split(/\r?\n/).map(function (l) { return l.indexOf('\t') >= 0 ? l.split('\t') : l.indexOf(',') >= 0 && !/\s/.test(l.trim()) ? l.split(',') : toHalf(l).trim().split(/\s+/); }));
     });
-    on('#recSave', function () { call('addRecords', { rows: R.preview }, function () { R.preview = null; R.paste = ''; }); });
+    on('#recSave', function () {
+      var rows = R.preview.filter(function (r) { return ST.kids.some(function (k) { return k.name === r.child; }); }).map(function (r) { return Object.assign({}, r, { date: r.date || R.impDate, meet: r.meet || R.impMeet || '過去の記録' }); });
+      call('addRecords', { rows: rows, kind: R.impKind }, function () { R.preview = null; R.paste = ''; });
+    });
+  }
+  /** 表計算のファイル（.xlsx・.csv）を読む。.xlsx は SheetJS を使う（そのときだけ読み込む） */
+  function readTableFile(file, done) {
+    var name = file.name || '';
+    document.getElementById('recFileName').textContent = name;
+    if (/\.(csv|tsv|txt)$/i.test(name)) {
+      var r = new FileReader();
+      r.onload = function () { done(String(r.result).split(/\r?\n/).map(function (l) { return l.split(/\t|,/); }), name); };
+      r.readAsText(file, 'utf-8');
+      return;
+    }
+    var go = function () {
+      var r = new FileReader();
+      r.onload = function () {
+        try {
+          var wb = XLSX.read(new Uint8Array(r.result), { type: 'array', cellDates: true });
+          done(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' }), name);
+        } catch (e) { S.toast = '⚠ ファイルを読めませんでした'; S.toastErr = true; render(); }
+      };
+      r.readAsArrayBuffer(file);
+    };
+    if (window.XLSX) return go();
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = go;
+    sc.onerror = function () { S.toast = '⚠ Excelを読む部品を読み込めませんでした。CSVで保存するか、表をコピーして貼り付けてください'; S.toastErr = true; render(); };
+    document.head.appendChild(sc);
+  }
+  /** 表（行の配列）から記録を読み取る。見出しがあれば「1行に1記録」か「横に種目が並ぶ表」、なければ「名前 種目 記録 日付 大会」 */
+  function parseRecordTable(rows) {
+    var norm = function (x) { return toHalf(String(x === undefined || x === null ? '' : x)).trim(); };
+    var findKid = function (n) { var t = norm(n).replace(/\s/g, ''); if (!t) return ''; var hit = ST.kids.filter(function (k) { return k.name.replace(/\s/g, '') === t; }); if (!hit.length) hit = ST.kids.filter(function (k) { return k.name.replace(/\s/g, '').indexOf(t) >= 0 || t.indexOf(k.name.replace(/\s/g, '')) >= 0; }); return hit.length === 1 ? hit[0].name : norm(n); };
+    var toDate = function (v) { var m = norm(v).match(/(\d{4})[\/.\-年](\d{1,2})[\/.\-月](\d{1,2})/); return m ? m[1] + '-' + pad(m[2]) + '-' + pad(m[3]) : ''; };
+    rows = rows.map(function (r) { return r.map(norm); }).filter(function (r) { return r.some(Boolean); });
+    var hi = rows.findIndex(function (r) { return r.some(function (c) { return /^(名前|氏名|選手名?|なまえ)$/.test(c); }); });
+    var out = [];
+    if (hi >= 0) {
+      var head = rows[hi], col = function (re) { return head.findIndex(function (c) { return re.test(c); }); };
+      var cN = col(/^(名前|氏名|選手名?|なまえ)$/), cR = col(/^種目$/), cV = col(/^(記録|タイム|ベスト|自己ベスト)$/), cD = col(/日付|年月日|日にち/), cM = col(/大会|場所|記録会/);
+      var skip = /^(No\.?|番号|学年|年|性別|男女|ふりがな|カナ|フリガナ|所属|チーム|備考|メモ)$/;
+      rows.slice(hi + 1).forEach(function (r) {
+        var child = findKid(r[cN]);
+        if (!child) return;
+        if (cR >= 0 && cV >= 0) { if (r[cR] && r[cV]) out.push({ child: child, race: r[cR], record: r[cV], date: cD >= 0 ? toDate(r[cD]) : '', meet: cM >= 0 ? r[cM] : '' }); return; }
+        head.forEach(function (h, i) {
+          if (i === cN || i === cD || i === cM || !h || skip.test(h) || !r[i]) return;
+          var v = r[i], dm = v.match(/[（(]\s*([^)）]+)[)）]/), date = dm ? toDate(dm[1]) || (function () { var m2 = dm[1].match(/(\d{1,2})[\/月](\d{1,2})/); return m2 ? ST.today.slice(0, 4) + '-' + pad(m2[1]) + '-' + pad(m2[2]) : ''; })() : (cD >= 0 ? toDate(r[cD]) : '');
+          var rec = v.replace(/[（(][^)）]*[)）]/g, '').trim().split(/\s+/)[0];
+          if (markValue(rec) !== null || /\d/.test(rec)) out.push({ child: child, race: h, record: rec, date: date, meet: cM >= 0 ? r[cM] : '' });
+        });
+      });
+    } else {
+      rows.forEach(function (t) {
+        if (t.length < 3) return;
+        var date = toDate(t[3] || '');
+        out.push({ child: findKid(t[0]), race: t[1], record: t[2], date: date, meet: t.slice(date ? 4 : 3).join(' ') });
+      });
+    }
+    return out;
   }
 
   function adminMembers() {
@@ -2044,6 +2126,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** ドロップ・貼り付け・選んだファイルを、1枚ずつ順番に保存する */
   function dispatchFiles(d, list) {
+    if (d.mode === 'form' && d.kind === 'rec') { if (list[0] && FORMDROP.rec) FORMDROP.rec(list[0]); return; }
     var files = Array.prototype.slice.call(list).filter(function (f) { return /^image\//.test(f.type) || (d.mode === 'doc' && f.type === 'application/pdf'); });
     if (!files.length) { S.toast = '⚠ 写真' + (d.mode === 'doc' ? 'かPDF' : '') + 'を入れてください'; S.toastErr = true; render(); return; }
     if (d.mode === 'form') { readImage(files[0], function (data) { if (data && FORMDROP[d.kind]) FORMDROP[d.kind](data); }); return; }

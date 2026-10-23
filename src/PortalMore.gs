@@ -374,6 +374,7 @@ function saveResultAction_(ctx, p) {
   const data = {
     eventKey: ev.eventKey, '大会・練習': ev['日付'] + ' ' + ev['タイトル'], '子ども': child, '種目': race, '記録': record,
     '順位': String(p.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(p.round) >= 0 ? p.round : '',
+    '区分': p.kind === '公式' || p.kind === '練習' ? p.kind : dutyType_(ev) === '大会' ? '公式' : '練習',
     'メモ': String(p.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
   };
   withLock_(() => {
@@ -706,6 +707,7 @@ function addRecordsAction_(ctx, p) {
     ok.push({
       '日時': now_(), eventKey: '', '大会・練習': date + ' ' + String(r.meet || '過去の記録').trim().slice(0, 60), '子ども': child, '種目': race, '記録': record,
       '順位': String(r.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(r.round) >= 0 ? r.round : '',
+      '区分': (r.kind || p.kind) === '練習' ? '練習' : '公式',
       'メモ': String(r.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
     });
   });

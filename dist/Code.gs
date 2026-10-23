@@ -1771,7 +1771,7 @@ function buildState_(ctx) {
   children.forEach((c) => (kidNames[c.name] = true));
   const results = readRows_(SHEETS.RESULTS)
     .filter((x) => kidNames[x['子ども']] && x['記録'])
-    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'] }));
+    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'], kind: x['区分'] || (x.eventKey ? '公式' : '練習') }));
 
   const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
@@ -2397,6 +2397,7 @@ function saveResultAction_(ctx, p) {
   const data = {
     eventKey: ev.eventKey, '大会・練習': ev['日付'] + ' ' + ev['タイトル'], '子ども': child, '種目': race, '記録': record,
     '順位': String(p.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(p.round) >= 0 ? p.round : '',
+    '区分': p.kind === '公式' || p.kind === '練習' ? p.kind : dutyType_(ev) === '大会' ? '公式' : '練習',
     'メモ': String(p.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
   };
   withLock_(() => {
@@ -2729,6 +2730,7 @@ function addRecordsAction_(ctx, p) {
     ok.push({
       '日時': now_(), eventKey: '', '大会・練習': date + ' ' + String(r.meet || '過去の記録').trim().slice(0, 60), '子ども': child, '種目': race, '記録': record,
       '順位': String(r.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(r.round) >= 0 ? r.round : '',
+      '区分': (r.kind || p.kind) === '練習' ? '練習' : '公式',
       'メモ': String(r.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
     });
   });
@@ -2792,6 +2794,7 @@ function handleResultCommand_(ev, args) {
     userId: userId,
     '表示名': getDisplayName_(ev.source),
     id: randomKey_().slice(0, 10),
+    '区分': event && dutyType_(event) === '大会' ? '公式' : '練習',
   });
 
   let msg = '🏃 記録しました：' + parsed.child + ' ' + parsed.item + ' ' + parsed.record;
@@ -2959,7 +2962,7 @@ const SHEETS = {
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
-  RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド'] },
+  RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
   DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },

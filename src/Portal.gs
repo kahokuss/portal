@@ -179,7 +179,7 @@ function buildState_(ctx) {
   children.forEach((c) => (kidNames[c.name] = true));
   const results = readRows_(SHEETS.RESULTS)
     .filter((x) => kidNames[x['子ども']] && x['記録'])
-    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'] }));
+    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'], kind: x['区分'] || (x.eventKey ? '公式' : '練習') }));
 
   const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};

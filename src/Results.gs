@@ -52,6 +52,7 @@ function handleResultCommand_(ev, args) {
     userId: userId,
     '表示名': getDisplayName_(ev.source),
     id: randomKey_().slice(0, 10),
+    '区分': event && dutyType_(event) === '大会' ? '公式' : '練習',
   });
 
   let msg = '🏃 記録しました：' + parsed.child + ' ' + parsed.item + ' ' + parsed.record;

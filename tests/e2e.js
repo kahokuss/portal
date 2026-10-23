@@ -225,16 +225,29 @@ async function openPortal(browser, gas, userId, name) {
     await step('役員: 練習の出欠（だれが休みか）が見える', async () => {
       await a.click('#back');
       await a.click('.ev:has-text("通常練習") >> nth=1');
+      assert.ok((await a.textContent('.tally')).includes('お休み1'));
+      await a.click('[data-tally$="|1"]');
       const text = await a.textContent('#view');
-      assert.ok(text.includes('鈴木けんた 休み'), text);
+      assert.ok(/お休み1.*6年鈴木けんた/.test(text), text);
       assert.ok(text.includes('練習当番'));
       await a.shot('7-practice-detail');
+    });
+    await step('役員: 練習の ✕ を押して理由を選ぶと休みの連絡、✓ で取り消し', async () => {
+      await a.click('[data-rc="山田はなこ"][data-yn="n"]');
+      await a.click('[data-absr="体調不良"]');
+      await a.idle();
+      assert.ok(gas.rows('休み').some((r) => r['子ども'] === '山田はなこ' && r['理由'] === '体調不良'));
+      assert.strictEqual(await a.getAttribute('[data-rc="山田はなこ"][data-yn="n"]', 'aria-pressed'), 'true');
+      await a.shot('7b-practice-absent');
+      await a.click('[data-rc="山田はなこ"][data-yn="y"]');
+      await a.idle();
+      assert.ok(!gas.rows('休み').some((r) => r['子ども'] === '山田はなこ' && r.id), '取り消し');
     });
     await step('大会当番: プログラムを貼り付けてタイムテーブルを入れる', async () => {
       await p.click('[data-nav="home"]');
       await p.click('#reload');
       await p.idle();
-      assert.ok((await p.textContent('#view')).includes('わが家の当番'), 'ホームに当番のお知らせ');
+      assert.ok((await p.textContent('#view')).match(/練習当番|大会当番/), 'ホームに当番のお知らせ');
       await p.click('[data-nav="events"]');
       await p.click('.ev:has-text("秋季記録会")');
       await p.click('[data-et="タイムテーブル"]');

@@ -205,6 +205,10 @@ form.f, .f { display: grid; gap: 8px; }
 .rchart .pt { fill: var(--viz-line); stroke: var(--surface); stroke-width: 2; }
 .rchart .ln.pr { stroke: var(--viz-pb); stroke-dasharray: 5 4; }
 .rchart .pt.pr { fill: var(--viz-pb); }
+.recpick { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.f .recpick select { width: auto; }
+.recpick select { font: inherit; font-size: 18px; font-variant-numeric: tabular-nums; padding: 6px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--fg); min-width: 3.4em; text-align: center; }
+.recpick .u { font-size: 13px; color: var(--muted); margin-right: 6px; }
 .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); }
 .legend .k { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--viz-line); vertical-align: middle; margin-right: 4px; }
 .legend .k.pr { border-top: 2px dashed var(--viz-pb); }
@@ -247,7 +251,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "b8df0eb530";
+var BUILD = "9f51ab7957";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -1716,7 +1720,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         (targets.length > 1 ? '<label>だれの<select id="rs-child">' + targets.map(function (k) { return '<option' + (k.name === R.child ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</select></label>' : '<div class="sub"><b>' + esc(R.child) + '</b></div>') +
         '<div class="lbl">種目</div><div class="choice">' + races.map(function (r) { return '<button type="button" data-rrace="' + esc(r) + '" aria-pressed="' + (R.race === r) + '">' + esc(r) + '</button>'; }).join('') + '</div>' +
         '<div class="lbl">ラウンド</div><div class="choice">' + ST.choices.rounds.map(function (r) { return '<button type="button" data-rround="' + r + '" aria-pressed="' + (R.round === r) + '">' + r + '</button>'; }).join('') + '</div>' +
-        '<div class="two"><label>記録<input id="rs-rec" placeholder="' + (higherBetter(R.race) ? '例：3m20' : '例：15.21、1:01.27') + '" value="' + esc(R.record || '') + '"></label><label>順位（なくてもOK）<input id="rs-place" inputmode="numeric" value="' + esc(R.place || '') + '"></label></div>' +
+        recordPicker(R) +
+        '<div class="lbl">順位（なくてもOK）</div><div class="choice">' + ['1', '2', '3', '4', '5', '6', '7', '8'].map(function (n) { return '<button type="button" data-rplace="' + n + '" aria-pressed="' + (R.place === n) + '">' + n + '位</button>'; }).join('') + '<input id="rs-place" inputmode="numeric" value="' + esc(R.place || '') + '" placeholder="9位〜" style="width:5em;font:inherit;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)"></div>' +
         '<div class="lbl">記録の種類</div><div class="choice">' + ['公式', '練習'].map(function (x) { return '<button type="button" data-rkd="' + x + '" aria-pressed="' + ((R.kind || '公式') === x) + '">' + (x === '公式' ? '公式（大会の記録）' : '練習（試技・計測）') + '</button>'; }).join('') + '</div>' +
         '<label>メモ（なくてもOK）<input id="rs-memo" placeholder="例：自己ベスト！、向かい風" value="' + esc(R.memo || '') + '"></label>' +
         '<button class="btn" type="submit">記録する</button><div class="hint">走る種目は「15.21」「1:01.27」、跳ぶ・投げる種目は「3m20」のように入れると、自己ベストを自動で出します。</div></form></section>';
@@ -1734,8 +1739,51 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<section class="card"' + dropAttr('photo', e.key, 'リザルト', '', true) + '><h2>リザルトの写真</h2>' + photosHtml(t.photos) + DROP_HINT + '<div class="row">' + photoBtn('リザルト', '', 'リザルトを撮って載せる') + '</div><div class="hint">掲示されたリザルトの写真です。メンバー全員が見られます。</div></section>';
     return h;
   }
+  /** 記録の入れ方：文字で打つ（15.21、1:01.27、3m20）か、選んで入れる（秒・1/100、分・秒、m・cm）。±ボタンで少しずつ */
+  function recKind(race) { return higherBetter(race) ? 'field' : /800|1000|1500|2000|3000|km|駅伝|マラソン|ロード|クロス/.test(toHalf(race)) ? 'long' : 'short'; }
+  function recParts(race, rec) {
+    var k = recKind(race), v = markValue(rec);
+    if (v === null) {
+      var b = bests(S.res.child || '', '公式')[canon(race)] || bests(S.res.child || '')[canon(race)];
+      v = b ? markValue(b.record) : k === 'field' ? (/投|ボール|ジャベ/.test(race) ? 20 : 3) : k === 'long' ? 180 : (/50/.test(race) ? 9 : 16);
+    }
+    if (k === 'field') return [Math.floor(v + 1e-9), Math.round((v - Math.floor(v + 1e-9)) * 100) % 100];
+    if (k === 'long') return [Math.floor(v / 60), Math.floor(v % 60 + 1e-9), Math.round((v - Math.floor(v + 1e-9)) * 100) % 100];
+    return [Math.floor(v + 1e-9), Math.round((v - Math.floor(v + 1e-9)) * 100) % 100];
+  }
+  function recFromParts(race, p) {
+    var k = recKind(race);
+    if (k === 'field') return p[0] + 'm' + pad(p[1]);
+    if (k === 'long') return p[0] + ':' + pad(p[1]) + '.' + pad(p[2]);
+    return p[0] + '.' + pad(p[1]);
+  }
+  function recordPicker(R) {
+    var k = recKind(R.race || ''), parts = recParts(R.race || '', R.record), opt = function (from, to, cur, w) { var h = ''; for (var i = from; i <= to; i++) h += '<option value="' + i + '"' + (i === cur ? ' selected' : '') + '>' + (w ? pad(i) : i) + '</option>'; return h; };
+    var sel = function (i, from, to, w, unit) { return '<select data-rp="' + i + '" aria-label="' + unit + '">' + opt(from, to, parts[i], w) + '</select><span class="u">' + unit + '</span>'; };
+    var pick = k === 'field' ? sel(0, 0, 70, false, 'm') + sel(1, 0, 99, true, 'cm') : k === 'long' ? sel(0, 0, 30, false, '分') + sel(1, 0, 59, true, '.') + sel(2, 0, 99, true, '秒') : sel(0, 4, 59, false, '.') + sel(1, 0, 99, true, '秒');
+    var steps = k === 'field' ? [['-10cm', -0.1], ['-1cm', -0.01], ['+1cm', 0.01], ['+10cm', 0.1]] : [['-0.1', -0.1], ['-0.01', -0.01], ['+0.01', 0.01], ['+0.1', 0.1]];
+    return '<label>記録（打ってもOK）<input id="rs-rec" placeholder="' + (k === 'field' ? '例：3m20' : k === 'long' ? '例：2:54.74' : '例：15.21') + '" value="' + esc(R.record || '') + '"></label>' +
+      '<div class="lbl">または選んで入れる</div><div class="recpick">' + pick + '</div>' +
+      '<div class="quick">' + steps.map(function (x) { return '<button type="button" data-rstep="' + x[1] + '">' + x[0] + '</button>'; }).join('') + '</div>';
+  }
   function bindResults(e) {
     var R = S.res;
+    var recIn = document.getElementById('rs-rec');
+    var fromPick = function () {
+      var p = [0, 1, 2].map(function (i) { var el = view.querySelector('[data-rp="' + i + '"]'); return el ? +el.value : 0; });
+      recIn.value = R.record = recFromParts(R.race, p);
+    };
+    view.querySelectorAll('[data-rp]').forEach(function (el) { el.addEventListener('change', fromPick); });
+    if (recIn) recIn.addEventListener('change', function () { R.record = toHalf(this.value).trim(); if (markValue(R.record) !== null) { var p = recParts(R.race, R.record); p.forEach(function (v, i) { var el = view.querySelector('[data-rp="' + i + '"]'); if (el) el.value = v; }); } });
+    on('[data-rstep]', function () {
+      var v = markValue(recIn.value || recFromParts(R.race, recParts(R.race, ''))), step = +this.dataset.rstep;
+      if (v === null) return;
+      v = Math.max(0, Math.round((v + step) * 100) / 100);
+      var k = recKind(R.race), p = k === 'long' ? [Math.floor(v / 60), Math.floor(v % 60 + 1e-9), Math.round((v % 1) * 100) % 100] : [Math.floor(v + 1e-9), Math.round((v % 1) * 100) % 100];
+      recIn.value = R.record = recFromParts(R.race, p);
+      p.forEach(function (x, i) { var el = view.querySelector('[data-rp="' + i + '"]'); if (el) el.value = x; });
+    });
+    on('[data-rplace]', function () { keep(); R.place = R.place === this.dataset.rplace ? '' : this.dataset.rplace; render(); });
     function keep() { if (!document.getElementById('rs-rec')) return; R.record = val('rs-rec'); R.place = val('rs-place'); R.memo = val('rs-memo'); }
     var cs = document.getElementById('rs-child');
     if (cs) cs.addEventListener('change', function () { keep(); R.child = this.value; R.race = ''; render(); });
@@ -1745,6 +1793,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var f = document.getElementById('resForm');
     if (f) f.addEventListener('submit', function (x) {
       x.preventDefault(); keep();
+      if (!R.record && view.querySelector('[data-rp]')) fromPick();
       call('saveResult', { key: e.key, child: R.child, race: R.race, round: R.round || '', record: R.record, place: R.place, memo: R.memo, kind: R.kind || '公式' }, function () { R.record = ''; R.place = ''; R.memo = ''; });
     });
     on('[data-rdel]', function () { if (confirm('この記録を消しますか？')) call('deleteResult', { id: this.dataset.rdel }); });

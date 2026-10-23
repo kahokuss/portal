@@ -514,6 +514,27 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(await a.isVisible('.mcal .duty'), 'カレンダーに当番の名前');
       await a.click('[data-f="一覧"]');
     });
+    await step('記録は打っても、選んでも入れられる（±ボタン・順位ボタン）', async () => {
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("秋季記録会")');
+      await a.click('[data-et="結果"]');
+      await a.click('[data-rrace="100m"]');
+      await a.selectOption('[data-rp="0"]', '14');
+      await a.selectOption('[data-rp="1"]', '75');
+      assert.strictEqual(await a.inputValue('#rs-rec'), '14.75');
+      await a.click('[data-rstep="0.01"]');
+      assert.strictEqual(await a.inputValue('#rs-rec'), '14.76');
+      await a.click('[data-rplace="3"]');
+      assert.strictEqual(await a.inputValue('#rs-rec'), '14.76', '順位を押しても記録は消えない');
+      await a.shot('16-record-picker');
+      await a.click('#resForm button[type=submit]');
+      await a.idle();
+      assert.ok(gas.rows('結果').some((r) => r['記録'] === '14.76' && r['順位'] === '3'));
+      await a.click('[data-rrace="走幅跳"]');
+      await a.selectOption('[data-rp="0"]', '3');
+      await a.selectOption('[data-rp="1"]', '5');
+      assert.strictEqual(await a.inputValue('#rs-rec'), '3m05', 'フィールドは m と cm');
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

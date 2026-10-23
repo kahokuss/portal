@@ -861,6 +861,32 @@ test('既読・アンケート・集金（未納は本人と役員だけに見�
   assert.deepStrictEqual(plain(gas.ctx.api(kA, 'bootstrap').fees[0].paid), []);
 });
 
+test('練習の出席（✓）と休みは入れかわる・練習のタイムは記録になり、同じ本目は上書き', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 1年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(k2, 'bootstrap');
+  const prac = st.events.find((e) => e.date === '2026-10-15');
+  assert.throws(() => gas.ctx.api(k2, 'setAttend', { key: prac.key, child: '山田たろう', on: true }), /お子さん/);
+  gas.ctx.api(k2, 'reportAbsence', { child: '鈴木けんた', date: prac.date, reason: '体調不良' });
+  gas.ctx.api(k2, 'setAttend', { key: prac.key, child: '鈴木けんた', on: true });
+  st = gas.ctx.api(k2, 'bootstrap');
+  assert.deepStrictEqual(plain(st.attends.map((a) => a.child)), ['鈴木けんた']);
+  assert.ok(!st.absences.some((a) => a.child === '鈴木けんた'), '出席にすると休みは消える');
+  gas.ctx.api(k2, 'reportAbsence', { child: '鈴木けんた', date: prac.date, reason: '家の都合' });
+  st = gas.ctx.api(k2, 'bootstrap');
+  assert.strictEqual(st.attends.length, 0, '休みにすると出席は消える');
+  // タイム
+  assert.throws(() => gas.ctx.api(k2, 'saveTimes', { key: prac.key, name: '加速走', run: 1, rows: [{ child: '鈴木けんた', race: '50m', record: '9.43' }] }), /当番/);
+  gas.ctx.api(kA, 'saveTimes', { key: prac.key, name: '加速走', run: 1, rows: [{ child: '鈴木けんた', race: '50m', record: '9.43' }, { child: '山田たろう', race: '100m', record: '１７．１４' }, { child: 'だれか', race: '50m', record: '1' }] });
+  gas.ctx.api(kA, 'saveTimes', { key: prac.key, name: '加速走', run: 1, rows: [{ child: '鈴木けんた', race: '50m', record: '9.38' }, { child: '山田たろう', race: '100m', record: '' }] });
+  gas.ctx.api(kA, 'saveTimes', { key: prac.key, name: '加速走', run: 2, rows: [{ child: '鈴木けんた', race: '50m', record: '9.48' }] });
+  const res = gas.ctx.api(k2, 'bootstrap').results.filter((r) => r.key === prac.key);
+  assert.deepStrictEqual(plain(res.map((r) => [r.child, r.race, r.record, r.memo, r.kind])).sort(), [['鈴木けんた', '50m', '9.38', '加速走 1本目', '練習'], ['鈴木けんた', '50m', '9.48', '加速走 2本目', '練習']]);
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

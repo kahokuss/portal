@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'ca3f6d893b';
+const SERVER_VERSION = 'fa34bf35d2';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1690,6 +1690,8 @@ const API_ACTIONS = {
   saveFee: { admin: true, run: saveFeeAction_ },
   closeFee: { admin: true, run: closeFeeAction_ },
   setFeePaid: { admin: true, run: setFeePaidAction_ },
+  setAttend: { run: setAttendAction_ },
+  saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
 };
 
@@ -1837,6 +1839,7 @@ function buildState_(ctx) {
     events: events,
     entries: entries,
     absences: absences,
+    attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,
     timetable: timetable,
@@ -1944,6 +1947,7 @@ function reportAbsenceAction_(ctx, p) {
   const reason = CHOICES.ABSENCE_REASONS.indexOf(p.reason) >= 0 ? p.reason : 'その他';
   const memo = String(p.memo || '').slice(0, 200);
   withLock_(() => {
+    clearAttend_(p.date, p.child);
     appendRow_(SHEETS.ABSENCES, { id: randomKey_().slice(0, 10), '日付': p.date, '子ども': p.child, '理由': reason, 'メモ': memo, '連絡者userId': ctx.userId, '連絡者': ctx.name, '確認': '', '確認者': '', '日時': now_() });
   });
   if (CONFIG.ABSENCE_PUSH_TO_ADMINS) notifyAbsence_(p.date, '🏃 休みの連絡\n' + formatDate_(p.date) + ' ' + p.child + '（' + reason + '）' + (memo ? '\n' + memo : '') + '\n連絡：' + ctx.name + 'さん', ctx.userId);
@@ -2206,7 +2210,7 @@ function autoDutyAction_(ctx, p) {
 function requireManager_(ctx, key) {
   if (ctx.admin) return;
   const ok = readRows_(SHEETS.DUTIES).some((d) => d.eventKey === key && d['家族ID'] === ctx.famId);
-  if (!ok) throw new Error('この操作は、役員とこの大会の当番の人だけができます。');
+  if (!ok) throw new Error('この操作は、役員とこの予定の当番の人だけができます。');
 }
 
 // ---- タイムテーブル ----
@@ -2975,6 +2979,69 @@ function feesFor_(ctx, children) {
   }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120));
 }
 
+// ---- 練習の出席（✓ を押した子）と、練習中のタイム計測 ----
+
+function clearAttend_(date, child) {
+  readRows_(SHEETS.ATTEND).filter((x) => x['日付'] === date && x['子ども'] === child).forEach((x) => clearRow_(SHEETS.ATTEND, x));
+}
+
+/** 練習に「出席」と答える（on=false で取り消し）。出席にすると、その日の休みの連絡は取り消す */
+function setAttendAction_(ctx, p) {
+  requireMyChild_(ctx, p.child);
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('予定が見つかりません。');
+  const date = ev['日付'];
+  if (date < today_() && !ctx.admin) throw new Error('過ぎた日の出欠は変えられません。');
+  withLock_(() => {
+    clearAttend_(date, p.child);
+    if (!p.on) return;
+    readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] === date && a['子ども'] === p.child).forEach((a) => clearRow_(SHEETS.ABSENCES, a));
+    appendRow_(SHEETS.ATTEND, { '日付': date, eventKey: p.key, '子ども': p.child, userId: ctx.userId, '表示名': ctx.name, '日時': now_() });
+  });
+  return p.on ? p.child + '：出席にしました' : '';
+}
+
+/**
+ * 練習で測ったタイムを、子どもごとの練習の記録として入れる（役員とその日の当番）。
+ * 同じ練習・同じ子・同じ距離・同じ本目は上書き。記録を空にすると消す。
+ * @param {{key: string, name: string, run: number, rows: {child: string, race: string, record: string}[]}} p
+ */
+function saveTimesAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('練習が見つかりません。');
+  requireManager_(ctx, p.key);
+  const kids = {};
+  activeChildren_().forEach((c) => (kids[c.name] = true));
+  const name = String(p.name || '').trim().slice(0, 20);
+  const run = Math.max(1, Math.min(9, Number(p.run) || 1));
+  const memo = (name ? name + ' ' : '') + run + '本目';
+  let saved = 0, removed = 0;
+  withLock_(() => {
+    const all = readRows_(SHEETS.RESULTS);
+    (p.rows || []).slice(0, 200).forEach((r) => {
+      const child = String(r.child || '').trim();
+      const race = String(r.race || '').trim().slice(0, 30);
+      const record = toHalfWidth_(r.record || '').trim().replace(/\s/g, '').slice(0, 20);
+      if (!kids[child] || !race) return;
+      const old = all.find((x) => x.eventKey === p.key && x['子ども'] === child && x['メモ'] === memo);
+      if (!record) { if (old) { clearRow_(SHEETS.RESULTS, old); removed++; } return; }
+      if (old) {
+        if (old['記録'] === record && old['種目'] === race) return;
+        Object.assign(old, { '種目': race, '記録': record, '日時': now_(), userId: ctx.userId, '表示名': ctx.name });
+        updateRow_(SHEETS.RESULTS, old);
+      } else {
+        appendRow_(SHEETS.RESULTS, {
+          '日時': now_(), eventKey: p.key, '大会・練習': ev['日付'] + ' ' + (ev['タイトル'] || '練習'), '子ども': child, '種目': race, '記録': record,
+          '順位': '', 'ラウンド': '', '区分': '練習', 'メモ': memo, userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
+        });
+      }
+      saved++;
+    });
+  });
+  if (!saved && !removed) return '変わったところはありません';
+  return memo + 'のタイムを' + saved + '人分保存しました' + (removed ? '（' + removed + '人分を消しました）' : '');
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -3205,6 +3272,7 @@ const SHEETS = {
   ANSWERS: { name: '回答', headers: ['アンケートid', '家族ID', '回答', 'コメント', '更新者', '日時'] },
   FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
   FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
+  ATTEND: { name: '出席', headers: ['日付', 'eventKey', '子ども', 'userId', '表示名', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },

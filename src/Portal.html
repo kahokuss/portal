@@ -207,6 +207,10 @@ form.f, .f { display: grid; gap: 8px; }
 .kid .yn button:not([aria-pressed="true"]), .kid .choice button:not([aria-pressed="true"]) { background: var(--surface); }
 .tally .who { font-size: 11.5px; color: var(--fg); line-height: 1.4; min-height: 16px; text-align: center; overflow-wrap: anywhere; }
 .tally .who .me { color: var(--sky); font-weight: 700; }
+.tmt td, .tmt th { padding: 5px 6px; }
+.tmt th.on { color: var(--track); }
+.tmin { font: inherit; font-size: 16px; width: 5.2em; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); font-variant-numeric: tabular-nums; }
+.tmsel { font: inherit; font-size: 14px; padding: 4px 6px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); }
 .tally-names { font-size: 13px; display: grid; gap: 4px; }
 .tally-names .g { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .tally-names .g > b { font-size: 11.5px; color: var(--muted); width: 2.6em; flex: none; }
@@ -400,7 +404,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
   function fillDefaults(st) {
-    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
@@ -454,6 +458,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var left = p.deadline ? diff(ST.today, p.deadline) : 99;
       out.push({ ic: '🗳', hot: left <= 1, t: 'アンケート：' + esc(p.title), s: p.deadline ? '締切 ' + md(p.deadline) : 'ボタンで答えられます', a: 'data-todo="poll-' + p.id + '"', order: left });
     });
+    var np = upcoming(function (e) { return !isRace(e) && diff(ST.today, e.date) <= 3; })[0];
+    if (np) {
+      var off = absentOn(np.date).map(function (a) { return a.child; }), on = attendedOn(np.date);
+      var q = ST.me.children.filter(function (k) { return off.indexOf(k.name) < 0 && on.indexOf(k.name) < 0; });
+      if (q.length) out.push({ ic: '✋', hot: diff(ST.today, np.date) <= 1, t: md(np.date) + ' 練習の出欠', s: q.map(function (k) { return esc(k.name); }).join('・') + '　✓ か ✕ を押してください', a: 'data-todo="nextprac"', order: diff(ST.today, np.date) + 0.5 });
+    }
     var unread = ST.notices.filter(function (n) { return !n.read; });
     if (unread.length) out.push({ ic: '📢', hot: unread.some(function (n) { return n.important; }), t: '新しいお知らせ ' + unread.length + '件', s: esc(unread[0].title), a: 'data-todo="notices"', order: unread.some(function (n) { return n.important; }) ? 0 : 50 });
     var du = myDuties()[0], dE = du && evByKey(du.key);
@@ -584,7 +594,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }).join('') + '</div></section>';
     var np = upcoming(function (e) { return !isRace(e); })[0];
     var practices = upcoming(function (e) { return !isRace(e); }).slice(0, 8);
-    h += '<section class="card"><h2>次の練習' + (np ? '<small>' + (diff(ST.today, np.date) === 0 ? '今日' : diff(ST.today, np.date) === 1 ? '明日' : 'あと' + diff(ST.today, np.date) + '日') + '</small>' : '') + '</h2>';
+    h += '<section class="card" id="nextprac"><h2>次の練習' + (np ? '<small>' + (diff(ST.today, np.date) === 0 ? '今日' : diff(ST.today, np.date) === 1 ? '明日' : 'あと' + diff(ST.today, np.date) + '日') + '</small>' : '') + '</h2>';
     if (np) {
       var off = absentOn(np.date);
       h += '<button class="ev" type="button" data-ev="' + np.key + '"><span class="main"><span class="big">' + when(np) + '</span>' + (np.place ? '<br><span class="sub">📍 ' + esc(np.place) + '</span>' : '') + '</span>›</button>' +
@@ -746,7 +756,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       view.innerHTML = h;
       on('#back', function () { S.event = null; S.toast = ''; render(); });
       on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
-      bindDuty(e); bindEventEdit(e); bindComments(e); bindDown(e); bindRsvp();
+      bindDuty(e); bindEventEdit(e); bindComments(e); bindDown(e); bindRsvp(); bindTimes(e);
       return;
     }
     var tabs = ['概要', 'エントリー', '種目', 'タイムテーブル', '手続き', '結果', '写真'];
@@ -1161,6 +1171,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function dutyOf(key) { return ST.duties.filter(function (x) { return x.key === key; }); }
   function dutyText(key) { return dutyOf(key).map(function (x) { return famName(x.fam); }).join('、'); }
   function absentOn(date) { return ST.absences.filter(function (a) { return a.date === date; }); }
+  function attendedOn(date) { return ST.attends.filter(function (a) { return a.date === date; }).map(function (a) { return a.child; }); }
   function byGrade(a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); }
   function canManage(key) { return ST.me.canManage.indexOf(key) >= 0; }
   function dutyType(e) { return isRace(e) ? '大会' : '練習'; }
@@ -1220,8 +1231,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var all = eligible(e);
       return [['参加', all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; }), 't-y'], ['不参加', all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join !== '参加'; }), 't-n'], ['未回答', all.filter(function (k) { return !entryOf(e.key, k.name); }), 't-q']];
     }
-    var off = absentOn(e.date).map(function (a) { return a.child; });
-    return [['出席予定', ST.kids.filter(function (k) { return off.indexOf(k.name) < 0; }), 't-y'], ['お休み', ST.kids.filter(function (k) { return off.indexOf(k.name) >= 0; }), 't-n']];
+    var off = absentOn(e.date).map(function (a) { return a.child; }), on = attendedOn(e.date);
+    return [['出席', ST.kids.filter(function (k) { return on.indexOf(k.name) >= 0 && off.indexOf(k.name) < 0; }), 't-y'], ['お休み', ST.kids.filter(function (k) { return off.indexOf(k.name) >= 0; }), 't-n'],
+      ['未回答', ST.kids.filter(function (k) { return on.indexOf(k.name) < 0 && off.indexOf(k.name) < 0; }), 't-q']];
   }
   function tallyHtml(e) {
     var cols = rsvpCols(e), open = S.tally && S.tally.split('|')[0] === e.key ? +S.tally.split('|')[1] : -1;
@@ -1249,9 +1261,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         return '<div class="rsvp-kid"><span class="nm"><b>' + esc(k.name) + '</b><span class="sub">' + (x ? (x.join === '参加' ? (x.races.length ? esc(x.races.join('・')) : '') : '不参加') : '<span style="color:var(--warn);font-weight:700">未回答</span>') +
           (needRace ? '<button class="link" type="button" data-entry="' + e.key + '">種目を選ぶ ›</button>' : '') + (locked ? '（締切済み）' : '') + '</span></span>' + ynHtml(x && x.join === '参加', x && x.join !== '参加', attr, locked, ['参加', '不参加']) + '</div>';
       }
-      var a = absentOn(e.date).find(function (z) { return z.child === k.name; });
+      var a = absentOn(e.date).find(function (z) { return z.child === k.name; }), here = !a && attendedOn(e.date).indexOf(k.name) >= 0;
       var pick = S.absPick === e.key + '|' + k.name;
-      return '<div class="rsvp-kid"><span class="nm"><b>' + esc(k.name) + '</b><span class="sub">' + (a ? 'お休み' + (a.reason ? '（' + esc(a.reason) + '）' : '') : '出席予定') + '</span></span>' + ynHtml(!a, a || pick, attr, false, ['出席', '休み']) + '</div>' +
+      return '<div class="rsvp-kid"><span class="nm"><b>' + esc(k.name) + '</b><span class="sub">' + (a ? 'お休み' + (a.reason ? '（' + esc(a.reason) + '）' : '') : here ? '出席' : '<span style="color:var(--warn);font-weight:700">未回答</span>') + '</span></span>' + ynHtml(here && !pick, a || pick, attr, false, ['出席', '休み']) + '</div>' +
         (pick ? '<div class="reasons"><span class="sub" style="width:100%">理由を押すと、休みを連絡します（グループには流れません）</span>' + ST.choices.reasons.map(function (r) { return '<div class="choice"><button type="button" data-absr="' + esc(r) + '" ' + attr + '>' + esc(r) + '</button></div>'; }).join('') + '<button class="link" type="button" data-absx>やめる</button></div>' : '');
     }).join('');
   }
@@ -1268,7 +1280,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         return;
       }
       var a = absentOn(e.date).find(function (z) { return z.child === child; });
-      if (yes) { S.absPick = null; if (a) call('cancelAbsence', { id: a.id }); else render(); return; }
+      if (yes) {
+        S.absPick = null;
+        if (!a && attendedOn(e.date).indexOf(child) >= 0) { render(); return; }
+        call('setAttend', { key: e.key, child: child, on: true });
+        return;
+      }
       if (a) return;
       S.absPick = e.key + '|' + child; render();
     });
@@ -1279,8 +1296,74 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     on('[data-absx]', function () { S.absPick = null; render(); });
   }
+  // ---- 練習中のタイム計測（紙の記録表のように、子ども × 1本目・2本目…） ----
+  var TM_NAMES = ['加速走', '50m走', '100m走', 'スタート練習', '1000m'];
+  var TM_DIST = ['50m', '60m', '80m', '100m', '200m', '800m', '1000m'];
+  function canTime(e) { return ST.me.admin || dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; }); }
+  /** 「1455」→「14.55」、「955」→「9.55」。区切りがあればそのまま */
+  function fmtRec(v) {
+    var t = toHalf(v).trim();
+    if (/^\d{3,4}$/.test(t)) return t.slice(0, -2) + '.' + t.slice(-2);
+    return t.replace(/、|，/g, '.');
+  }
+  function timeRuns(e) {
+    var runs = {};
+    ST.results.filter(function (r) { return r.key === e.key && r.kind === '練習'; }).forEach(function (r) {
+      var m = String(r.memo || '').match(/^(.*?)\s*(\d)本目$/); if (!m) return;
+      var name = m[1] || 'タイム';
+      (runs[name] = runs[name] || {});
+      (runs[name][r.child] = runs[name][r.child] || {})[+m[2]] = r;
+    });
+    return runs;
+  }
+  function timesCard(e) {
+    var runs = timeRuns(e), names = Object.keys(runs), edit = canTime(e) && !e.cancelled;
+    if (!edit && !names.length) return '';
+    var T = S.tm && S.tm.key === e.key ? S.tm : (S.tm = { key: e.key, name: names[0] || '加速走', low: '50m', high: '100m', run: 1, vals: {} });
+    var cur = runs[T.name] || {}, maxRun = Math.max(T.run, 1);
+    Object.keys(cur).forEach(function (c) { Object.keys(cur[c]).forEach(function (n) { maxRun = Math.max(maxRun, +n); }); });
+    var off = absentOn(e.date).map(function (a) { return a.child; });
+    var kids = ST.kids.filter(function (k) { return off.indexOf(k.name) < 0 || cur[k.name]; }).slice().sort(byGrade);
+    if (!edit) kids = kids.filter(function (k) { return cur[k.name]; });
+    var mine = myNames();
+    var h = '<section class="card" id="times"><h2>タイム計測' + (names.length ? '<small>' + names.map(esc).join('・') + '</small>' : '') + '</h2>';
+    if (edit) {
+      h += '<div class="choice">' + TM_NAMES.concat(names.filter(function (n) { return TM_NAMES.indexOf(n) < 0; })).map(function (n) { return '<button type="button" data-tmn="' + esc(n) + '" aria-pressed="' + (T.name === n) + '">' + esc(n) + '</button>'; }).join('') + '</div>' +
+        '<div class="row sub">距離　1・2年 <select id="tm-low" class="tmsel">' + TM_DIST.map(function (d) { return '<option' + (T.low === d ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
+        '　3〜6年 <select id="tm-high" class="tmsel">' + TM_DIST.map(function (d) { return '<option' + (T.high === d ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select></div>' +
+        '<div class="tabs" role="group" aria-label="何本目">' + Array.apply(null, { length: Math.min(9, maxRun + 1) }).map(function (_, i) { return '<button type="button" data-tmr="' + (i + 1) + '" aria-pressed="' + (T.run === i + 1) + '">' + (i + 1) + '本目</button>'; }).join('') + '</div>';
+    }
+    if (!names.length && !edit) return '';
+    h += '<div class="tbl-wrap"><table class="tmt"><thead><tr><th>学年</th><th>名前</th><th>距離</th>' + Array.apply(null, { length: maxRun }).map(function (_, i) { return '<th' + (edit && T.run === i + 1 ? ' class="on"' : '') + '>' + (i + 1) + '本目</th>'; }).join('') + '</tr></thead><tbody>' +
+      kids.map(function (k) {
+        var dist = (cur[k.name] && Object.keys(cur[k.name]).map(function (n) { return cur[k.name][n].race; })[0]) || (k.grade && k.grade <= 2 ? T.low : T.high);
+        return '<tr class="' + (mine.indexOf(k.name) >= 0 ? 'hl' : '') + '"><td>' + (k.grade || '') + '</td><td>' + esc(k.name) + '</td><td class="sub">' + esc(dist) + '</td>' + Array.apply(null, { length: maxRun }).map(function (_, i) {
+          var r = cur[k.name] && cur[k.name][i + 1], v = r ? r.record : '';
+          if (edit && T.run === i + 1) { var dv = T.vals[k.name] !== undefined ? T.vals[k.name] : v; return '<td><input class="tmin" data-tmk="' + esc(k.name) + '" data-tmd="' + esc(dist) + '" inputmode="decimal" enterkeyhint="next" value="' + esc(dv) + '" placeholder="1455" aria-label="' + esc(k.name) + ' ' + (i + 1) + '本目"></td>'; }
+          return '<td>' + (r ? '<b>' + esc(v) + '</b>' + (isPB(r) ? ' <span class="pill p-race">ベスト</span>' : '') : '') + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+    if (edit) h += '<button class="btn" id="tmSave" type="button">' + T.run + '本目を保存</button><div class="hint">「1455」と打つと 14.55 になります。休みの子は出ません。保存すると、わが家の記録グラフ（練習）にも入ります。</div>';
+    return h + '</section>';
+  }
+  function bindTimes(e) {
+    var T = S.tm; if (!T || T.key !== e.key) return;
+    var keep = function () { view.querySelectorAll('[data-tmk]').forEach(function (x) { T.vals[x.dataset.tmk] = x.value; }); };
+    on('[data-tmn]', function () { keep(); T.name = this.dataset.tmn; T.run = 1; T.vals = {}; render(); });
+    on('[data-tmr]', function () { keep(); T.run = +this.dataset.tmr; T.vals = {}; render(); });
+    ['tm-low', 'tm-high'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('change', function () { keep(); T[id === 'tm-low' ? 'low' : 'high'] = this.value; render(); }); });
+    var ins = Array.prototype.slice.call(view.querySelectorAll('[data-tmk]'));
+    ins.forEach(function (x, i) {
+      x.addEventListener('blur', function () { if (this.value) this.value = fmtRec(this.value); });
+      x.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); this.value = this.value ? fmtRec(this.value) : ''; if (ins[i + 1]) ins[i + 1].focus(); else document.getElementById('tmSave').focus(); } });
+    });
+    on('#tmSave', function () {
+      var rows = ins.map(function (x) { return { child: x.dataset.tmk, race: x.dataset.tmd, record: x.value ? fmtRec(x.value) : '' }; });
+      call('saveTimes', { key: e.key, name: T.name, run: T.run, rows: rows }, function (st) { if (st.message) { T.vals = {}; } });
+    });
+  }
   function attendCard(e) {
-    return '<section class="card"><h2>出欠<small>押すと名前が出ます</small></h2>' + rsvpRows(e) + tallyHtml(e) + '<div class="hint">休むときだけ ✕ を押してください。理由は本人と役員だけに見えます。</div></section>';
+    return '<section class="card"><h2>出欠<small>押すと名前が出ます</small></h2>' + rsvpRows(e) + tallyHtml(e) + '<div class="hint">✓ か ✕ で答えてください。休みの理由は本人と役員だけに見えます。</div></section>' + timesCard(e);
   }
   function eventEditCard(e) {
     var st = e.start === '終日' ? '' : e.start.replace(/^0/, ''), en = (e.end || '').replace(/^0/, '');

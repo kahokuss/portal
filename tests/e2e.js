@@ -767,6 +767,29 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors, ...r.errors);
       await q.close(); await r.close();
     });
+    await step('練習：✓ で出席、役員は練習中のタイムを表に入れて保存（紙の記録表のように）', async () => {
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("通常練習") >> nth=0');
+      await a.click('[data-rc="山田たろう"][data-yn="y"]');
+      await a.idle();
+      assert.ok(gas.rows('出席').some((r) => r['子ども'] === '山田たろう'));
+      assert.ok((await a.textContent('.tally')).includes('出席1'), await a.textContent('.tally'));
+      await a.click('[data-tmn="加速走"]');
+      await a.fill('[data-tmk="山田はなこ"]', '943');
+      await a.press('[data-tmk="山田はなこ"]', 'Enter');
+      await a.fill('[data-tmk="山田たろう"]', '1714');
+      await a.click('#tmSave');
+      await a.idle();
+      assert.ok(gas.rows('結果').some((r) => r['子ども'] === '山田はなこ' && r['記録'] === '9.43' && r['種目'] === '50m' && r['メモ'] === '加速走 1本目'), '1・2年は50m');
+      assert.ok(gas.rows('結果').some((r) => r['子ども'] === '山田たろう' && r['記録'] === '17.14' && r['種目'] === '100m'));
+      await a.click('[data-tmr="2"]');
+      await a.fill('[data-tmk="山田はなこ"]', '9.50');
+      await a.click('#tmSave');
+      await a.idle();
+      const t = await a.textContent('.tmt');
+      assert.ok(t.includes('1本目') && t.includes('2本目') && t.includes('9.43'), t);
+      await a.shot('20-times');
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

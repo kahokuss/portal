@@ -78,6 +78,8 @@ const API_ACTIONS = {
   saveFee: { admin: true, run: saveFeeAction_ },
   closeFee: { admin: true, run: closeFeeAction_ },
   setFeePaid: { admin: true, run: setFeePaidAction_ },
+  setAttend: { run: setAttendAction_ },
+  saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
 };
 
@@ -225,6 +227,7 @@ function buildState_(ctx) {
     events: events,
     entries: entries,
     absences: absences,
+    attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,
     timetable: timetable,
@@ -332,6 +335,7 @@ function reportAbsenceAction_(ctx, p) {
   const reason = CHOICES.ABSENCE_REASONS.indexOf(p.reason) >= 0 ? p.reason : 'その他';
   const memo = String(p.memo || '').slice(0, 200);
   withLock_(() => {
+    clearAttend_(p.date, p.child);
     appendRow_(SHEETS.ABSENCES, { id: randomKey_().slice(0, 10), '日付': p.date, '子ども': p.child, '理由': reason, 'メモ': memo, '連絡者userId': ctx.userId, '連絡者': ctx.name, '確認': '', '確認者': '', '日時': now_() });
   });
   if (CONFIG.ABSENCE_PUSH_TO_ADMINS) notifyAbsence_(p.date, '🏃 休みの連絡\n' + formatDate_(p.date) + ' ' + p.child + '（' + reason + '）' + (memo ? '\n' + memo : '') + '\n連絡：' + ctx.name + 'さん', ctx.userId);

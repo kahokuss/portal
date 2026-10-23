@@ -112,8 +112,11 @@ function importScheduleSheet_() {
 
 /** 予定入力シートを編集したとき（setup() で作るトリガーから呼ばれる） */
 function onScheduleSheetEdit(e) {
+  resetMemo_();
   try {
     const sh = e && e.range && e.range.getSheet();
+    // スプレッドシートを手で直したら、ポータルが覚えている表を捨てる
+    if (sh) invalidateTable_(sh.getName());
     if (sh && sh.getName() !== SHEETS.SCHEDULE_INPUT.name) return;
     importScheduleSheet_();
   } catch (err) {

@@ -24,7 +24,8 @@ const CONFIG = {
   SYNC_DAYS_BEFORE: 60,
   SYNC_DAYS_AHEAD: 180,
   // ポータルを開いたとき、前回の同期から何分たっていたらカレンダーを読み直すか
-  SYNC_INTERVAL_MINUTES: 10,
+  // （ふだんは15分ごとのトリガー syncJob が裏で読み直すので、開くときは待たせない）
+  SYNC_INTERVAL_MINUTES: 90,
   // 毎日カレンダーを同期する時刻
   DAILY_HOUR: 5,
 

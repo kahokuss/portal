@@ -49,6 +49,7 @@ function handleImage_(ev) {
   attachJinchiPhoto_(displayName, file.getId(), posted);
 }
 
+/** 写真フォルダのURL（ドライブに問い合わせず、IDから作る） */
 function photoFolderUrl_() {
-  return photoRoot_().getUrl();
+  return 'https://drive.google.com/drive/folders/' + requireProp_('PHOTO_FOLDER_ID');
 }

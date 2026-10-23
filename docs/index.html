@@ -78,7 +78,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .ev.past { opacity: .55; }
 .ev.cancel .ttl { text-decoration: line-through; }
 .month { font-family: var(--font-display); font-weight: 700; color: var(--muted); font-size: 12px; margin: 4px 2px -4px; }
-.tabs { display: flex; gap: 4px; overflow-x: auto; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+/* 大会のページのタブ：折り返して全部見えるように、4つずつのマス目に */
+.tabs.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tabs.grid button { padding: 7px 2px; border-radius: 10px; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip; letter-spacing: -.02em; min-width: 0; }
+@media (max-width: 380px) { .tabs.grid button { font-size: 11.5px; } }
+@media (min-width: 900px) { .tabs.grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
 .tabs button[aria-pressed="true"] { background: var(--track); border-color: var(--track); color: #fff; font-weight: 700; }
 .kv { display: grid; grid-template-columns: 4.5em 1fr; gap: 4px 10px; font-size: 13px; margin: 0; }
@@ -251,7 +256,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9f51ab7957";
+var BUILD = "7620c14a98";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -296,12 +301,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('busy').hidden = false;
     rpc(action, payload, function (st) {
         document.getElementById('busy').hidden = true;
+        document.getElementById('busy').textContent = '保存しています…';
         ST = fillDefaults(st);
+        saveState(st);
         if (st.message) { S.toast = '✅ ' + st.message; S.toastErr = false; }
         if (done) done(st);
         render();
       }, function (err) {
         document.getElementById('busy').hidden = true;
+        document.getElementById('busy').textContent = '保存しています…';
         var msg = String((err && err.message) || err).replace(/^(Exception|Error):\s*/, '');
         if (/ログインが切れ|グループのメンバーではない/.test(msg)) { clearKey(); ST = null; showLogin(msg); return; }
         S.toast = '⚠ ' + msg;
@@ -532,7 +540,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       return;
     }
     var tabs = ['概要', 'エントリー', '種目', 'タイムテーブル', '手続き', '結果', '写真'];
-    h += '<div class="tabs" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + t + '</button>'; }).join('') + '</div>' + toastHtml();
+    h += '<div class="tabs grid" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + (t === 'タイムテーブル' ? '時刻表' : t) + '</button>'; }).join('') + '</div>' + toastHtml();
     if (S.etab === '概要') {
       if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
       h += statusCard(e);
@@ -2277,7 +2285,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   var STORE = 'clubPortalKey';
   function saveKey(k) { try { localStorage.setItem(STORE, k); } catch (e) {} }
   function loadKey() { try { return localStorage.getItem(STORE) || ''; } catch (e) { return ''; } }
-  function clearKey() { try { localStorage.removeItem(STORE); } catch (e) {} KEY = ''; }
+  function clearKey() { try { localStorage.removeItem(STORE); localStorage.removeItem(STATE); } catch (e) {} KEY = ''; }
+  // 前回の画面を覚えておき、次に開いたときすぐ出す（そのあと裏で最新にする）
+  var STATE = 'clubPortalState';
+  function saveState(st) { try { localStorage.setItem(STATE, JSON.stringify({ k: String(KEY).slice(0, 8), st: st })); } catch (e) {} }
+  function loadState() { try { var s = JSON.parse(localStorage.getItem(STATE) || 'null'); return s && s.k === String(KEY).slice(0, 8) ? s.st : null; } catch (e) { return null; } }
+  function openFast() {
+    var cached = loadState();
+    if (cached && cached.me) { try { ST = fillDefaults(cached); render(); } catch (e) { ST = null; } }
+    call('bootstrap', null, pendingJoin);
+    if (ST) document.getElementById('busy').textContent = '最新にしています…';
+  }
   function showLogin(msg) {
     document.getElementById('nav').hidden = true;
     document.getElementById('reload').hidden = true;
@@ -2310,7 +2328,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function start() {
     if (KEY) saveKey(KEY);
     else KEY = loadKey();
-    if (KEY) call('bootstrap', null, pendingJoin);   // ログイン直後、または前回のログインが残っているとき（再読み込みで期限切れの表示が出ても、保存したキーで開く）
+    if (KEY) openFast();   // ログイン直後、または前回のログインが残っているとき（再読み込みで期限切れの表示が出ても、保存したキーで開く）
     else showLogin(LOGIN_ERROR);
   }
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
@@ -2330,7 +2348,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rpc('login', { code: q.get('code'), state: q.get('state') }, function (r) { KEY = r.key; start(); }, function (err) {
         // 再読み込みなどで同じ code をもう一度使ったときは、保存してあるキーで開く
         KEY = loadKey();
-        if (KEY) call('bootstrap', null, pendingJoin); else showLogin(err.message);
+        if (KEY) openFast(); else showLogin(err.message);
       });
     }
   } else {

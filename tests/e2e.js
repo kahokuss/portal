@@ -538,8 +538,9 @@ async function openPortal(browser, gas, userId, name) {
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });
-    await step('再読み込みしても、ログインしたまま開ける', async () => {
+    await step('再読み込みしても、ログインしたまま開ける（前回の画面をすぐ出す）', async () => {
       await p.reload();
+      assert.ok(await p.evaluate(() => !!localStorage.getItem('clubPortalState')), '前回の画面を覚えている');
       await p.waitForSelector('#nav:not([hidden])');
       assert.ok((await p.textContent('#me')).includes('鈴木'));
     });

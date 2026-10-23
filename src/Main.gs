@@ -4,6 +4,7 @@
  * それ以外は、ブラウザに保存したキーで開くか、ログインボタンを出す。
  */
 function doGet(e) {
+  resetMemo_();
   const p = (e && e.parameter) || {};
   let key = '';
   let error = '';
@@ -34,6 +35,7 @@ function doGet(e) {
  *   token なし   … GitHub Pages のポータル画面からの操作（apiPost_）
  */
 function doPost(e) {
+  resetMemo_();
   const p = (e && e.parameter) || {};
   if (p.token === undefined) return apiPost_(e);
   if (p.token !== prop_('WEBHOOK_TOKEN')) return ok_();
@@ -113,7 +115,15 @@ function handleEvent_(ev) {
 }
 
 /** 毎日トリガーで実行：カレンダーの予定を取り込む */
+/** 15分ごとのトリガー：Googleカレンダーと予定入力シートを読み直す（ポータルを開くときに待たせないため） */
+function syncJob() {
+  resetMemo_();
+  importScheduleSafely_();
+  syncCalendar_();
+}
+
 function dailyJob() {
+  resetMemo_();
   importScheduleSafely_();
   syncCalendar_();
 }
@@ -157,6 +167,10 @@ function setup() {
     .filter((t) => t.getHandlerFunction() === 'dailyJob')
     .forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('dailyJob').timeBased().everyDays(1).atHour(CONFIG.DAILY_HOUR).create();
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'syncJob')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('syncJob').timeBased().everyMinutes(15).create();
 
   // スプレッドシートの「予定入力」シートを書きかえたら、すぐカレンダーに入れる
   ScriptApp.getProjectTriggers()

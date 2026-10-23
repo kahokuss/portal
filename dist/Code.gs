@@ -764,7 +764,8 @@ const CONFIG = {
   SYNC_DAYS_BEFORE: 60,
   SYNC_DAYS_AHEAD: 180,
   // ポータルを開いたとき、前回の同期から何分たっていたらカレンダーを読み直すか
-  SYNC_INTERVAL_MINUTES: 10,
+  // （ふだんは15分ごとのトリガー syncJob が裏で読み直すので、開くときは待たせない）
+  SYNC_INTERVAL_MINUTES: 90,
   // 毎日カレンダーを同期する時刻
   DAILY_HOUR: 5,
 
@@ -1190,6 +1191,7 @@ function codeLogin_(code) {
  * それ以外は、ブラウザに保存したキーで開くか、ログインボタンを出す。
  */
 function doGet(e) {
+  resetMemo_();
   const p = (e && e.parameter) || {};
   let key = '';
   let error = '';
@@ -1220,6 +1222,7 @@ function doGet(e) {
  *   token なし   … GitHub Pages のポータル画面からの操作（apiPost_）
  */
 function doPost(e) {
+  resetMemo_();
   const p = (e && e.parameter) || {};
   if (p.token === undefined) return apiPost_(e);
   if (p.token !== prop_('WEBHOOK_TOKEN')) return ok_();
@@ -1299,7 +1302,15 @@ function handleEvent_(ev) {
 }
 
 /** 毎日トリガーで実行：カレンダーの予定を取り込む */
+/** 15分ごとのトリガー：Googleカレンダーと予定入力シートを読み直す（ポータルを開くときに待たせないため） */
+function syncJob() {
+  resetMemo_();
+  importScheduleSafely_();
+  syncCalendar_();
+}
+
 function dailyJob() {
+  resetMemo_();
   importScheduleSafely_();
   syncCalendar_();
 }
@@ -1343,6 +1354,10 @@ function setup() {
     .filter((t) => t.getHandlerFunction() === 'dailyJob')
     .forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('dailyJob').timeBased().everyDays(1).atHour(CONFIG.DAILY_HOUR).create();
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'syncJob')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('syncJob').timeBased().everyMinutes(15).create();
 
   // スプレッドシートの「予定入力」シートを書きかえたら、すぐカレンダーに入れる
   ScriptApp.getProjectTriggers()
@@ -1585,8 +1600,9 @@ function handleImage_(ev) {
   attachJinchiPhoto_(displayName, file.getId(), posted);
 }
 
+/** 写真フォルダのURL（ドライブに問い合わせず、IDから作る） */
 function photoFolderUrl_() {
-  return photoRoot_().getUrl();
+  return 'https://drive.google.com/drive/folders/' + requireProp_('PHOTO_FOLDER_ID');
 }
 
 // ===== Portal.gs =====
@@ -1596,6 +1612,7 @@ function photoFolderUrl_() {
  * key は LINE ログイン（Login.gs）でグループのメンバーと確認できた人に発行するキー。
  */
 function api(key, action, payload) {
+  resetMemo_();
   const family = findFamilyByKey_(key);
   if (!family) throw new Error('ログインが切れました。もう一度「LINEでログイン」を押してください。');
   ensureMember_(family);
@@ -1616,7 +1633,7 @@ function api(key, action, payload) {
 
 const API_ACTIONS = {
   bootstrap: { run: () => { syncIfStale_(); } },
-  refresh: { run: () => { importScheduleSafely_(); syncCalendar_(); } },
+  refresh: { run: () => { invalidateAllTables_(); importScheduleSafely_(); syncCalendar_(); } },
   saveChildren: { run: saveChildrenAction_ },
   inviteFamily: { raw: true, run: inviteFamilyAction_ },
   pcCode: { raw: true, run: pcCodeAction_ },
@@ -1789,7 +1806,7 @@ function buildState_(ctx) {
     },
     kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
-    sheetUrl: ctx.admin ? ss_().getUrl() : '',
+    sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
     parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
@@ -2939,8 +2956,11 @@ function importScheduleSheet_() {
 
 /** 予定入力シートを編集したとき（setup() で作るトリガーから呼ばれる） */
 function onScheduleSheetEdit(e) {
+  resetMemo_();
   try {
     const sh = e && e.range && e.range.getSheet();
+    // スプレッドシートを手で直したら、ポータルが覚えている表を捨てる
+    if (sh) invalidateTable_(sh.getName());
     if (sh && sh.getName() !== SHEETS.SCHEDULE_INPUT.name) return;
     importScheduleSheet_();
   } catch (err) {
@@ -2988,7 +3008,7 @@ function sheet_(def) {
     sh.getRange(1, 1, sh.getMaxRows(), def.headers.length).setNumberFormat('@');
     sh.getRange(1, 1, 1, def.headers.length).setValues([def.headers]).setFontWeight('bold');
     sh.setFrozenRows(1);
-  } else if (!headersChecked__[def.name]) {
+  } else if (!headersChecked__[def.name] && CacheService.getScriptCache().get('hdr:' + def.name) !== String(def.headers.length)) {
     // 前の版で作ったシートに、あとから増えた列の見出しを足す（列は右端に足すだけなので、今のデータはずれない）
     const width = Math.max(sh.getLastColumn(), 1);
     const have = sh.getRange(1, 1, 1, width).getValues()[0].map(String);
@@ -2999,6 +3019,7 @@ function sheet_(def) {
       sh.getRange(1, from, 1, missing.length).setValues([missing]).setFontWeight('bold');
     }
   }
+  if (!headersChecked__[def.name]) CacheService.getScriptCache().put('hdr:' + def.name, String(def.headers.length), 21600);
   headersChecked__[def.name] = true;
   return sh;
 }
@@ -3015,8 +3036,34 @@ function cellToString_(v, header) {
   return v === null || v === undefined ? '' : String(v);
 }
 
-/** 全行をオブジェクトの配列で返す。_row に行番号が入る */
+/**
+ * 全行をオブジェクトの配列で返す。_row に行番号が入る。
+ * 速くするため、読んだ表は「同じ実行の中」と「CacheService（6時間）」に覚えておく。
+ * 書きこむと表の版（スクリプト プロパティ TV_シート名）を上げるので、古い表は使われない。
+ * スプレッドシートを手で直したときは、onScheduleSheetEdit（編集のトリガー）が版を上げる。
+ * ロックの中（書きこむ前の読みこみ）では、必ずシートから読む。
+ */
 function readRows_(def) {
+  const name = def.name;
+  if (!lockDepth__ && memo__[name]) return memo__[name].map((o) => Object.assign({}, o));
+  const useCache = tableCacheOn_();
+  const ver = useCache ? tableVersion_(name, !!lockDepth__) : '';
+  const key = 'tbl:' + name + ':' + ver + ':' + def.headers.length;
+  let rows = null;
+  if (useCache && !lockDepth__) {
+    try { const hit = CacheService.getScriptCache().get(key); if (hit) rows = JSON.parse(hit); } catch (err) { rows = null; }
+  }
+  if (!rows) {
+    rows = readSheetRows_(def);
+    if (useCache) {
+      try { const json = JSON.stringify(rows); if (json.length < 95000) CacheService.getScriptCache().put(key, json, 21600); } catch (err) { /* 大きすぎる表は覚えない */ }
+    }
+  }
+  memo__[name] = rows;
+  return rows.map((o) => Object.assign({}, o));
+}
+
+function readSheetRows_(def) {
   const sh = sheet_(def);
   const last = sh.getLastRow();
   if (last < 2) return [];
@@ -3030,6 +3077,39 @@ function readRows_(def) {
     .filter((o) => def.headers.some((h) => o[h] !== ''));
 }
 
+let memo__ = {};
+let props__ = null;
+let lockDepth__ = 0;
+
+/** 実行のはじめに呼ぶ（Webアプリ・LINE・トリガーの入口） */
+function resetMemo_() {
+  memo__ = {};
+  props__ = null;
+}
+
+function tableCacheOn_() {
+  return prop_('NO_TABLE_CACHE') !== '1';
+}
+
+function tableVersion_(name, fresh) {
+  if (fresh || !props__) props__ = PropertiesService.getScriptProperties().getProperties();
+  return props__['TV_' + name] || '0';
+}
+
+/** 表を書きかえたら、覚えている表を捨てて版を上げる */
+function invalidateTable_(name) {
+  delete memo__[name];
+  if (!tableCacheOn_()) return;
+  const v = String(Date.now()) + Math.floor(Math.random() * 1000);
+  PropertiesService.getScriptProperties().setProperty('TV_' + name, v);
+  if (props__) props__['TV_' + name] = v;
+}
+
+/** すべての表を読み直させる（「更新」ボタン・手での編集） */
+function invalidateAllTables_() {
+  Object.keys(SHEETS).forEach((k) => invalidateTable_(SHEETS[k].name));
+}
+
 function toValues_(def, obj) {
   return def.headers.map((h) => (obj[h] === null || obj[h] === undefined ? '' : String(obj[h])));
 }
@@ -3041,25 +3121,31 @@ function appendRow_(def, obj) {
   // 書式を文字列にしてから書き込み、「3:20」などが時刻に化けるのを防ぐ
   sh.getRange(row, 1, 1, def.headers.length).setNumberFormat('@').setValues([toValues_(def, obj)]);
   obj._row = row;
+  invalidateTable_(def.name);
   return obj;
 }
 
 function updateRow_(def, obj) {
   sheet_(def).getRange(obj._row, 1, 1, def.headers.length).setNumberFormat('@').setValues([toValues_(def, obj)]);
+  invalidateTable_(def.name);
 }
 
 /** 行を空にする（行番号がずれないよう、削除ではなく空欄にする） */
 function clearRow_(def, obj) {
   sheet_(def).getRange(obj._row, 1, 1, def.headers.length).setValues([def.headers.map(() => '')]);
+  invalidateTable_(def.name);
 }
 
 /** 複数人が同時に操作しても行が重複しないようにロックして実行する */
 function withLock_(fn) {
+  if (lockDepth__) return fn();
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  lockDepth__++;
   try {
     return fn();
   } finally {
+    lockDepth__--;
     lock.releaseLock();
   }
 }

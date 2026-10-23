@@ -4,6 +4,7 @@
  * key は LINE ログイン（Login.gs）でグループのメンバーと確認できた人に発行するキー。
  */
 function api(key, action, payload) {
+  resetMemo_();
   const family = findFamilyByKey_(key);
   if (!family) throw new Error('ログインが切れました。もう一度「LINEでログイン」を押してください。');
   ensureMember_(family);
@@ -24,7 +25,7 @@ function api(key, action, payload) {
 
 const API_ACTIONS = {
   bootstrap: { run: () => { syncIfStale_(); } },
-  refresh: { run: () => { importScheduleSafely_(); syncCalendar_(); } },
+  refresh: { run: () => { invalidateAllTables_(); importScheduleSafely_(); syncCalendar_(); } },
   saveChildren: { run: saveChildrenAction_ },
   inviteFamily: { raw: true, run: inviteFamilyAction_ },
   pcCode: { raw: true, run: pcCodeAction_ },
@@ -197,7 +198,7 @@ function buildState_(ctx) {
     },
     kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
-    sheetUrl: ctx.admin ? ss_().getUrl() : '',
+    sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
     parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,

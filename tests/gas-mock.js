@@ -155,7 +155,7 @@ function createGas(options) {
     console: { log() {}, warn() {}, error: (...a) => ctx.__errors.push(a.join(' ')) },
     __errors: [],
     Date: FakeDate,
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); } }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); }, getProperties: () => Object.assign({}, props) }) },
     SpreadsheetApp: {
       openById: (id) => { if (!spreadsheets[id]) throw new Error('no spreadsheet ' + id); return spreadsheets[id]; },
       newDataValidation: () => { const b = { requireValueInList: () => b, setAllowInvalid: () => b, build: () => ({}) }; return b; },
@@ -252,6 +252,8 @@ function createGas(options) {
       props.GROUP_ID = 'G1';
       props.LINE_LOGIN_CHANNEL_ID = 'login-channel';
       props.LINE_LOGIN_CHANNEL_SECRET = 'login-secret';
+      // テストはシートを直接書きかえるので、表を覚えるしくみは切っておく（専用のテストで確かめる）
+      props.NO_TABLE_CACHE = '1';
       props.SPREADSHEET_ID = ctx.SpreadsheetApp.create('test').getId();
       ctx.__run('Object.keys(SHEETS).forEach((k) => sheet_(SHEETS[k]))');
     },

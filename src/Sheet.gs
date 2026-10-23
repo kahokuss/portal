@@ -37,7 +37,7 @@ function sheet_(def) {
     sh.getRange(1, 1, sh.getMaxRows(), def.headers.length).setNumberFormat('@');
     sh.getRange(1, 1, 1, def.headers.length).setValues([def.headers]).setFontWeight('bold');
     sh.setFrozenRows(1);
-  } else if (!headersChecked__[def.name]) {
+  } else if (!headersChecked__[def.name] && CacheService.getScriptCache().get('hdr:' + def.name) !== String(def.headers.length)) {
     // 前の版で作ったシートに、あとから増えた列の見出しを足す（列は右端に足すだけなので、今のデータはずれない）
     const width = Math.max(sh.getLastColumn(), 1);
     const have = sh.getRange(1, 1, 1, width).getValues()[0].map(String);
@@ -48,6 +48,7 @@ function sheet_(def) {
       sh.getRange(1, from, 1, missing.length).setValues([missing]).setFontWeight('bold');
     }
   }
+  if (!headersChecked__[def.name]) CacheService.getScriptCache().put('hdr:' + def.name, String(def.headers.length), 21600);
   headersChecked__[def.name] = true;
   return sh;
 }
@@ -64,8 +65,34 @@ function cellToString_(v, header) {
   return v === null || v === undefined ? '' : String(v);
 }
 
-/** 全行をオブジェクトの配列で返す。_row に行番号が入る */
+/**
+ * 全行をオブジェクトの配列で返す。_row に行番号が入る。
+ * 速くするため、読んだ表は「同じ実行の中」と「CacheService（6時間）」に覚えておく。
+ * 書きこむと表の版（スクリプト プロパティ TV_シート名）を上げるので、古い表は使われない。
+ * スプレッドシートを手で直したときは、onScheduleSheetEdit（編集のトリガー）が版を上げる。
+ * ロックの中（書きこむ前の読みこみ）では、必ずシートから読む。
+ */
 function readRows_(def) {
+  const name = def.name;
+  if (!lockDepth__ && memo__[name]) return memo__[name].map((o) => Object.assign({}, o));
+  const useCache = tableCacheOn_();
+  const ver = useCache ? tableVersion_(name, !!lockDepth__) : '';
+  const key = 'tbl:' + name + ':' + ver + ':' + def.headers.length;
+  let rows = null;
+  if (useCache && !lockDepth__) {
+    try { const hit = CacheService.getScriptCache().get(key); if (hit) rows = JSON.parse(hit); } catch (err) { rows = null; }
+  }
+  if (!rows) {
+    rows = readSheetRows_(def);
+    if (useCache) {
+      try { const json = JSON.stringify(rows); if (json.length < 95000) CacheService.getScriptCache().put(key, json, 21600); } catch (err) { /* 大きすぎる表は覚えない */ }
+    }
+  }
+  memo__[name] = rows;
+  return rows.map((o) => Object.assign({}, o));
+}
+
+function readSheetRows_(def) {
   const sh = sheet_(def);
   const last = sh.getLastRow();
   if (last < 2) return [];
@@ -79,6 +106,39 @@ function readRows_(def) {
     .filter((o) => def.headers.some((h) => o[h] !== ''));
 }
 
+let memo__ = {};
+let props__ = null;
+let lockDepth__ = 0;
+
+/** 実行のはじめに呼ぶ（Webアプリ・LINE・トリガーの入口） */
+function resetMemo_() {
+  memo__ = {};
+  props__ = null;
+}
+
+function tableCacheOn_() {
+  return prop_('NO_TABLE_CACHE') !== '1';
+}
+
+function tableVersion_(name, fresh) {
+  if (fresh || !props__) props__ = PropertiesService.getScriptProperties().getProperties();
+  return props__['TV_' + name] || '0';
+}
+
+/** 表を書きかえたら、覚えている表を捨てて版を上げる */
+function invalidateTable_(name) {
+  delete memo__[name];
+  if (!tableCacheOn_()) return;
+  const v = String(Date.now()) + Math.floor(Math.random() * 1000);
+  PropertiesService.getScriptProperties().setProperty('TV_' + name, v);
+  if (props__) props__['TV_' + name] = v;
+}
+
+/** すべての表を読み直させる（「更新」ボタン・手での編集） */
+function invalidateAllTables_() {
+  Object.keys(SHEETS).forEach((k) => invalidateTable_(SHEETS[k].name));
+}
+
 function toValues_(def, obj) {
   return def.headers.map((h) => (obj[h] === null || obj[h] === undefined ? '' : String(obj[h])));
 }
@@ -90,25 +150,31 @@ function appendRow_(def, obj) {
   // 書式を文字列にしてから書き込み、「3:20」などが時刻に化けるのを防ぐ
   sh.getRange(row, 1, 1, def.headers.length).setNumberFormat('@').setValues([toValues_(def, obj)]);
   obj._row = row;
+  invalidateTable_(def.name);
   return obj;
 }
 
 function updateRow_(def, obj) {
   sheet_(def).getRange(obj._row, 1, 1, def.headers.length).setNumberFormat('@').setValues([toValues_(def, obj)]);
+  invalidateTable_(def.name);
 }
 
 /** 行を空にする（行番号がずれないよう、削除ではなく空欄にする） */
 function clearRow_(def, obj) {
   sheet_(def).getRange(obj._row, 1, 1, def.headers.length).setValues([def.headers.map(() => '')]);
+  invalidateTable_(def.name);
 }
 
 /** 複数人が同時に操作しても行が重複しないようにロックして実行する */
 function withLock_(fn) {
+  if (lockDepth__) return fn();
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  lockDepth__++;
   try {
     return fn();
   } finally {
+    lockDepth__--;
     lock.releaseLock();
   }
 }

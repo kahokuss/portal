@@ -509,7 +509,8 @@ test('前の版のシートに、新しい列の見出しが足される', () =>
   const sh = gas.sheet('家族');
   sh.data[0] = sh.data[0].slice(0, 6);
   sh.data.push(['U9', '古い人', '', '', '', '']);
-  gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k])");
+  gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k]); resetMemo_();");
+  Object.keys(gas.cache).filter((k) => k.startsWith('hdr:')).forEach((k) => delete gas.cache[k]);
   gas.run('readRows_(SHEETS.FAMILIES)');
   assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認']);
   assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
@@ -781,6 +782,27 @@ test('陣地: 大会の日の「場所を取りました」と写真が、その
   assert.ok(gas.line(dm('U2'), '今日').includes('📍 陣地：おはようございます☀ 本部に向かって右側の階段'));
   const st2 = gas.ctx.api(k, 'setTask', { key: t.key, kind: '陣地', target: '', memo: '本部の右の階段（青いシート）', done: true });
   assert.strictEqual(st2.tasks.find((x) => x.kind === '陣地').memo, '本部の右の階段（青いシート）', 'だれでも直せる');
+});
+test('速さ: 読んだ表を覚えて使い回し、書きこんだら版を上げて読み直す', () => {
+  const gas = setupClub();
+  delete gas.props.NO_TABLE_CACHE;
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const k = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.run('invalidateAllTables_()');
+  let reads = 0;
+  const orig = gas.sheet('予定').getRange.bind(gas.sheet('予定'));
+  gas.sheet('予定').getRange = (...a) => { reads++; return orig(...a); };
+  gas.ctx.api(k, 'bootstrap');
+  const first = reads;
+  gas.ctx.api(k, 'bootstrap');
+  assert.strictEqual(reads, first, '2回目はシートを読まない');
+  let st = gas.ctx.api(k, 'savePractices', { dates: ['2026-10-28'], start: '17:00', end: '18:30', title: '練習', place: 'A' });
+  assert.ok(st.events.some((e) => e.date === '2026-10-28'), '書きこんだら新しい内容');
+  gas.sheet('子ども').data[1][1] = '4';
+  assert.strictEqual(gas.ctx.api(k, 'bootstrap').kids[0].grade, 3, '手で直しても、編集のトリガーが来るまでは前のまま');
+  gas.ctx.onScheduleSheetEdit({ range: { getSheet: () => gas.sheet('子ども') } });
+  assert.strictEqual(gas.ctx.api(k, 'bootstrap').kids[0].grade, 4, '編集のトリガーで読み直す');
 });
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();

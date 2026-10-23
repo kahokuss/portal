@@ -482,6 +482,27 @@ async function openPortal(browser, gas, userId, name) {
       await a.shot('14-calendar');
       await a.click('[data-f="一覧"]');
     });
+    await step('役員: 過去の記録を貼り付けて取り込み、自己ベスト表とグラフを見る', async () => {
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="records"]');
+      await a.fill('#recIn', '鈴木けんた 100m 15.80 2026/6/1 春季記録会\n鈴木けんた 100m 15.45 2026/7/20 夏季記録会\nだれか 100m 14.0');
+      await a.click('#recForm button[type=submit]');
+      assert.ok((await a.textContent('#recSave')).includes('3件'));
+      await a.click('#recSave');
+      await a.idle();
+      assert.ok((await a.textContent('#view')).includes('2件の記録を入れました'));
+      await a.click('[data-rk="鈴木けんた"]');
+      await a.waitForSelector('.rchart .pt.pb');
+      assert.strictEqual(await a.locator('.rchart .pt').count(), 4, '4回分の点');
+      await a.click('.rchart .hit >> nth=0');
+      assert.ok((await a.textContent('.rtip')).includes('春季記録会'));
+      await a.shot('15-records');
+      await a.click('[data-nav="events"]');
+      await a.click('[data-f="カレンダー"]');
+      await a.click('[data-cm="-1"]');
+      assert.ok(await a.isVisible('.mcal .duty'), 'カレンダーに当番の名前');
+      await a.click('[data-f="一覧"]');
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

@@ -59,6 +59,7 @@ const API_ACTIONS = {
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
+  addRecords: { admin: true, run: addRecordsAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },

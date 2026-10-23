@@ -1651,6 +1651,7 @@ const API_ACTIONS = {
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
+  addRecords: { admin: true, run: addRecordsAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },
@@ -2707,6 +2708,33 @@ function bulkEditEventsAction_(ctx, p) {
   });
   if (ng.length && !ok) throw new Error(ng.join('\n'));
   return ok + '件を直しました' + (ng.length ? '（直せなかったもの：' + ng.join('／') + '）' : '');
+}
+
+/**
+ * 過去の記録（ポータルを使う前の自己ベストなど）をまとめて入れる（役員）。大会に結びつけなくてよい
+ * @param {{rows: {child: string, race: string, record: string, date: string, meet: string, place: string, round: string, memo: string}[]}} p
+ */
+function addRecordsAction_(ctx, p) {
+  const kids = {};
+  activeChildren_().forEach((c) => (kids[c.name] = true));
+  const ok = [];
+  const ng = [];
+  (p.rows || []).slice(0, 300).forEach((r, i) => {
+    const child = String(r.child || '').trim();
+    const race = String(r.race || '').trim().slice(0, 30);
+    const record = toHalfWidth_(r.record || '').trim().replace(/\s/g, '').slice(0, 20);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : today_();
+    if (!kids[child]) return ng.push((i + 1) + '行目：「' + child + '」というお子さんが登録されていません');
+    if (!race || !record) return ng.push((i + 1) + '行目：種目と記録を入れてください');
+    ok.push({
+      '日時': now_(), eventKey: '', '大会・練習': date + ' ' + String(r.meet || '過去の記録').trim().slice(0, 60), '子ども': child, '種目': race, '記録': record,
+      '順位': String(r.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(r.round) >= 0 ? r.round : '',
+      'メモ': String(r.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
+    });
+  });
+  if (!ok.length) throw new Error(ng.join('\n') || '入れる記録がありません。');
+  withLock_(() => ok.forEach((row) => appendRow_(SHEETS.RESULTS, row)));
+  return ok.length + '件の記録を入れました' + (ng.length ? '（入れられなかったもの：' + ng.join('／') + '）' : '');
 }
 
 // ===== Results.gs =====

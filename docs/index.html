@@ -11,7 +11,7 @@
 :root {
   --bg: #e9eef0; --surface: #ffffff; --surface-2: #f3f6f7; --fg: #182328; --muted: #5f7079; --line: #d6dfe3;
   --track: #c4512f; --track-soft: #f6e1d9; --field: #237a55; --field-soft: #dcefe5; --sky: #2f6fae; --sky-soft: #dde9f5;
-  --warn: #a8660b; --warn-soft: #f8ead2;
+  --warn: #a8660b; --warn-soft: #f8ead2; --viz-line: #2f6fae; --viz-pb: #c4512f;
   --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
   --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
 }
@@ -19,7 +19,7 @@
   :root {
     --bg: #0f1518; --surface: #182126; --surface-2: #1f2a30; --fg: #e4ebee; --muted: #94a5ad; --line: #2d3a40;
     --track: #ec8566; --track-soft: #3f2219; --field: #4cc28c; --field-soft: #163527; --sky: #6aa7e3; --sky-soft: #172b3f;
-    --warn: #e5a54a; --warn-soft: #3a2a12; color-scheme: dark;
+    --warn: #e5a54a; --warn-soft: #3a2a12; --viz-line: #4f8fd1; --viz-pb: #e07050; color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
@@ -196,6 +196,17 @@ form.f, .f { display: grid; gap: 8px; }
 .mcal .c-x { background: var(--surface-2); color: var(--muted); text-decoration: line-through; }
 .mcal .more { font-size: 9.5px; color: var(--muted); }
 .mcal .mk { font-size: 10px; line-height: 1; }
+.mcal .duty { font-size: 9px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcal .duty.me { color: var(--track); font-weight: 700; }
+.rchart { width: 100%; height: auto; display: block; }
+.rchart .grid { stroke: var(--line); stroke-width: 1; }
+.rchart .ax { fill: var(--muted); font-size: 10px; }
+.rchart .ln { fill: none; stroke: var(--viz-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.rchart .pt { fill: var(--viz-line); stroke: var(--surface); stroke-width: 2; }
+.rchart .pt.pb { fill: var(--viz-pb); }
+.rchart .lb { fill: var(--fg); font-size: 10.5px; font-weight: 700; }
+.rchart .hit { fill: transparent; cursor: pointer; }
+.rtip { font-size: 12px; color: var(--fg); background: var(--surface-2); border-radius: 8px; padding: 4px 8px; min-height: 1.6em; }
 @media (min-width: 900px) { .mcal .day { min-height: 92px; } .mcal .chip { font-size: 11px; } }
 .steps { display: flex; gap: 3px; flex-wrap: wrap; }
 .steps span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
@@ -232,7 +243,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "ad1a9bd703";
+var BUILD = "aff818c580";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -450,9 +461,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var off = absentOn(ds).some(function (a) { return myNames().indexOf(a.child) >= 0; });
       h += '<button type="button" class="day' + (ds === ST.today ? ' today' : '') + (ds === sel ? ' sel' : '') + (ds < ST.today ? ' past' : '') + '" data-cd="' + ds + '"><span class="n' + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + n + '</span>' +
         list.slice(0, 2).map(function (e) { return '<span class="chip ' + (e.cancelled ? 'c-x' : isRace(e) ? 'c-race' : 'c-prac') + '">' + esc(isRace(e) ? e.title.slice(0, 5) : (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') : '練習')) + '</span>'; }).join('') +
-        (list.length > 2 ? '<span class="more">+' + (list.length - 2) + '</span>' : '') + (mine ? '<span class="mk" title="当番">🧹</span>' : '') + (off ? '<span class="mk" title="休み">🙋</span>' : '') + '</button>';
+        (list.length > 2 ? '<span class="more">+' + (list.length - 2) + '</span>' : '') +
+        list.filter(function (e) { return !e.cancelled; }).slice(0, 1).map(function (e) { var ds2 = dutyOf(e.key); return ds2.length ? '<span class="duty' + (mine ? ' me' : '') + '">🧹' + esc(ds2.map(function (x) { return famName(x.fam).split('・')[0]; }).join('・')) + '</span>' : ''; }).join('') +
+        (off ? '<span class="mk" title="休み">🙋</span>' : '') + '</button>';
     }
-    h += '</div><div class="hint">🟦練習　🟥大会・記録会　⬜中止　🧹わが家の当番　🙋休みの連絡ずみ</div></section>';
+    h += '</div><div class="hint">🟦練習　🟥大会・記録会　⬜中止　🧹当番（赤字はわが家）　🙋休みの連絡ずみ</div></section>';
     if (sel) {
       var dl = byDay[sel] || [];
       h += '<section class="card"><h2>' + md(sel) + '</h2>' + (dl.length ? '<div class="list">' + dl.map(function (e) {
@@ -609,7 +622,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.querySelectorAll('[data-kn]').forEach(function (el) { el.addEventListener('input', function () { rows[+this.dataset.kn].name = this.value; }); });
     view.querySelectorAll('[data-kg]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.kg].grade = +this.value; }); });
     view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
-    bindFamilyCard(); bindCommon();
+    bindFamilyCard(); bindCommon(); bindCharts();
     on('#pcCodeBtn', function () { var b = this; b.disabled = true; rpc('pcCode', {}, function (r) { S.pc = r; render(); setTimeout(function () { S.pc = null; if (S.tab === 'family') render(); }, r.minutes * 60000); }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); });
     on('[data-kdel]', function () { rows.splice(+this.dataset.kdel, 1); render(); });
     on('#kidAdd', function () { rows.push({ name: '', grade: 0, sex: '' }); render(); });
@@ -634,9 +647,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'nearmiss') return adminNearMiss();
     if (S.admin === 'members') return adminMembers();
     if (S.admin === 'table') return adminTable();
+    if (S.admin === 'records') return adminRecords();
     var items = [['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます'],
-      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
+      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
@@ -1728,6 +1742,37 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-rdel]', function () { if (confirm('この記録を消しますか？')) call('deleteResult', { id: this.dataset.rdel }); });
     bindPhotos(e);
   }
+  /** 記録の折れ線グラフ（1種目・1人）。上ほどよい記録（走る種目は速いほど上）。自己ベストは赤い点 */
+  function recordChart(child, key, race) {
+    var pts = ST.results.filter(function (r) { return r.child === child && canon(r.race) === key && markValue(r.record) !== null; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    if (pts.length < 2) return '';
+    var hb = higherBetter(race), vals = pts.map(function (r) { return markValue(r.record); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad0 = (hi - lo) * 0.15 || Math.max(0.1, hi * 0.02);
+    lo -= pad0; hi += pad0;
+    var W = 320, H = 150, L = 40, R = 14, T = 16, B = 26;
+    var t0 = d(pts[0].date).getTime(), t1 = d(pts[pts.length - 1].date).getTime();
+    var X = function (r, i) { return L + (t1 > t0 ? (d(r.date).getTime() - t0) / (t1 - t0) : i / (pts.length - 1)) * (W - L - R); };
+    var Y = function (v) { var f = (v - lo) / (hi - lo); return T + (hb ? 1 - f : f) * (H - T - B); };
+    var fmtV = function (v) { if (hb) return v.toFixed(2) + 'm'; return v >= 60 ? Math.floor(v / 60) + ':' + pad(Math.floor(v % 60)) + (v % 1 ? '.' + String((v % 1).toFixed(2)).slice(2) : '') : v.toFixed(2); };
+    var best = bests(child)[key], ticks = [0, 0.5, 1].map(function (f) { return lo + f * (hi - lo); });
+    var g = ticks.map(function (v) { var y = Y(v).toFixed(1); return '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text class="ax" x="' + (L - 4) + '" y="' + y + '" text-anchor="end" dominant-baseline="middle">' + fmtV(v) + '</text>'; }).join('');
+    var path = pts.map(function (r, i) { return (i ? 'L' : 'M') + X(r, i).toFixed(1) + ' ' + Y(vals[i]).toFixed(1); }).join(' ');
+    var dots = pts.map(function (r, i) {
+      var x = X(r, i).toFixed(1), y = Y(vals[i]).toFixed(1), isB = r === best, tip = md(r.date) + ' ' + r.meet.replace(/^\d{4}-\d{2}-\d{2}\s*/, '') + '：' + r.record + (r.round ? '（' + r.round + '）' : '') + (isB ? ' 自己ベスト' : '');
+      return '<circle class="pt' + (isB ? ' pb' : '') + '" cx="' + x + '" cy="' + y + '" r="' + (isB ? 5.5 : 4.5) + '"/><circle class="hit" cx="' + x + '" cy="' + y + '" r="14" data-tip="' + esc(tip) + '"><title>' + esc(tip) + '</title></circle>' +
+        (isB || i === pts.length - 1 ? '<text class="lb" x="' + x + '" y="' + (+y - 9) + '" text-anchor="' + (i === pts.length - 1 ? 'end' : 'middle') + '">' + esc(r.record) + (isB ? ' ★' : '') + '</text>' : '');
+    }).join('');
+    var xl = '<text class="ax" x="' + L + '" y="' + (H - 6) + '">' + md(pts[0].date) + '</text><text class="ax" x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + md(pts[pts.length - 1].date) + '</text>';
+    return '<div class="lbl">' + esc(race) + '<span class="sub">（' + (hb ? '上ほど遠く・高く' : '上ほど速い') + '・★が自己ベスト）</span></div>' +
+      '<svg class="rchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(child + 'の' + race + 'の記録の移り変わり') + '">' + g + '<path class="ln" d="' + path + '"/>' + dots + xl + '</svg><div class="rtip">記録の点をタップすると、日付と大会が出ます</div>';
+  }
+  function bindCharts() {
+    view.querySelectorAll('.rchart .hit').forEach(function (c) {
+      var show = function () { var tip = c.closest('svg').nextElementSibling; if (tip) tip.textContent = c.dataset.tip; };
+      c.addEventListener('click', show); c.addEventListener('mouseenter', show);
+    });
+  }
   function recordsCard() {
     if (!ST.me.children.length) return '';
     var h = '<section class="card"><h2>記録<small>自己ベスト</small></h2>';
@@ -1736,7 +1781,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += '<div class="kid"><b>' + esc(k.name) + '</b>' + (keys.length ? '<div class="list">' + keys.map(function (c) {
         var r = b[c], n = ST.results.filter(function (x) { return x.child === k.name && canon(x.race) === c; }).length;
         return '<div class="between"><span>' + esc(r.race) + ' <b>' + esc(r.record) + '</b></span><span class="sub">' + esc(r.meet) + (n > 1 ? '・' + n + '回中' : '') + '</span></div>';
-      }).join('') + '</div>' : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
+      }).join('') + '</div>' + keys.map(function (c) { return recordChart(k.name, c, b[c].race); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
     });
     return h + '</section>';
   }
@@ -1862,6 +1907,55 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       if (rows.some(function (r) { return r.cancel; }) && !confirm('中止にチェックした予定は、カレンダーから消えます。保存しますか？')) return;
       call('bulkEditEvents', { rows: rows }, function () { T.edits = {}; });
     });
+  }
+
+  /** 種目ごとの自己ベスト表（役員）。過去の記録を貼り付けで取り込める */
+  function adminRecords() {
+    var R = S.rec || (S.rec = { race: '', open: '', paste: '', preview: null });
+    var races = [], names = {};
+    ST.results.forEach(function (r) { var c = canon(r.race); if (!names[c]) { names[c] = r.race; races.push(c); } });
+    if (!R.race || races.indexOf(R.race) < 0) R.race = races[0] || '';
+    var h = backBtn() + toastHtml();
+    if (races.length) {
+      var rows = ST.kids.map(function (k) { var b = bests(k.name)[R.race]; return b ? { k: k, b: b, n: ST.results.filter(function (x) { return x.child === k.name && canon(x.race) === R.race; }).length } : null; }).filter(Boolean)
+        .sort(function (a, b) { return isBetter(a.b.race, a.b.record, b.b.record) ? -1 : isBetter(b.b.race, b.b.record, a.b.record) ? 1 : 0; });
+      h += '<section class="card"><h2>自己ベスト表<small>' + rows.length + '人</small></h2><div class="tabs">' + races.map(function (c) { return '<button type="button" data-rr="' + esc(c) + '" aria-pressed="' + (R.race === c) + '">' + esc(names[c]) + '</button>'; }).join('') + '</div>' +
+        '<div class="tbl-wrap"><table><thead><tr><th>順</th><th>名前</th><th>学年</th><th>自己ベスト</th><th>いつ・どこで</th><th>回数</th></tr></thead><tbody>' + rows.map(function (x, i) {
+          return '<tr data-rk="' + esc(x.k.name) + '" style="cursor:pointer"' + (R.open === x.k.name ? ' class="hl"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.k.name) + '</td><td>' + (x.k.grade || '') + '</td><td><b>' + esc(x.b.record) + '</b></td><td>' + esc(x.b.meet) + '</td><td>' + x.n + '</td></tr>';
+        }).join('') + '</tbody></table></div>' + (R.open ? recordChart(R.open, R.race, names[R.race]) || '<div class="sub">' + esc(R.open) + 'さんの' + esc(names[R.race]) + 'は、記録が2つ以上になるとグラフが出ます。</div>' : '<div class="hint">名前を押すと、その子の記録の移り変わりがグラフで出ます。</div>') +
+        '<button class="btn small ghost" type="button" id="recCopy" style="justify-self:start">表計算に貼れる形でコピー</button></section>';
+    } else h += '<div class="card empty">まだ記録がありません。</div>';
+    h += '<section class="card"><h2>過去の記録を取り込む</h2><div class="sub">いままで役員がつけていた自己ベストなどを、1行に1つずつ貼り付けてください。</div>' +
+      '<form class="f" id="recForm"><textarea id="recIn" placeholder="名前 種目 記録 日付 大会名（日付と大会名はなくてもOK）&#10;例：山田たろう 100m 15.21 2026/9/27 県小学生大会&#10;山田たろう 走幅跳 3m45 2026/6/1 春季記録会">' + esc(R.paste) + '</textarea><button class="btn ghost" type="submit">読み取って確認する</button></form>';
+    if (R.preview) {
+      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th><th>日付</th><th>大会</th></tr></thead><tbody>' + R.preview.map(function (r) {
+        var ok = ST.kids.some(function (k) { return k.name === r.child; });
+        return '<tr' + (ok ? '' : ' class="hl"') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td><td>' + esc(r.date) + '</td><td>' + esc(r.meet) + '</td></tr>';
+      }).join('') + '</tbody></table></div><div class="hint">⚠ の名前は登録されていないので入りません（「わが家」の名前と同じ書き方にしてください）。</div><button class="btn" type="button" id="recSave">' + R.preview.length + '件を入れる</button>';
+    }
+    h += '</section>';
+    view.innerHTML = h;
+    bindBack(); bindCharts();
+    on('[data-rr]', function () { R.race = this.dataset.rr; R.open = ''; render(); });
+    on('[data-rk]', function () { R.open = R.open === this.dataset.rk ? '' : this.dataset.rk; render(); });
+    on('#recCopy', function () {
+      var rows = ST.kids.map(function (k) { var b = bests(k.name)[R.race]; return b ? [k.name, k.grade || '', b.race, b.record, b.meet].join('\t') : null; }).filter(Boolean);
+      var text = ['名前\t学年\t種目\t自己ベスト\tいつ・どこで'].concat(rows).join('\n'), b = this;
+      try { navigator.clipboard.writeText(text).then(function () { b.textContent = 'コピーしました。表計算に貼り付けてください'; }); } catch (e) { b.textContent = 'コピーできませんでした'; }
+    });
+    document.getElementById('recForm').addEventListener('submit', function (x) {
+      x.preventDefault();
+      R.paste = val('recIn');
+      R.preview = R.paste.split('\n').map(function (line) {
+        var t = toHalf(line).trim().split(/[\s\t,、]+/).filter(Boolean);
+        if (t.length < 3) return null;
+        var kid = ST.kids.filter(function (k) { return k.name === t[0] || k.name.indexOf(t[0]) >= 0; });
+        var dm = t[3] && t[3].match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/);
+        return { child: kid.length === 1 ? kid[0].name : t[0], race: t[1], record: t[2], date: dm ? dm[1] + '-' + pad(dm[2]) + '-' + pad(dm[3]) : '', meet: t.slice(dm ? 4 : 3).join(' ') };
+      }).filter(Boolean);
+      render();
+    });
+    on('#recSave', function () { call('addRecords', { rows: R.preview }, function () { R.preview = null; R.paste = ''; }); });
   }
 
   function adminMembers() {

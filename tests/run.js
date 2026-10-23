@@ -430,6 +430,16 @@ test('Bot「今日」: 予選・決勝がある種目は、進むまで「（進
   r = gas.line(dm('U1'), '今日');
   assert.ok(!r.includes('（進んだら）'), r);
 });
+test('記録: 役員が過去の記録をまとめて入れられる（大会なし）', () => {
+  const gas = setupClub();
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.throws(() => gas.ctx.api(k2, 'addRecords', { rows: [] }), /役員だけ/);
+  const st = gas.ctx.api(kAdmin, 'addRecords', { rows: [{ child: '鈴木けんた', race: '100m', record: '１５．８０', date: '2026-06-01', meet: '春季記録会' }, { child: 'だれか', race: '100m', record: '14.0' }] });
+  assert.ok(st.message.startsWith('1件の記録を入れました') && st.message.includes('登録されていません'), st.message);
+  assert.deepStrictEqual([st.results[0].record, st.results[0].date, st.results[0].meet], ['15.80', '2026-06-01', '2026-06-01 春季記録会']);
+});
 test('予定づくり: ポータルでまとめて作る・直す・中止', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

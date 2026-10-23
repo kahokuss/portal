@@ -36,6 +36,7 @@ const API_ACTIONS = {
   setDuty: { admin: true, run: setDutyAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
+  saveTimetablePlan: { run: saveTimetablePlanAction_ },
   setTask: { run: setTaskAction_ },
   uploadPhoto: { run: uploadPhotoAction_ },
   photo: { raw: true, run: photoAction_ },

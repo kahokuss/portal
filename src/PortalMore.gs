@@ -715,3 +715,52 @@ function addRecordsAction_(ctx, p) {
   withLock_(() => ok.forEach((row) => appendRow_(SHEETS.RESULTS, row)));
   return ok.length + '件の記録を入れました' + (ng.length ? '（入れられなかったもの：' + ng.join('／') + '）' : '');
 }
+
+// ---- タイムテーブルづくり（コーチ・役員が事前に） ----
+
+/**
+ * タイムテーブルの表（種目・時刻・招集・アップ・出る子）をまとめて保存する（役員と当番）。
+ *   ・時刻表（タイムテーブル）を入れかえる
+ *   ・集合時刻を大会の案内に入れ、表の種目を案内の種目に足す
+ *   ・出る子のエントリー（参加・種目）を表にそろえる（表にない種目はそのまま残す）
+ * @param {{key: string, meetTime: string, rows: Object[]}} p rows の kids に、出る子の名前
+ */
+function saveTimetablePlanAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  const rows = (p.rows || []).slice(0, 200);
+  saveTimetableAction_(ctx, { key: p.key, rows: rows });
+  const kids = {};
+  activeChildren_().forEach((c) => (kids[c.name] = c));
+  const planRaces = rows.map((r) => String(r.race || '').trim()).filter((r) => r && !/全体/.test(r)).filter((r, i, a) => a.indexOf(r) === i);
+  const assigned = {};
+  rows.forEach((r) => (r.kids || []).forEach((n) => { if (kids[n]) (assigned[n] = assigned[n] || []).push(String(r.race).trim()); }));
+  let changed = 0;
+  withLock_(() => {
+    let race = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (!race) race = appendRow_(SHEETS.RACES, { eventKey: p.key, '種別': '大会', '対象': '全員', '更新日時': now_() });
+    const list = splitNames_(race['種目']);
+    planRaces.forEach((r) => { if (list.indexOf(r) < 0) list.push(r); });
+    race['種目'] = list.join(',');
+    const meet = cleanTime_(p.meetTime || '');
+    if (meet) race['集合時刻'] = meet;
+    race['更新日時'] = now_();
+    updateRow_(SHEETS.RACES, race);
+    const entries = readRows_(SHEETS.ENTRIES).filter((x) => x.eventKey === p.key);
+    Object.keys(kids).forEach((name) => {
+      const mine = (assigned[name] || []).filter((r, i, a) => a.indexOf(r) === i);
+      const row = entries.find((x) => x['子ども'] === name);
+      const before = row ? splitNames_(row['種目']) : [];
+      const next = before.filter((r) => planRaces.indexOf(r) < 0).concat(mine);
+      if (!row && !mine.length) return;
+      if (row && next.join(',') === before.join(',') && (!mine.length || row['回答'] === '参加')) return;
+      const data = { eventKey: p.key, '子ども': name, '回答': mine.length ? '参加' : row['回答'], '種目': next.join(','), '更新者': ctx.name, '更新日時': now_() };
+      if (row) updateRow_(SHEETS.ENTRIES, Object.assign(row, data));
+      else appendRow_(SHEETS.ENTRIES, Object.assign(data, { '集金': '' }));
+      changed++;
+    });
+  });
+  logHistory_(p.key, ctx, 'タイムテーブルの表を保存（' + rows.length + '種目・エントリー ' + changed + '人を更新）');
+  return 'タイムテーブルを保存しました（' + rows.length + '件・エントリー ' + changed + '人を更新）';
+}

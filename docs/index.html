@@ -180,6 +180,23 @@ form.f, .f { display: grid; gap: 8px; }
 .cal button:disabled { opacity: .35; cursor: not-allowed; }
 .banner { background: var(--track-soft); border-color: transparent; }
 .relay-round { border-top: 1px dashed var(--line); padding-top: 6px; display: grid; gap: 4px; }
+.mcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.mcal .wd { font-size: 11px; color: var(--muted); text-align: center; padding: 2px 0; }
+.mcal .sun { color: var(--track); }
+.mcal .sat { color: var(--sky); }
+.mcal .day { min-height: 62px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); padding: 2px; display: flex; flex-direction: column; gap: 2px; align-items: stretch; font: inherit; cursor: pointer; text-align: left; overflow: hidden; }
+.mcal .day.empty { border: 0; background: transparent; cursor: default; }
+.mcal .day.past { opacity: .6; }
+.mcal .day.today { border-color: var(--track); border-width: 2px; }
+.mcal .day.sel { background: var(--track-soft); }
+.mcal .n { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.mcal .chip { font-size: 9.5px; line-height: 1.35; border-radius: 4px; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcal .c-prac { background: var(--sky-soft); color: var(--sky); }
+.mcal .c-race { background: var(--track); color: #fff; }
+.mcal .c-x { background: var(--surface-2); color: var(--muted); text-decoration: line-through; }
+.mcal .more { font-size: 9.5px; color: var(--muted); }
+.mcal .mk { font-size: 10px; line-height: 1; }
+@media (min-width: 900px) { .mcal .day { min-height: 92px; } .mcal .chip { font-size: 11px; } }
 .steps { display: flex; gap: 3px; flex-wrap: wrap; }
 .steps span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 .steps span.done { background: var(--field-soft); color: var(--field); border-color: transparent; }
@@ -215,7 +232,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9a32460dd7";
+var BUILD = "ad1a9bd703";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -413,9 +430,46 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
 
   // ---- 予定 ----
+  function viewTabs() {
+    var cur = S.calView ? 'カレンダー' : S.onlyRace ? '大会だけ' : '一覧';
+    return '<div class="tabs" role="group" aria-label="表示">' + ['一覧', 'カレンダー', '大会だけ'].map(function (t) { return '<button type="button" data-f="' + t + '" aria-pressed="' + (cur === t) + '">' + t + '</button>'; }).join('') + '</div>';
+  }
+  function bindViewTabs() { on('[data-f]', function () { S.calView = this.dataset.f === 'カレンダー'; S.onlyRace = this.dataset.f === '大会だけ'; render(); }); }
+  /** 月のカレンダー表示。練習は青、大会は赤、中止は灰色。日にちを押すとその日の予定 */
+  function eventsCalendar() {
+    var mon = S.calMonth || (S.calMonth = ST.today.slice(0, 7)), y = +mon.slice(0, 4), m = +mon.slice(5, 7);
+    var days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = d(mon + '-01').getUTCDay(), byDay = {};
+    ST.events.forEach(function (e) { if (e.date.slice(0, 7) === mon) (byDay[e.date] = byDay[e.date] || []).push(e); });
+    var sel = S.calDay && S.calDay.slice(0, 7) === mon ? S.calDay : (mon === ST.today.slice(0, 7) ? ST.today : '');
+    var h = toastHtml() + viewTabs() + '<section class="card"><div class="between"><button class="btn small ghost" type="button" data-cm="-1">‹</button><b>' + y + '年' + m + '月</b><button class="btn small ghost" type="button" data-cm="1">›</button></div>' +
+      '<div class="mcal">' + WD.map(function (w, i) { return '<div class="wd' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</div>'; }).join('');
+    for (var i = 0; i < lead; i++) h += '<div class="day empty"></div>';
+    for (var n = 1; n <= days; n++) {
+      var ds = mon + '-' + pad(n), list = byDay[ds] || [], wd = (lead + n - 1) % 7;
+      var mine = list.some(function (e) { return dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; }); });
+      var off = absentOn(ds).some(function (a) { return myNames().indexOf(a.child) >= 0; });
+      h += '<button type="button" class="day' + (ds === ST.today ? ' today' : '') + (ds === sel ? ' sel' : '') + (ds < ST.today ? ' past' : '') + '" data-cd="' + ds + '"><span class="n' + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + n + '</span>' +
+        list.slice(0, 2).map(function (e) { return '<span class="chip ' + (e.cancelled ? 'c-x' : isRace(e) ? 'c-race' : 'c-prac') + '">' + esc(isRace(e) ? e.title.slice(0, 5) : (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') : '練習')) + '</span>'; }).join('') +
+        (list.length > 2 ? '<span class="more">+' + (list.length - 2) + '</span>' : '') + (mine ? '<span class="mk" title="当番">🧹</span>' : '') + (off ? '<span class="mk" title="休み">🙋</span>' : '') + '</button>';
+    }
+    h += '</div><div class="hint">🟦練習　🟥大会・記録会　⬜中止　🧹わが家の当番　🙋休みの連絡ずみ</div></section>';
+    if (sel) {
+      var dl = byDay[sel] || [];
+      h += '<section class="card"><h2>' + md(sel) + '</h2>' + (dl.length ? '<div class="list">' + dl.map(function (e) {
+        return '<button class="ev' + (e.cancelled ? ' cancel' : '') + '" type="button" data-ev="' + e.key + '"><div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + typePill(e) + (e.cancelled ? ' <span class="pill p-gray">中止</span>' : '') + ' ' + when(e) + (e.place ? '　📍 ' + esc(e.place) : '') +
+          (dutyOf(e.key).length ? '<br>当番：' + esc(dutyText(e.key)) : '') + (!isRace(e) && absentOn(e.date).length ? '　休み ' + absentOn(e.date).length + '人' : '') + '</div></div>›</button>';
+      }).join('') + '</div>' : '<div class="sub">予定はありません。</div>') + (ST.me.admin && sel >= ST.today ? '<button class="btn small ghost" type="button" id="calAdd" style="justify-self:start">＋ この日に練習をつくる</button>' : '') + '</section>';
+    }
+    view.innerHTML = h;
+    bindCommon(); bindViewTabs();
+    on('[data-cm]', function () { var t = new Date(Date.UTC(y, m - 1 + +this.dataset.cm, 1)); S.calMonth = t.toISOString().slice(0, 7); S.calDay = ''; render(); });
+    on('[data-cd]', function () { S.calDay = this.dataset.cd; render(); });
+    on('#calAdd', function () { S.tab = 'admin'; S.admin = 'practice'; S.prac = null; render(); S.prac.month = sel.slice(0, 7); S.prac.dates = [sel]; render(); window.scrollTo(0, 0); });
+  }
   function events() {
     if (S.event) { var e = evByKey(S.event); if (e) return eventDetail(e); S.event = null; }
-    var h = toastHtml() + '<div class="tabs" role="group" aria-label="表示">' + ['すべて', '大会だけ'].map(function (t) { return '<button type="button" data-f="' + t + '" aria-pressed="' + ((S.onlyRace ? '大会だけ' : 'すべて') === t) + '">' + t + '</button>'; }).join('') + '</div>';
+    if (S.calView) return eventsCalendar();
+    var h = toastHtml() + viewTabs();
     var month = '', open = false;
     ST.events.forEach(function (e) {
       if (S.onlyRace && !isRace(e)) return;
@@ -435,7 +489,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<div class="hint">予定はクラブのGoogleカレンダーから取り込んでいます。</div>';
     view.innerHTML = h;
     bindCommon();
-    on('[data-f]', function () { S.onlyRace = this.dataset.f === '大会だけ'; render(); });
+    bindViewTabs();
   }
 
   function eventDetail(e) {

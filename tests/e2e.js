@@ -469,6 +469,19 @@ async function openPortal(browser, gas, userId, name) {
       await a.shot('13-dnd-pc');
       await a.setViewportSize({ width: 420, height: 900 });
     });
+    await step('予定をカレンダーで見る（月の表・日にちを押すとその日の予定）', async () => {
+      await a.click('[data-nav="events"]');
+      await a.click('[data-f="カレンダー"]');
+      assert.ok((await a.textContent('#view')).includes('2026年10月'));
+      await a.click('[data-cd="2026-10-17"]');
+      const text = await a.textContent('#view');
+      assert.ok(text.includes('10/17(土)') && text.includes('市民グラウンド'), text);
+      await a.click('[data-cm="1"]');
+      assert.ok((await a.textContent('#view')).includes('2026年11月'));
+      assert.ok(await a.isVisible('.mcal .c-race'), '大会は赤');
+      await a.shot('14-calendar');
+      await a.click('[data-f="一覧"]');
+    });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
     });

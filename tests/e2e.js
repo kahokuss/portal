@@ -767,6 +767,19 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors, ...r.errors);
       await q.close(); await r.close();
     });
+    await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
+      await a.click('[data-nav="home"]');
+      const h = a.locator('.card > h2:has-text("次の大会")');
+      await h.click();
+      assert.ok(await a.$eval('.card.folded > h2', (x) => x.textContent.includes('次の大会')));
+      assert.ok(!(await a.isVisible('.card.folded .ev')), '中身が隠れる');
+      await a.click('[data-nav="events"]');
+      await a.click('[data-nav="home"]');
+      assert.strictEqual(await h.getAttribute('aria-expanded'), 'false', '覚えている');
+      await a.shot('19-folded');
+      await h.click();
+      assert.strictEqual(await h.getAttribute('aria-expanded'), 'true');
+    });
     await step('PC: スマホに出した番号でログインできる（GitHub Pages の画面）', async () => {
       const PAGES = 'https://kahokuss.github.io/portal/';
       const html = fs.readFileSync(path.join(__dirname, '../docs/index.html'), 'utf8');

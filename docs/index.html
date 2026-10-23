@@ -184,6 +184,11 @@ form.f, .f { display: grid; gap: 8px; }
 .cal button[aria-pressed="true"] small { color: #fff; }
 .cal button:disabled { opacity: .35; cursor: not-allowed; }
 .banner { background: var(--track-soft); border-color: transparent; }
+.card.foldable > h2 { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+.card.foldable > h2 small { margin-left: auto; }
+.fold-ic { flex: none; color: var(--muted); font-size: 18px; line-height: 1; transition: transform .15s; }
+.card.folded > h2 .fold-ic { transform: rotate(-90deg); }
+.card.folded > :not(h2) { display: none !important; }
 .rsvp-kid { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
 .rsvp-kid .nm { min-width: 0; display: grid; }
 .rsvp-kid .nm b { font-size: 15px; }
@@ -333,7 +338,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "2436197f8c";
+var BUILD = "2f8de15ef8";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "ca3f6d893b";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -2836,7 +2841,46 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
     renderNav();
     ({ home: home, events: events, album: album, family: family, admin: admin })[S.tab]();
+    applyFolds();
   }
+  // ---- 折りたたみ：カードの見出しを押すと閉じる・開く（このスマホに覚える） ----
+  var FOLD_STORE = 'clubPortalFold';
+  // はじめから閉じておくカード（見出しの文字）
+  var FOLD_DEFAULT = ['予定を直す', '履歴', '最近のヒヤリハット', 'PCでも使う'];
+  var FOLD_DEFAULT_MEMBER = ['練習当番', '大会当番']; // 当番を入れかえる役員には開いておく
+  function foldState() { try { return JSON.parse(localStorage.getItem(FOLD_STORE) || '{}'); } catch (e) { return {}; } }
+  function foldKey(h2) {
+    var c = h2.cloneNode(true);
+    c.querySelectorAll('small, button, a, .fold-ic').forEach(function (x) { x.remove(); });
+    return S.tab + ':' + c.textContent.replace(/[0-9０-９]+(件|人|日)/g, '').trim().slice(0, 30);
+  }
+  function applyFolds() {
+    var st = foldState();
+    view.querySelectorAll('.card > h2:first-child').forEach(function (h2) {
+      var card = h2.parentNode, key = foldKey(h2), title = key.split(':').slice(1).join(':');
+      if (!title || card.querySelector('form') && card.querySelector('form').contains(document.activeElement)) return;
+      var folded = key in st ? st[key] : FOLD_DEFAULT.concat(ST.me.admin ? [] : FOLD_DEFAULT_MEMBER).some(function (t) { return title.indexOf(t) === 0; });
+      card.classList.add('foldable');
+      card.classList.toggle('folded', folded);
+      h2.setAttribute('role', 'button');
+      h2.setAttribute('tabindex', '0');
+      h2.setAttribute('aria-expanded', String(!folded));
+      if (!h2.querySelector('.fold-ic')) h2.insertAdjacentHTML('beforeend', '<span class="fold-ic" aria-hidden="true">⌄</span>');
+      var toggle = function (ev) {
+        if (ev.target.closest('button, a, input, select, label')) return;
+        if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        var now = !card.classList.contains('folded'), s2 = foldState();
+        s2[key] = now;
+        try { localStorage.setItem(FOLD_STORE, JSON.stringify(s2)); } catch (e) {}
+        card.classList.toggle('folded', now);
+        h2.setAttribute('aria-expanded', String(!now));
+      };
+      h2.addEventListener('click', toggle);
+      h2.addEventListener('keydown', toggle);
+    });
+  }
+
   document.getElementById('reload').addEventListener('click', function () { S.toast = ''; checkNewVersion(); call('refresh'); });
 
   /** スマホに古い画面が残っていても、新しい版が出ていれば読み直す（?v= を付けて、保存された画面を使わせない） */

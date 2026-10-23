@@ -12,6 +12,9 @@
  *   LINE_LOGIN_CHANNEL_ID     … LINE ログインのチャネル ID（ポータルのログインに使う・必須）
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
+/** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
+const SERVER_VERSION = 'dev';
+
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
   CLUB_NAME: '河北SS',

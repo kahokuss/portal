@@ -186,6 +186,7 @@ function buildState_(ctx) {
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
+    server: SERVER_VERSION,
     today: today,
     me: {
       name: ctx.name,

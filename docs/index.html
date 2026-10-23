@@ -256,7 +256,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "7620c14a98";
+var BUILD = "ee0f6ec368";
+// この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
+var EXPECT_SERVER = "8d2040ca74";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -312,6 +314,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         document.getElementById('busy').textContent = '保存しています…';
         var msg = String((err && err.message) || err).replace(/^(Exception|Error):\s*/, '');
         if (/ログインが切れ|グループのメンバーではない/.test(msg)) { clearKey(); ST = null; showLogin(msg); return; }
+        if (/不明な操作です/.test(msg)) msg = 'サーバー（Apps Script）が古い版のため、この操作はまだ使えません。役員がApps Scriptを「新バージョン」でデプロイすると使えます。';
         S.toast = '⚠ ' + msg;
         S.toastErr = true;
         if (!ST) { view.innerHTML = '<div class="card"><div class="big">ページを開けませんでした</div><div class="sub">' + esc(msg) + '</div></div>'; return; }
@@ -344,8 +347,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
 
   // ---- ホーム ----
+  /** サーバー（Apps Script）が画面より古いとき（コードを貼っただけで「新バージョン」でデプロイしていないなど） */
+  function serverOld() { return !!(API_URL && EXPECT_SERVER && ST && ST.server !== EXPECT_SERVER); }
+  function serverBanner() {
+    if (!serverOld()) return '';
+    return '<section class="card" style="border-color:var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
+      (ST.me.admin ? '<div class="sub">PCで dist/Code.gs を「コード.gs」に貼り替えて保存 →「setup」を実行 →「デプロイ」→「デプロイを管理」→ 鉛筆 →「新バージョン」→「デプロイ」をしてください。<b>保存だけでは変わりません。</b></div>' : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
+  }
   function home() {
-    var h = toastHtml();
+    var h = serverBanner() + toastHtml();
     if (!ST.me.children.length) {
       h += '<section class="card"><h2>はじめに</h2><div class="sub">お子さんの名前と学年を登録してください。</div><button class="btn" data-tab="family" type="button">お子さんを登録する</button></section>';
     }
@@ -1414,7 +1424,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           PHOTO['t' + id] = r[id];
           view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r[id]; });
         });
-      }, function () { ids.forEach(function (id) { delete PHOTO['w' + id]; }); });
+      }, function () {
+        // サーバーが古くて「まとめて」がないときは、1枚ずつ
+        ids.forEach(function (id) { rpc('photo', { id: id, thumb: true }, function (r) { delete PHOTO['w' + id]; PHOTO['t' + id] = r.data; view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r.data; }); }, function () { delete PHOTO['w' + id]; }); });
+      });
     })(want.slice(i, i + 12));
   }
   function showPhoto(id) {

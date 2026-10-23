@@ -21,6 +21,7 @@ function doGet(e) {
   t.login = loginUrl_(ScriptApp.getService().getUrl());
   t.apiUrl = '';
   t.build = '';
+  t.server = '';
   t.home = ScriptApp.getService().getUrl();
   t.club = CONFIG.CLUB_NAME;
   return t.evaluate()

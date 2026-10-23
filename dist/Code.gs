@@ -752,6 +752,9 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_ID     … LINE ログインのチャネル ID（ポータルのログインに使う・必須）
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
+/** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
+const SERVER_VERSION = '8d2040ca74';
+
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
   CLUB_NAME: '河北SS',
@@ -1208,6 +1211,7 @@ function doGet(e) {
   t.login = loginUrl_(ScriptApp.getService().getUrl());
   t.apiUrl = '';
   t.build = '';
+  t.server = '';
   t.home = ScriptApp.getService().getUrl();
   t.club = CONFIG.CLUB_NAME;
   return t.evaluate()
@@ -1794,6 +1798,7 @@ function buildState_(ctx) {
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
+    server: SERVER_VERSION,
     today: today,
     me: {
       name: ctx.name,

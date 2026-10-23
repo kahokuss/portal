@@ -11,10 +11,14 @@ const configGs = fs.readFileSync(path.join(root, 'src/Config.gs'), 'utf8');
 const club = (configGs.match(/CLUB_NAME:\s*'([^']+)'/) || [])[1];
 if (!club) throw new Error('Config.gs の CLUB_NAME が見つかりません');
 
+// サーバー（src/*.gs）の版。画面にも同じ値を入れて、Apps Script が古いままなら画面で知らせる
+const gsFiles = fs.readdirSync(path.join(root, 'src')).filter((f) => f.endsWith('.gs')).sort();
+const serverVersion = require('crypto').createHash('md5').update(gsFiles.map((f) => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n')).digest('hex').slice(0, 10);
+
 function build() {
   const src = fs.readFileSync(path.join(root, 'src/Portal.html'), 'utf8');
   const build = require('crypto').createHash('md5').update(src + JSON.stringify(conf) + club).digest('hex').slice(0, 10);
-  const values = { key: '', login: '', error: '', home: conf.portalUrl, club: club, apiUrl: conf.apiUrl, build: build };
+  const values = { key: '', login: '', error: '', home: conf.portalUrl, club: club, apiUrl: conf.apiUrl, build: build, server: serverVersion };
   const out = src.replace(/<\?!=\s*JSON\.stringify\((\w+)\)\s*\?>/g, (m, name) => {
     if (!(name in values)) throw new Error('値が決まっていません: ' + name);
     return JSON.stringify(values[name]).replace(/</g, '\\u003c');
@@ -29,7 +33,7 @@ function buildGas() {
   return '// ' + club + ' ポータル（Apps Script）。このファイルは tools/build-pages.js が src/*.gs をつなげて作ります。\n' +
     '// 更新のしかた：Apps Script のエディタで「コード.gs」の中身を全部消して、このファイルの中身を全部貼り付け、保存します。\n' +
     '// そのあと「デプロイ」→「デプロイを管理」→ 鉛筆 →「新バージョン」→「デプロイ」。\n\n' +
-    files.map((f) => '// ===== ' + f + ' =====\n' + fs.readFileSync(path.join(root, 'src', f), 'utf8').trim() + '\n').join('\n');
+    files.map((f) => '// ===== ' + f + ' =====\n' + fs.readFileSync(path.join(root, 'src', f), 'utf8').trim().replace("const SERVER_VERSION = 'dev';", "const SERVER_VERSION = '" + serverVersion + "';") + '\n').join('\n');
 }
 
 const outputs = [[path.join(root, 'docs/index.html'), build()], [path.join(root, 'dist/Code.gs'), buildGas()]];

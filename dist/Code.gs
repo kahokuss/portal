@@ -187,6 +187,8 @@ function handleToday_(ev) {
     const lines = ['📅 今日 ' + whenText_(e)];
     if (notices[e.key]) lines.push(noticeLine_(notices[e.key]));
     if (e.race && e.detail && (e.detail.meetTime || e.detail.meetPlace)) lines.push('集合 ' + [e.detail.meetTime, e.detail.meetPlace].filter(Boolean).join(' '));
+    const jin = e.race && tasks.find((t) => t.eventKey === e.key && t['種類'] === '陣地');
+    if (jin && (jin['メモ'] || jin['写真ID'])) lines.push('📍 陣地：' + (jin['メモ'] ? String(jin['メモ']).replace(/\s+/g, ' ').slice(0, 80) : '写真あり') + (jin['写真ID'] ? '（写真はポータルで）' : ''));
     if (e.race) {
       const rows = readRows_(SHEETS.TIMETABLE).filter((r) => r.id && r.eventKey === e.key);
       u.kids.forEach((k) => {
@@ -666,6 +668,8 @@ function handleText_(ev) {
     return;
   }
   // 練習の変更の連絡（「次の木曜日は16時50分から競技場で練習します」など）は、記録だけして返事はしない
+  // 大会の日の「場所を取りました」は、その大会の陣地（集合場所）として記録する（返事はしない）
+  if (ev.source.type === 'group' && !parseCommand_(ev.message.text) && recordJinchi_(ev)) return;
   if (ev.source.type === 'group' && !parseCommand_(ev.message.text) && recordScheduleNotice_(ev)) return;
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;
@@ -804,9 +808,9 @@ const CHOICES = {
   TARGETS: ['全員', '3年生以上', '4年生以上', '希望者'],
   ABSENCE_REASONS: ['体調不良', '家の都合', '学校行事', 'その他'],
   // 大会の手続き（チェックリスト）の種類
-  TASKS: ['エントリー控え', '参加費支払い', 'プログラム', '受付', '招集', '進出', 'リレー予選', 'リレー決勝', 'レーン', 'ナンバー', 'リザルト'],
+  TASKS: ['エントリー控え', '参加費支払い', 'プログラム', '受付', '招集', '進出', 'リレー予選', 'リレー決勝', 'レーン', 'ナンバー', 'リザルト', '陣地'],
   // だれでも報告できる手続き（会場で助け合えるように）。ほかは役員と当番だけ
-  OPEN_TASKS: ['招集', '進出', 'レーン', 'ナンバー', 'リザルト'],
+  OPEN_TASKS: ['招集', '進出', 'レーン', 'ナンバー', 'リザルト', '陣地'],
   ROUNDS: ['予選', '準決勝', '決勝', 'タイムレース'],
   // 大会の申込方法と、資料の種類
   APPLY_HOW: ['Web', 'メール', 'FAX', '郵送', '持参', '当日'],
@@ -1492,6 +1496,43 @@ function minToHm_(n) {
   return ('0' + Math.floor(n / 60)).slice(-2) + ':' + ('0' + (n % 60)).slice(-2);
 }
 
+// ---- 大会の陣地（場所取り・集合場所） ----
+
+const JINCHI_PATTERN = /場所(?:を)?(?:取|と)り|場所取り|陣地/;
+
+/** その日の大会（練習でない予定） */
+function raceOn_(date) {
+  const races = {};
+  readRows_(SHEETS.RACES).forEach((r) => (races[r.eventKey] = true));
+  return readRows_(SHEETS.EVENTS).find((e) => e['日付'] === date && e['状態'] !== '中止' && (races[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習')) || null;
+}
+
+/** 大会の日に「本部の右側の階段に場所を取りました」などと送られたら、陣地として残す */
+function recordJinchi_(ev) {
+  const text = String(ev.message.text || '');
+  if (!JINCHI_PATTERN.test(text)) return false;
+  const race = raceOn_(fmt_(new Date(ev.timestamp), 'yyyy-MM-dd'));
+  if (!race) return false;
+  const ctx = { name: getDisplayName_(ev.source) || '保護者' };
+  upsertTask_(ctx, race.eventKey, '陣地', '', (t) => { t['メモ'] = text.slice(0, 300); t['状態'] = '済'; });
+  logHistory_(race.eventKey, ctx, '陣地：' + text.slice(0, 40));
+  return true;
+}
+
+/** 陣地を書いた人が、そのあと20分以内にグループに送った写真は、陣地の写真にする */
+function attachJinchiPhoto_(displayName, fileId, posted) {
+  if (!displayName || !fileId) return;
+  const date = fmt_(posted, 'yyyy-MM-dd');
+  const t = readRows_(SHEETS.TASKS).find((x) => x.id && x['種類'] === '陣地' && x['更新者'] === displayName && String(x['日時']).slice(0, 10) === date &&
+    Math.abs(posted.getTime() - new Date(String(x['日時']).replace(' ', 'T') + '+09:00').getTime()) <= 20 * 60000);
+  if (!t) return;
+  withLock_(() => {
+    const row = readRows_(SHEETS.TASKS).find((x) => x.id === t.id);
+    row['写真ID'] = splitNames_(row['写真ID']).concat([fileId]).join(',');
+    updateRow_(SHEETS.TASKS, row);
+  });
+}
+
 // ===== Photos.gs =====
 const EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
 
@@ -1541,6 +1582,7 @@ function handleImage_(ev) {
     'ファイルID': file.getId(),
     '種類': 'LINE',
   });
+  attachJinchiPhoto_(displayName, file.getId(), posted);
 }
 
 function photoFolderUrl_() {
@@ -2203,7 +2245,7 @@ function uploadPhotoAction_(ctx, p) {
   if (kind) {
     upsertTask_(ctx, p.key, kind, String(p.target || '').slice(0, 60), (t) => {
       t['写真ID'] = splitNames_(t['写真ID']).concat([file.getId()]).join(',');
-      if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い') t['状態'] = '済';
+      if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い' || kind === '陣地') t['状態'] = '済';
     });
   }
   logHistory_(p.key, ctx, (kind ? kind + 'の' : '') + '写真を追加');

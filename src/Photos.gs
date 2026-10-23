@@ -46,6 +46,7 @@ function handleImage_(ev) {
     'ファイルID': file.getId(),
     '種類': 'LINE',
   });
+  attachJinchiPhoto_(displayName, file.getId(), posted);
 }
 
 function photoFolderUrl_() {

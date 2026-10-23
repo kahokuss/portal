@@ -739,6 +739,26 @@ test('PCログイン: スマホで出した番号でPCから入れる（5分・1
   const c2 = gas.ctx.api(k, 'pcCode');
   assert.ok(post({ action: 'codeLogin', payload: { code: c2.code } }).error.includes('待って'), 'まちがいが続いたら止める');
 });
+test('陣地: 大会の日の「場所を取りました」と写真が、その大会の陣地に入る（返事なし）', () => {
+  const gas = createGas({ now: '2026-10-18T07:10:00+09:00' });
+  gas.init();
+  gas.calendar.add({ title: '打吹・羽衣クロスカントリー大会', start: new Date('2026-10-18T00:00:00+09:00'), end: new Date('2026-10-19T00:00:00+09:00'), allDay: true });
+  Object.assign(gas.profiles, { U1: '山田', U2: '鈴木' });
+  ['U1', 'U2'].forEach((u) => gas.members.add(u));
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const k = gas.login('U2').key;
+  gas.ctx.api(k, 'bootstrap');
+  const before = gas.fetches.filter((f) => /push|reply/.test(f.url)).length;
+  assert.strictEqual(gas.line(group('U1'), 'おはようございます☀\n本部に向かって右側の階段に場所を取りました。'), '');
+  gas.ctx.doPost({ parameter: { token: 'hook' }, postData: { contents: JSON.stringify({ events: [{ type: 'message', webhookEventId: 'img1', replyToken: 'r', timestamp: new Date('2026-10-18T07:11:00+09:00').getTime(), source: group('U1'), message: { type: 'image', id: 'm1' } }] }) } });
+  assert.strictEqual(gas.fetches.filter((f) => /push|reply/.test(f.url)).length, before, '返事はしない');
+  const st = gas.ctx.api(k, 'bootstrap');
+  const t = st.tasks.find((x) => x.kind === '陣地');
+  assert.ok(t && t.memo.includes('右側の階段') && t.photos.length === 1, JSON.stringify(t));
+  assert.ok(gas.line(dm('U2'), '今日').includes('📍 陣地：おはようございます☀ 本部に向かって右側の階段'));
+  const st2 = gas.ctx.api(k, 'setTask', { key: t.key, kind: '陣地', target: '', memo: '本部の右の階段（青いシート）', done: true });
+  assert.strictEqual(st2.tasks.find((x) => x.kind === '陣地').memo, '本部の右の階段（青いシート）', 'だれでも直せる');
+});
 test('ポータル画面: URLに付けたキーでは開けない（ログインが必要）', () => {
   const gas = setupClub();
   const k = gas.login('U1').key;

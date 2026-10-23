@@ -182,6 +182,8 @@ function handleToday_(ev) {
     const lines = ['📅 今日 ' + whenText_(e)];
     if (notices[e.key]) lines.push(noticeLine_(notices[e.key]));
     if (e.race && e.detail && (e.detail.meetTime || e.detail.meetPlace)) lines.push('集合 ' + [e.detail.meetTime, e.detail.meetPlace].filter(Boolean).join(' '));
+    const jin = e.race && tasks.find((t) => t.eventKey === e.key && t['種類'] === '陣地');
+    if (jin && (jin['メモ'] || jin['写真ID'])) lines.push('📍 陣地：' + (jin['メモ'] ? String(jin['メモ']).replace(/\s+/g, ' ').slice(0, 80) : '写真あり') + (jin['写真ID'] ? '（写真はポータルで）' : ''));
     if (e.race) {
       const rows = readRows_(SHEETS.TIMETABLE).filter((r) => r.id && r.eventKey === e.key);
       u.kids.forEach((k) => {

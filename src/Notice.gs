@@ -129,3 +129,40 @@ function applyNoticeAction_(ctx, p) {
 function minToHm_(n) {
   return ('0' + Math.floor(n / 60)).slice(-2) + ':' + ('0' + (n % 60)).slice(-2);
 }
+
+// ---- 大会の陣地（場所取り・集合場所） ----
+
+const JINCHI_PATTERN = /場所(?:を)?(?:取|と)り|場所取り|陣地/;
+
+/** その日の大会（練習でない予定） */
+function raceOn_(date) {
+  const races = {};
+  readRows_(SHEETS.RACES).forEach((r) => (races[r.eventKey] = true));
+  return readRows_(SHEETS.EVENTS).find((e) => e['日付'] === date && e['状態'] !== '中止' && (races[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習')) || null;
+}
+
+/** 大会の日に「本部の右側の階段に場所を取りました」などと送られたら、陣地として残す */
+function recordJinchi_(ev) {
+  const text = String(ev.message.text || '');
+  if (!JINCHI_PATTERN.test(text)) return false;
+  const race = raceOn_(fmt_(new Date(ev.timestamp), 'yyyy-MM-dd'));
+  if (!race) return false;
+  const ctx = { name: getDisplayName_(ev.source) || '保護者' };
+  upsertTask_(ctx, race.eventKey, '陣地', '', (t) => { t['メモ'] = text.slice(0, 300); t['状態'] = '済'; });
+  logHistory_(race.eventKey, ctx, '陣地：' + text.slice(0, 40));
+  return true;
+}
+
+/** 陣地を書いた人が、そのあと20分以内にグループに送った写真は、陣地の写真にする */
+function attachJinchiPhoto_(displayName, fileId, posted) {
+  if (!displayName || !fileId) return;
+  const date = fmt_(posted, 'yyyy-MM-dd');
+  const t = readRows_(SHEETS.TASKS).find((x) => x.id && x['種類'] === '陣地' && x['更新者'] === displayName && String(x['日時']).slice(0, 10) === date &&
+    Math.abs(posted.getTime() - new Date(String(x['日時']).replace(' ', 'T') + '+09:00').getTime()) <= 20 * 60000);
+  if (!t) return;
+  withLock_(() => {
+    const row = readRows_(SHEETS.TASKS).find((x) => x.id === t.id);
+    row['写真ID'] = splitNames_(row['写真ID']).concat([fileId]).join(',');
+    updateRow_(SHEETS.TASKS, row);
+  });
+}

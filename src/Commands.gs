@@ -87,6 +87,8 @@ function handleText_(ev) {
     return;
   }
   // 練習の変更の連絡（「次の木曜日は16時50分から競技場で練習します」など）は、記録だけして返事はしない
+  // 大会の日の「場所を取りました」は、その大会の陣地（集合場所）として記録する（返事はしない）
+  if (ev.source.type === 'group' && !parseCommand_(ev.message.text) && recordJinchi_(ev)) return;
   if (ev.source.type === 'group' && !parseCommand_(ev.message.text) && recordScheduleNotice_(ev)) return;
   const cmd = parseCommand_(ev.message.text);
   if (!cmd) return;

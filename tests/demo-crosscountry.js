@@ -44,6 +44,7 @@ api('setTask', { key: race.key, kind: 'リレー決勝', target: '河北SS A（�
 api('setTask', { key: race.key, kind: 'リレー決勝', target: '河北SS B（男子3・4年の部）', memo: '1区 高橋ごろう／2区 伊藤ろくろう／3区 渡辺しちろう', done: true });
 KIDS.forEach((k) => { if (k[4]) api('setTask', { key: race.key, kind: 'ナンバー', target: k[0], memo: k[4] }); });
 api('setTask', { key: race.key, kind: 'エントリー控え', target: '', done: true });
+api('setTask', { key: race.key, kind: '陣地', target: '', memo: '本部に向かって右側の階段に場所を取りました（青いシート）', done: true });
 const data = receipt && fs.existsSync(receipt) ? 'data:image/jpeg;base64,' + fs.readFileSync(receipt).toString('base64') : '';
 api('saveLedger', { key: race.key, amount: 6500, payee: '主催者（陸上競技協会）', note: '参加料', data: data });
 

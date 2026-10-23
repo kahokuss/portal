@@ -215,7 +215,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "2440182760";
+var BUILD = "9a32460dd7";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -316,6 +316,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (mdE && diff(ST.today, mdE.date) <= 14) {
       h += '<section class="card banner"><h2>わが家の当番<small>' + (mdE.date === ST.today ? '今日' : 'あと' + diff(ST.today, mdE.date) + '日') + '</small></h2><button class="ev" type="button" data-ev="' + mdE.key + '"><span class="main"><span class="big">' + md(mdE.date) + ' ' + esc(md0.type) + '当番</span><br><span class="sub">' + esc(mdE.title) + (mdE.place ? '・' + esc(mdE.place) : '') + '</span></span>›</button></section>';
     }
+    upcoming(function (e) { return isRace(e) && e.date <= addDays(ST.today, 1); }).forEach(function (e) { h += jinchiCard(e, true); });
     var today = upcoming(function (e) { return isRace(e) && e.date <= addDays(ST.today, 1); }).filter(function (e) { return myCalls(e).length; })[0];
     if (today) {
       var calls = myCalls(today);
@@ -376,6 +377,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.innerHTML = h;
     bindCommon();
     bindNotices();
+    on('[data-photo]', function () { showPhoto(this.dataset.photo); });
+    loadThumbs();
     on('[data-cdel]', function () { if (confirm('このコメントを消しますか？')) call('deleteComment', { id: this.dataset.cdel }); });
     on('#absBtn', function () { S.absForm = !S.absForm; S.toast = ''; render(); });
     on('#absCancel', function () { S.absForm = false; render(); });
@@ -456,6 +459,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var tabs = ['概要', 'エントリー', '種目', 'タイムテーブル', '手続き', '結果', '写真'];
     h += '<div class="tabs" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + t + '</button>'; }).join('') + '</div>' + toastHtml();
     if (S.etab === '概要') {
+      if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
       h += statusCard(e);
       if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + (ST.me.admin ? '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button><button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button></div>' : '') + '</section>';
       else {
@@ -464,7 +468,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
           (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl>' + (ST.me.admin ? '<button class="btn small ghost" id="editRace" type="button">案内を直す</button>' : '') + '</section>';
       }
-      h += docsCard(e) + dutyCard(e) + commentsCard(e) + historyCard(e);
+      h += (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1) ? '' : jinchiCard(e)) + docsCard(e) + dutyCard(e) + commentsCard(e) + historyCard(e);
     }
     if (S.etab === 'エントリー') h += entryHtml(e);
     if (S.etab === 'タイムテーブル') h += timetableHtml(e);
@@ -474,7 +478,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '種目') h += racesTab(e);
     view.innerHTML = h;
     bindDuty(e);
-    if (S.etab === '概要') { bindComments(e); bindRaceInfo(e); bindDeadlines(e); }
+    if (S.etab === '概要') { bindComments(e); bindRaceInfo(e); bindDeadlines(e); bindJinchi(e); bindPhotos(e); }
     if (S.etab === 'タイムテーブル') bindTimetable(e);
     if (S.etab === '手続き') { bindTasks(e); bindTimetable(e); }
     if (S.etab === '写真') bindPhotos(e);
@@ -1412,6 +1416,21 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#downNow', function () { call('markDown', { key: e.key }); });
     on('#downAgain', function () { call('markDown', { key: e.key }); });
     on('#downClear', function () { call('markDown', { key: e.key, clear: true }); });
+  }
+
+  // ---- 陣地（場所取り・集合場所） ----
+  function jinchiCard(e, compact) {
+    var t = taskOf(e.key, '陣地', ''), has = t && (t.memo || t.photos.length), soon = e.date >= addDays(ST.today, -0) && e.date <= addDays(ST.today, 1);
+    if (compact && !has) return '';
+    var h = '<section class="card' + (soon || has ? ' banner' : '') + '"' + dropAttr('photo', e.key, '陣地', '') + '><h2>📍 陣地（場所取り）' + (compact ? '<small>' + esc(e.title) + '</small>' : '') + '</h2>';
+    if (has) h += (t.memo ? '<div class="b" style="white-space:pre-wrap">' + esc(t.memo) + '</div>' : '') + photosHtml(t.photos) + whoWhen(t);
+    else h += '<div class="sub">場所を取ったら、場所の説明と写真を載せてください。集合のときにみんなが迷いません（グループに「場所を取りました」と写真を送っても、ここに入ります）。</div>';
+    if (compact) h += '<button class="link" type="button" data-ev="' + e.key + '">大会のページへ ›</button>';
+    else h += '<div class="row"><button class="btn small ghost" type="button" data-jin="' + esc(t && t.memo || '') + '">' + (t && t.memo ? '説明を直す' : '場所を書く') + '</button>' + photoBtn('陣地', '', '写真を載せる') + '</div>' + DROP_HINT;
+    return h + '</section>';
+  }
+  function bindJinchi(e) {
+    on('[data-jin]', function () { var v = prompt('陣地の場所（例：本部に向かって右側の階段）', this.dataset.jin); if (v !== null) call('setTask', { key: e.key, kind: '陣地', target: '', memo: v.trim(), done: !!v.trim() }); });
   }
 
   // ---- 大会の状況・資料・履歴 ----

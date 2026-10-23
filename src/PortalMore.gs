@@ -223,7 +223,7 @@ function uploadPhotoAction_(ctx, p) {
   if (kind) {
     upsertTask_(ctx, p.key, kind, String(p.target || '').slice(0, 60), (t) => {
       t['写真ID'] = splitNames_(t['写真ID']).concat([file.getId()]).join(',');
-      if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い') t['状態'] = '済';
+      if (kind === 'エントリー控え' || kind === 'プログラム' || kind === '参加費支払い' || kind === '陣地') t['状態'] = '済';
     });
   }
   logHistory_(p.key, ctx, (kind ? kind + 'の' : '') + '写真を追加');

@@ -37,6 +37,7 @@ const API_ACTIONS = {
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
   saveTimetablePlan: { run: saveTimetablePlanAction_ },
+  saveTimetableDraft: { run: saveTimetableDraftAction_ },
   setTask: { run: setTaskAction_ },
   uploadPhoto: { run: uploadPhotoAction_ },
   photo: { raw: true, run: photoAction_ },
@@ -92,6 +93,8 @@ function raceToObj_(r) {
     reception: r['受付'] || '',
     url: r['要項URL'] || '',
     deadlines: parseDeadlines_(r['手続き期限']),
+    ttMemo: r['時刻表メモ'] || '',
+    ttDraft: r['時刻表下書き'] || '',
   };
 }
 

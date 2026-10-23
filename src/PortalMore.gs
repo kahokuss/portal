@@ -745,6 +745,8 @@ function saveTimetablePlanAction_(ctx, p) {
     race['種目'] = list.join(',');
     const meet = cleanTime_(p.meetTime || '');
     if (meet) race['集合時刻'] = meet;
+    race['時刻表メモ'] = String(p.memo || '').slice(0, 1000);
+    race['時刻表下書き'] = '';
     race['更新日時'] = now_();
     updateRow_(SHEETS.RACES, race);
     const entries = readRows_(SHEETS.ENTRIES).filter((x) => x.eventKey === p.key);
@@ -761,6 +763,21 @@ function saveTimetablePlanAction_(ctx, p) {
       changed++;
     });
   });
-  logHistory_(p.key, ctx, 'タイムテーブルの表を保存（' + rows.length + '種目・エントリー ' + changed + '人を更新）');
-  return 'タイムテーブルを保存しました（' + rows.length + '件・エントリー ' + changed + '人を更新）';
+  logHistory_(p.key, ctx, 'タイムテーブルを大会に反映（' + rows.length + '種目・エントリー ' + changed + '人を更新）');
+  return 'タイムテーブルを大会に反映しました（' + rows.length + '件・エントリー ' + changed + '人を更新）';
+}
+
+/** タイムテーブルの下書き（まだ大会には出さない）。役員・当番 */
+function saveTimetableDraftAction_(ctx, p) {
+  if (!findEvent_(p.key)) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  const json = p.clear ? '' : JSON.stringify(p.draft || {});
+  if (json.length > 45000) throw new Error('下書きが大きすぎます。種目を減らしてください。');
+  withLock_(() => {
+    let race = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (!race) race = appendRow_(SHEETS.RACES, { eventKey: p.key, '種別': '大会', '対象': '全員', '更新日時': now_() });
+    race['時刻表下書き'] = json;
+    updateRow_(SHEETS.RACES, race);
+  });
+  return p.clear ? '下書きを消しました' : '下書きを保存しました（まだ大会には出ていません）';
 }

@@ -560,16 +560,31 @@ async function openPortal(browser, gas, userId, name) {
       assert.strictEqual(await a.inputValue('[data-tbf="1|call"]'), '10:40〜10:50', 'フィールドは40〜30分前');
       await a.click('[data-tbk="1|鈴木けんた"]');
       assert.ok((await a.textContent('#view')).includes('2種目ダブリ'), 'ダブリの注意');
+      await a.click('#tb-dblmemo');
+      assert.ok((await a.inputValue('#tb-memo')).includes('※鈴木けんた'), 'ダブリをメモに書き足す');
+      await a.click('#tb-draft');
+      await a.idle();
+      assert.ok((await a.textContent('#view')).includes('下書きです'), '下書きはまだ大会に出ない');
+      assert.ok(!gas.rows('タイムテーブル').some((r) => r['開始'] === '11:05' && r['種目'] === '100m'), '下書きでは時刻表は変わらない');
       await a.shot('17-ttb');
+      a.once('dialog', (d) => d.accept());
       await a.click('#tb-save');
       await a.idle();
+      assert.ok((await a.textContent('#view')).includes('大会に反映ずみ'));
       const e = gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた' && gas.rows('予定').find((x) => x.eventKey === r.eventKey)['タイトル'] === '冬季ロードレース大会');
       assert.deepStrictEqual([e['回答'], e['種目']], ['参加', '100m,走幅跳'], 'エントリーに入る');
       assert.ok(gas.rows('タイムテーブル').some((r) => r['種目'] === '全体アップ' && r['アップ'] === '7:50〜8:50'));
       await a.click('#tb-print');
-      assert.ok((await a.textContent('#view')).includes('招集開始〜完了'));
-      await a.shot('18-ttb-print');
+      assert.ok((await a.textContent('#view')).includes('招集 10:35–45'), '時刻は短く');
       await a.click('#tbBack');
+      // 大会のページの時刻表に「一覧表」として出る
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("冬季ロードレース大会")');
+      await a.click('[data-et="タイムテーブル"]');
+      await a.click('[data-ttf="一覧表"]');
+      const t = await a.textContent('#view');
+      assert.ok(t.includes('6年男子100m予選') && t.includes('鈴木けんた') && t.includes('※鈴木けんた') && t.includes('集合 7:40'), t);
+      await a.shot('18-race-sheet');
     });
     await step('上のバーに「LINEへ」ボタンがある', async () => {
       assert.strictEqual(await p.getAttribute('#toLine', 'href'), 'https://line.me/R/nv/chat');
@@ -676,7 +691,7 @@ async function openPortal(browser, gas, userId, name) {
       await q.idle();
       assert.ok(gas.rows('タイムテーブル').some((r) => r['招集'] === '10:05〜10:15' && r['アップ'] === '9:00〜9:35'), '幅のある時刻も保存できる');
       const text = await q.textContent('#view');
-      assert.ok(text.includes('全体') && text.includes('7:40〜8:40'), '全体アップが上に出る');
+      assert.ok(text.includes('全体') && text.includes('7:40–8:40'), '全体アップが上に出る');
       assert.ok(text.includes('2種目ダブリ'), '時間の近い種目に注意が出る');
       await q.shot('12-sporec');
       a.errors.push(...q.errors);

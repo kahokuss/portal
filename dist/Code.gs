@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '241cde6592';
+const SERVER_VERSION = 'a86779f25a';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1649,6 +1649,7 @@ const API_ACTIONS = {
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
   saveTimetablePlan: { run: saveTimetablePlanAction_ },
+  saveTimetableDraft: { run: saveTimetableDraftAction_ },
   setTask: { run: setTaskAction_ },
   uploadPhoto: { run: uploadPhotoAction_ },
   photo: { raw: true, run: photoAction_ },
@@ -1704,6 +1705,8 @@ function raceToObj_(r) {
     reception: r['受付'] || '',
     url: r['要項URL'] || '',
     deadlines: parseDeadlines_(r['手続き期限']),
+    ttMemo: r['時刻表メモ'] || '',
+    ttDraft: r['時刻表下書き'] || '',
   };
 }
 
@@ -2791,6 +2794,8 @@ function saveTimetablePlanAction_(ctx, p) {
     race['種目'] = list.join(',');
     const meet = cleanTime_(p.meetTime || '');
     if (meet) race['集合時刻'] = meet;
+    race['時刻表メモ'] = String(p.memo || '').slice(0, 1000);
+    race['時刻表下書き'] = '';
     race['更新日時'] = now_();
     updateRow_(SHEETS.RACES, race);
     const entries = readRows_(SHEETS.ENTRIES).filter((x) => x.eventKey === p.key);
@@ -2807,8 +2812,23 @@ function saveTimetablePlanAction_(ctx, p) {
       changed++;
     });
   });
-  logHistory_(p.key, ctx, 'タイムテーブルの表を保存（' + rows.length + '種目・エントリー ' + changed + '人を更新）');
-  return 'タイムテーブルを保存しました（' + rows.length + '件・エントリー ' + changed + '人を更新）';
+  logHistory_(p.key, ctx, 'タイムテーブルを大会に反映（' + rows.length + '種目・エントリー ' + changed + '人を更新）');
+  return 'タイムテーブルを大会に反映しました（' + rows.length + '件・エントリー ' + changed + '人を更新）';
+}
+
+/** タイムテーブルの下書き（まだ大会には出さない）。役員・当番 */
+function saveTimetableDraftAction_(ctx, p) {
+  if (!findEvent_(p.key)) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  const json = p.clear ? '' : JSON.stringify(p.draft || {});
+  if (json.length > 45000) throw new Error('下書きが大きすぎます。種目を減らしてください。');
+  withLock_(() => {
+    let race = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (!race) race = appendRow_(SHEETS.RACES, { eventKey: p.key, '種別': '大会', '対象': '全員', '更新日時': now_() });
+    race['時刻表下書き'] = json;
+    updateRow_(SHEETS.RACES, race);
+  });
+  return p.clear ? '下書きを消しました' : '下書きを保存しました（まだ大会には出ていません）';
 }
 
 // ===== Results.gs =====
@@ -3032,7 +3052,7 @@ const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
-  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限'] },
+  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時'] },

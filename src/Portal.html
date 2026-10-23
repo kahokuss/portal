@@ -214,12 +214,26 @@ form.f, .f { display: grid; gap: 8px; }
 .tbin { font: inherit; font-size: 12.5px; width: 7.2em; padding: 1px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--fg); }
 .kidpick button { font-size: 12px; padding: 2px 10px; }
 .ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tm { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ptable td.tc, .ptable th { white-space: nowrap; }
+.plist { display: grid; }
+.prow { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.prow:first-child { border-top: 0; }
+.pt-time { flex: none; width: 3.3em; font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.pt-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.pt-sub { font-size: 12.5px; color: var(--muted); }
+.pt-kids { display: flex; flex-wrap: wrap; gap: 4px; }
+.wide-tbl { display: none; }
+@media (min-width: 700px) { .wide-tbl { display: table; } .plist { display: none; } }
 .ptable th, .ptable td { border: 1px solid var(--line); padding: 4px 6px; white-space: normal; }
 @media print {
   body { background: #fff; padding: 0; }
   .top, .nav, .noprint, .busy, .toast { display: none !important; }
   .frame, .card { border: 0 !important; box-shadow: none; }
   .ptable th, .ptable td { border-color: #555; color: #000; }
+  .view > *:not(.print) { display: none !important; }
+  .wide-tbl { display: table !important; }
+  .plist { display: none !important; }
 }
 .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); }
 .legend .k { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--viz-line); vertical-align: middle; margin-right: 4px; }
@@ -1028,7 +1042,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function ttItem(e, r, kids, only) {
     var warm = r.warm || tsub(r.call, ST.choices.warmMinutes);
     var h = '<div class="tt"><div class="tt-time">' + esc(r.start || '—') + '</div><div class="main"><div class="ttl">' + esc(r.race) + ' <span class="sub">' + esc([r.group, r.heat].filter(Boolean).join(' ')) + '</span></div>' +
-      '<div class="sub">' + (warm ? 'アップ ' + esc(warm) + (r.warm ? '' : '頃') + '　' : '') + (r.call ? '<b class="callt">招集 ' + esc(r.call) + '</b>' : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
+      '<div class="sub">' + (r.call ? '<b class="callt">招集 ' + shortRange(r.call) + '</b>　' : '') + (warm ? 'アップ ' + shortRange(warm) + (r.warm ? '' : '頃') : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
     if (kids.length) h += '<div class="tt-kids">' + kids.map(function (k) {
       var lane = taskOf(e.key, 'レーン', k.name + '|' + r.id), mine = myNames().indexOf(k.name) >= 0;
       return '<span class="row"><span>' + esc(k.name) + (k.grade ? ' <span class="sub">' + k.grade + '年</span>' : '') + (lane && lane.memo ? ' <span class="pill p-gray">' + esc(lane.memo) + '</span>' : '') + '</span><span class="row">' +
@@ -1060,12 +1074,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var rows = ttRows(e), mine = ST.me.children, f = S.ttf || (mine.length ? 'わが家' : '全部'), h = '';
     var whole = ST.timetable.filter(function (r) { return r.key === e.key && isAll(r); });
     if (whole.length || (e.detail && e.detail.meetTime)) h += '<section class="card"><h2>全体</h2><div class="list">' + (e.detail && e.detail.meetTime ? '<div class="tt"><div class="tt-time">' + esc(e.detail.meetTime) + '</div><div class="main"><div class="ttl">集合</div><div class="sub">' + esc(e.detail.meetPlace || '') + '</div></div></div>' : '') +
-      whole.map(function (r) { return '<div class="tt"><div class="tt-time">' + esc(r.start || '—') + '</div><div class="main"><div class="ttl">' + esc(r.race) + '</div><div class="sub">' + esc([r.warm, r.memo].filter(Boolean).join('　')) + '</div></div></div>'; }).join('') + '</div></section>';
+      whole.map(function (r) { return '<div class="tt"><div class="tt-time">' + esc(r.start || '—') + '</div><div class="main"><div class="ttl">' + esc(r.race) + '</div><div class="sub">' + (r.warm ? shortRange(r.warm) : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div></div></div>'; }).join('') + '</div></section>';
+    if (canManage(e.key) && e.detail && e.detail.ttDraft) h += '<div class="toast err">📝 タイムテーブルの下書きがあります（まだみんなには出ていません）。' + (ST.me.admin ? '「ボタンでつくる」で続きを直して「大会に反映」してください。' : '') + '</div>';
     if (canManage(e.key)) h += '<div class="row"><button class="btn small ghost" id="ttEdit" type="button">' + (rows.length ? '✎ 貼り付け・一覧で直す' : '＋ プログラムを貼り付けて入れる') + '</button>' + (ST.me.admin ? '<button class="btn small ghost" id="ttBuild" type="button">🗂 ボタンでつくる（出る子も）</button>' : '') + '</div>';
     if (!rows.length) return h + '<section class="card"><div class="sub">タイムテーブルはまだ入っていません。プログラムが出たら、役員か当番の人が入れます。</div></section>';
-    var filters = (mine.length ? ['わが家'] : []).concat(['全部', '1年', '2年', '3年', '4年', '5年', '6年']);
+    var filters = (mine.length ? ['わが家'] : []).concat(['一覧表', '全部', '1年', '2年', '3年', '4年', '5年', '6年']);
     h += '<div class="tabs" role="group" aria-label="しぼりこみ">' + filters.map(function (x) { return '<button type="button" data-ttf="' + x + '" aria-pressed="' + (f === x) + '">' + x + '</button>'; }).join('') + '</div>';
-    if (f === 'わが家') {
+    if (f === '一覧表') {
+      var all = rows.map(function (r) { return { start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, kids: (needsAdvance(e, r) ? rowKids(e, r) : entrants(e, r)).map(function (k) { return k.name; }) }; });
+      var wholeRow = ST.timetable.filter(function (r) { return r.key === e.key && isAll(r); })[0];
+      h += sheetHtml(e, e.detail && e.detail.meetTime, wholeRow ? wholeRow.warm || wholeRow.start : '', all, e.detail && e.detail.ttMemo) + '<button class="btn small ghost noprint" type="button" id="ttPrint" style="justify-self:start">印刷する</button>';
+    } else if (f === 'わが家') {
       if (e.date === ST.today) {
         var next = myCalls(e).filter(function (c) { return !c.done && c.r.call; })[0];
         if (next) { var m = minutesUntil(next.r.call); h += '<section class="card banner"><h2>次の招集</h2><div class="big">' + esc(next.r.call) + '　' + esc(next.k.name) + '・' + esc(next.r.race) + '</div><div class="sub">' + (m >= 0 ? 'あと' + m + '分' : m > -60 ? '時刻を過ぎています' : '') + '</div></section>'; }
@@ -1093,6 +1112,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function bindTimetable(e) {
     on('[data-ttf]', function () { S.ttf = this.dataset.ttf; render(); });
+    on('#ttPrint', function () { window.print(); });
     on('#ttBuild', function () { S.ttb = { key: e.key, meet: '', warmAll: '', trackCall: 30, fieldCall: 40, rows: [], f: { grades: [], sex: '女子', race: '100m', round: '予選', start: '' }, edit: -1, allKids: false, view: '' }; ttbLoad(S.ttb); S.tab = 'admin'; S.admin = 'ttb'; render(); window.scrollTo(0, 0); });
     on('#ttEdit', function () { S.ttDraft = ST.timetable.filter(function (r) { return r.key === e.key && isAll(r); }).concat(ttRows(e)).map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }; }); if (!S.ttDraft.length) S.ttDraft.push(blankTT()); S.toast = ''; render(); });
     on('[data-call]', function () { call('setTask', { key: e.key, kind: '招集', target: this.dataset.call, done: !!this.dataset.done }); });
@@ -1940,16 +1960,26 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var fin = T.rows.filter(function (r) { return r.kids.indexOf(k.name) >= 0; });
       doubleBooked(fin).forEach(function (x) { if (!dbl.some(function (y) { return y.indexOf(x) >= 0; })) dbl.push(k.name + '：' + x + '（決勝に残れば）'); });
     });
-    if (dbl.length) h += '<section class="card"><h2>2種目ダブリ<small>' + dbl.length + '件</small></h2><div class="list">' + dbl.map(function (x) { return '<div class="sub">⚠ ' + esc(x) + '</div>'; }).join('') + '</div></section>';
+    if (dbl.length) h += '<section class="card"><h2>2種目ダブリ<small>' + dbl.length + '件</small></h2><div class="list">' + dbl.map(function (x) { return '<div class="sub dblline">⚠ ' + esc(x) + '</div>'; }).join('') + '</div></section>';
     h += '<section class="card"><label class="chk" style="display:flex;gap:6px;align-items:center;font-size:12.5px"><input type="checkbox" id="tb-all"' + (T.allKids ? ' checked' : '') + '> 学年・男女に関係なく、全員から子どもを選ぶ</label>' +
-      '<div class="row"><button class="btn" type="button" id="tb-save">保存（時刻表とエントリーに入れる）</button><button class="btn ghost" type="button" id="tb-print">表で見る・印刷</button><button class="btn ghost" type="button" id="tb-copy">LINE用にコピー</button></div>' +
-      '<div class="hint">保存すると、大会の「時刻表」と、出る子の「エントリー（参加・種目）」に入ります。各家庭の「わが家」に、その子の時刻・招集が出ます。</div></section>';
+      '<label class="f" style="margin-top:6px">※ メモ（表の下に出ます）<textarea id="tb-memo" style="min-height:60px" placeholder="例：6年男100m、幅跳び 2種目ダブリ">' + esc(T.memo || '') + '</textarea></label>' +
+      (dbl.length ? '<button class="link" type="button" id="tb-dblmemo">ダブリをメモに書き足す</button>' : '') +
+      '<div class="toast' + (T.isDraft ? ' err' : '') + '" style="margin-top:6px">' + (T.isDraft ? '📝 下書きです。まだ大会には出ていません' : (ttRows(e).length ? '✅ 大会に反映ずみの内容です（直したら、もう一度「大会に反映」）' : 'まだ大会に反映していません')) + '</div>' +
+      '<div class="row"><button class="btn ghost" type="button" id="tb-draft">下書き保存</button><button class="btn" type="button" id="tb-save">大会に反映（みんなに公開）</button></div>' +
+      '<div class="row"><button class="btn small ghost" type="button" id="tb-print">表で見る・印刷</button><button class="btn small ghost" type="button" id="tb-copy">LINE用にコピー</button>' + (T.isDraft ? '<button class="btn small ghost" type="button" id="tb-undraft">下書きを消す</button>' : '') + '</div>' +
+      '<div class="hint">「下書き保存」は役員・当番だけが見られます。「大会に反映」すると、大会の時刻表（一覧表）と、出る子のエントリー（参加・種目）に入り、各家庭の「わが家」にその子の時刻・招集が出ます。</div></section>';
     view.innerHTML = h;
     bindBack(); ttbBind(T);
   }
   /** 大会の今の時刻表とエントリーから、表を読みこむ */
   function ttbLoad(T) {
     var e = evByKey(T.key); if (!e) return;
+    T.edit = -1;
+    var dr = null;
+    try { dr = e.detail && e.detail.ttDraft ? JSON.parse(e.detail.ttDraft) : null; } catch (x) { dr = null; }
+    if (dr && dr.rows) { ['meet', 'warmAll', 'trackCall', 'fieldCall', 'rows', 'memo'].forEach(function (k) { if (dr[k] !== undefined) T[k] = dr[k]; }); T.isDraft = true; return; }
+    T.isDraft = false;
+    T.memo = (e.detail && e.detail.ttMemo) || '';
     T.meet = (e.detail && e.detail.meetTime) || '';
     var whole = ST.timetable.filter(function (r) { return r.key === e.key && isAll(r); })[0];
     T.warmAll = whole ? whole.warm || whole.start : '';
@@ -1958,7 +1988,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function ttbBind(T) {
     var F = T.f;
-    var keepTop = function () { T.meet = val('tb-meet'); T.warmAll = val('tb-warm'); F.start = val('tb-start'); var rr = val('tb-race').trim(); if (rr) F.race = rr; };
+    var keepTop = function () { T.meet = val('tb-meet'); T.warmAll = val('tb-warm'); F.start = val('tb-start'); var rr = val('tb-race').trim(); if (rr) F.race = rr; if (document.getElementById('tb-memo')) T.memo = val('tb-memo'); };
+    var draftData = function () { return { meet: T.meet, warmAll: T.warmAll, trackCall: T.trackCall, fieldCall: T.fieldCall, memo: T.memo, rows: T.rows.map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo, kids: r.kids }; }) }; };
+    on('#tb-draft', function () { keepTop(); call('saveTimetableDraft', { key: T.key, draft: draftData() }, function () { T.isDraft = true; }); });
+    on('#tb-undraft', function () { if (!confirm('下書きを消して、大会に出ている内容に戻しますか？')) return; call('saveTimetableDraft', { key: T.key, clear: true }, function () { ttbLoad(T); }); });
+    on('#tb-dblmemo', function () {
+      keepTop();
+      var lines = [];
+      view.querySelectorAll('.dblline').forEach(function (x) { lines.push(x.textContent.replace(/^⚠\s*/, '')); });
+      T.memo = (T.memo ? T.memo + '\n' : '') + lines.map(function (l) { return '※' + l; }).join('\n');
+      render();
+    });
     document.getElementById('tb-ev').addEventListener('change', function () { T.key = this.value; ttbLoad(T); render(); });
     on('#tb-callcfg', function () { var a = prompt('トラックの招集は、競技開始の何分前から？', T.trackCall); if (a === null) return; var b = prompt('フィールドの招集は、競技開始の何分前から？', T.fieldCall); if (b === null) return; T.trackCall = +a || 30; T.fieldCall = +b || 40; keepTop(); render(); });
     on('[data-tfg]', function () { keepTop(); var g = +this.dataset.tfg, i = F.grades.indexOf(g); if (i >= 0) F.grades.splice(i, 1); else F.grades.push(g); render(); });
@@ -2005,7 +2045,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var rows = T.rows.map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo, kids: r.kids }; });
       var wa = toHalf(T.warmAll || '').match(/(\d{1,2}:\d{2})/);
       if (wa) rows.unshift({ id: '', start: wa[1], race: '全体アップ', group: '', heat: '', call: '', warm: T.warmAll.replace(/[~～]/g, '〜'), memo: '', kids: [] });
-      call('saveTimetablePlan', { key: T.key, meetTime: T.meet, rows: rows }, function () { ttbLoad(T); });
+      if (!confirm('この表を大会に反映しますか？\nみんなの時刻表と、出る子のエントリーが変わります。')) return;
+      call('saveTimetablePlan', { key: T.key, meetTime: T.meet, rows: rows, memo: T.memo }, function () { ttbLoad(T); });
     });
     on('#tb-print', function () { keepTop(); T.view = 'print'; render(); window.scrollTo(0, 0); });
     on('#tb-copy', function () {
@@ -2023,18 +2064,37 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (fi.length) out.push('', '【フィールド】'), fi.forEach(function (r) { out.push(line(r)); });
     return out.join('\n');
   }
-  /** 表で見る・印刷（配る紙と同じ形） */
-  function ttbPrint(T, e) {
-    var table = function (rows) {
-      return '<table class="ptable"><thead><tr><th>種目</th><th>競技開始</th><th>招集開始〜完了</th><th>アップ</th><th>出る子</th></tr></thead><tbody>' + rows.map(function (r) {
-        return '<tr><td>' + esc(ttbLabel(r)) + '</td><td>' + esc(r.start) + '</td><td><b>' + esc(r.call) + '</b></td><td>' + esc(r.warm || '全体アップ') + '</td><td>' + esc(r.kids.join('　')) + '</td></tr>';
+  /** 配る紙と同じ形の表（種目・競技開始・招集・アップ・出る子・※メモ） */
+  /** 「10:35〜10:45」→「10:35–45」（同じ時なら分だけ）。時刻は折り返さない */
+  function shortRange(t) {
+    var m = toHalf(t || '').match(/^(\d{1,2}):(\d{2})\s*[〜~\-－–]\s*(\d{1,2}):(\d{2})$/);
+    if (!m) return esc(t || '');
+    return '<span class="tm">' + (+m[1]) + ':' + m[2] + '–' + (m[1] === m[3] || +m[1] === +m[3] ? m[4] : (+m[3]) + ':' + m[4]) + '</span>';
+  }
+  function sheetHtml(e, meet, warmAll, rows, memo) {
+    var table = function (list) {
+      // 広い画面と印刷：配る紙と同じ表
+      var t = '<table class="ptable wide-tbl"><thead><tr><th>種目</th><th>開始</th><th>招集</th><th>アップ</th><th>出る子</th></tr></thead><tbody>' + list.map(function (r) {
+        return '<tr><td>' + esc(ttbLabel(r)) + '</td><td class="tc"><b class="tm">' + esc(r.start) + '</b></td><td class="tc"><b>' + shortRange(r.call) + '</b></td><td class="tc">' + (r.warm ? shortRange(r.warm) : '全体アップ') + '</td><td>' + esc(r.kids.join('、')) + '</td></tr>';
       }).join('') + '</tbody></table>';
+      // スマホ：開始時刻を大きく、招集・アップは1行に
+      var l = '<div class="plist">' + list.map(function (r) {
+        return '<div class="prow"><div class="pt-time">' + esc(r.start || '—') + '</div><div class="pt-main"><b>' + esc(ttbLabel(r)) + '</b>' +
+          '<div class="pt-sub"><span class="callt">招集 ' + shortRange(r.call) + '</span>　アップ ' + (r.warm ? shortRange(r.warm) : '全体アップ') + '</div>' +
+          (r.kids.length ? '<div class="pt-kids">' + r.kids.map(function (n) { return '<span class="pill p-gray">' + esc(n) + '</span>'; }).join(' ') + '</div>' : '') + '</div></div>';
+      }).join('') + '</div>';
+      return t + l;
     };
-    var tr = ttbSorted(T, false), fi = ttbSorted(T, true);
-    var h = '<div class="noprint row"><button class="link" type="button" id="tbBack">‹ つくる画面に戻る</button><button class="btn small" type="button" id="tbPrint">印刷する</button></div>' +
-      '<section class="card print"><div class="between"><b style="font-size:1.1rem">' + esc(e ? e.title : '') + '</b><span>' + (e ? md(e.date) : '') + '</span></div>' +
-      '<div class="sub">' + (T.meet ? '集合 <b>' + esc(T.meet) + '</b>　' : '') + (T.warmAll ? '全体アップ <b>' + esc(T.warmAll) + '</b>' : '') + '</div>' +
-      (tr.length ? '<div class="lbl">トラック</div><div class="tbl-wrap">' + table(tr) + '</div>' : '') + (fi.length ? '<div class="lbl">フィールド</div><div class="tbl-wrap">' + table(fi) + '</div>' : '') + '</section>';
+    var sorted = function (field) { return rows.filter(function (r) { return field === higherBetter(r.race); }).sort(function (a, b) { return (hm2m(a.start) || 9999) - (hm2m(b.start) || 9999); }); };
+    var tr = sorted(false), fi = sorted(true);
+    return '<section class="card print"><div class="between"><b style="font-size:1.1rem">' + esc(e ? e.title : '') + '</b><span>' + (e ? md(e.date) : '') + '</span></div>' +
+      '<div class="sub">' + (meet ? '集合 <b class="tm">' + esc(meet) + '</b>　' : '') + (warmAll ? '全体アップ <b>' + shortRange(warmAll) + '</b>' : '') + '</div>' +
+      (tr.length ? '<div class="lbl">トラック</div>' + table(tr) : '') + (fi.length ? '<div class="lbl">フィールド</div>' + table(fi) : '') +
+      (memo ? '<div class="sub" style="white-space:pre-wrap;color:var(--fg)">' + esc(memo) + '</div>' : '') + '</section>';
+  }
+  /** 表で見る・印刷（つくる画面から） */
+  function ttbPrint(T, e) {
+    var h = '<div class="noprint row"><button class="link" type="button" id="tbBack">‹ つくる画面に戻る</button><button class="btn small" type="button" id="tbPrint">印刷する</button></div>' + sheetHtml(e, T.meet, T.warmAll, T.rows, T.memo);
     view.innerHTML = h;
     on('#tbBack', function () { T.view = ''; render(); });
     on('#tbPrint', function () { window.print(); });

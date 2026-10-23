@@ -353,7 +353,7 @@ function canonRaceGs_(r) {
   r = toHalfWidth_(r || '').toLowerCase().replace(/\s/g, '').replace(/[×x]/g, 'x').replace(/\(.*?\)/g, '');
   if (/リレー|\dx\d+m/.test(r)) return 'リレー';
   return r.replace('走り幅跳び', '走幅跳').replace('走り高跳び', '走高跳').replace(/幅跳び?$/, '幅跳').replace(/高跳び?$/, '高跳')
-    .replace(/ジャベ(?:リック)?ボール(?:投げ?|スロー)|ボール(?:投げ?|スロー)|ジャベリックスロー/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
+    .replace(/ジャベ(?:リック)?ボール(?:投げ?|スロー)|ボール(?:投げ?|スロー)|ジャベリックスロー|ジャベ$/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
 }
 
 function sameRaceGs_(a, b) {
@@ -1393,7 +1393,16 @@ function parseScheduleNotice_(text, today) {
   let place = pm ? pm[1].replace(/^.*(?:から|は|、)/, '').replace(/^(?:の|で)/, '') : '';
   if (/^(?:今日|明日|次|練習|こちら|現地|いつも)/.test(place) || /\d/.test(place)) place = '';
   if (!cancel && !times.length && !place) return null;
-  return { date: date, start: cancel ? '' : times[0] || '', end: cancel ? '' : times[1] || '', place: cancel ? '' : place, cancel: cancel };
+  // 終わりの時刻は「16時〜18時」「16時から18時まで」のように幅で書かれたときだけ（「15時30分頃に連絡」などは使わない）
+  const T = '(\\d{1,2})(?:時(?:(\\d{1,2})分|半)?|:(\\d{2}))';
+  const rg = t.match(new RegExp(T + '\\s*(?:〜|~|-|－|ー|から)\\s*' + T + '(?:まで)?'));
+  let end = '';
+  if (rg && times.length >= 2) {
+    const hm = (h, a, b, half) => { let x = +h; if (x < 9) x += 12; return ('0' + x).slice(-2) + ':' + ('0' + (a ? +a : b ? +b : half ? 30 : 0)).slice(-2); };
+    const s0 = hm(rg[1], rg[2], rg[3], /^\d{1,2}時半/.test(rg[0])), e0 = hm(rg[4], rg[5], rg[6], /半(?:まで)?$/.test(rg[0]));
+    if (s0 === times[0] && e0 > s0) end = e0;
+  }
+  return { date: date, start: cancel ? '' : times[0] || '', end: cancel ? '' : end, place: cancel ? '' : place, cancel: cancel };
 }
 
 /** 「今日」「明日」「あさって」「次の木曜日」「木曜」「10/23」「10月23日」「23日」を日付にする */
@@ -2109,6 +2118,16 @@ function cleanTime_(s) {
   return t ? t.replace(/^0/, '') : '';
 }
 
+/** 「9:00〜9:10」のような幅のある時刻も受け付ける（招集・アップ） */
+function cleanTimeRange_(s) {
+  const parts = toHalfWidth_(s || '').split(/\s*[〜～~\-－ー]\s*/).filter(Boolean);
+  if (parts.length === 2) {
+    const a = cleanTime_(parts[0]), b = cleanTime_(parts[1]);
+    if (a && b) return a + '〜' + b;
+  }
+  return cleanTime_(s);
+}
+
 function saveTimetableAction_(ctx, p) {
   const ev = findEvent_(p.key);
   if (!ev) throw new Error('大会が見つかりません。');
@@ -2119,8 +2138,8 @@ function saveTimetableAction_(ctx, p) {
     '種目': String(r.race || '').trim().slice(0, 30),
     '区分': String(r.group || '').trim().slice(0, 30),
     '組': String(r.heat || '').trim().slice(0, 20),
-    '招集': cleanTime_(r.call),
-    'アップ': cleanTime_(r.warm),
+    '招集': cleanTimeRange_(r.call),
+    'アップ': cleanTimeRange_(r.warm),
     'メモ': String(r.memo || '').trim().slice(0, 100),
   })).filter((r) => r['種目']);
   withLock_(() => {

@@ -676,6 +676,15 @@ test('変更連絡: グループの連絡を練習に結びつけ（返事なし
   assert.ok(st.comments.filter((c) => c.kind === '変更連絡').every((c) => c.measure === '予定に反映しました'));
 });
 
+test('変更連絡: 「今週の土曜日」「雨の場合は15時30分頃に連絡」「〜に変更です」', () => {
+  const gas = createGas({ now: '2026-10-23T08:40:00+09:00' });
+  const parse = (x, d) => plain(gas.run('parseScheduleNotice_(' + JSON.stringify(x) + ', ' + JSON.stringify(d) + ')'));
+  assert.deepStrictEqual(parse('今週の土曜日の練習について連絡です🏃\n\nスポレク出場選手は16時から総産で練習があります。\n雨の場合は15時30分頃に有無等の連絡をします。\nよろしくお願いします', '2026-10-22'),
+    { date: '2026-10-24', start: '16:00', end: '', place: '総産', cancel: false }, '15時30分は終わりの時刻ではない');
+  assert.deepStrictEqual(parse('明日の練習について連絡です\n\n13時30分から河北小の体育館に変更です🏃\n\nよろしくお願いします', '2026-10-23'),
+    { date: '2026-10-24', start: '13:30', end: '', place: '河北小の体育館', cancel: false });
+  assert.deepStrictEqual(parse('土曜の練習は9時〜11時です', '2026-10-23'), { date: '2026-10-24', start: '09:00', end: '11:00', place: '', cancel: false }, '幅で書けば終わりの時刻も');
+});
 test('ダウン: 「ダウンです。」でも記録する', () => {
   const gas = createGas();
   assert.ok(gas.run("DOWN_PATTERN.test('ダウンです。')"));

@@ -553,6 +553,32 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...p2.errors, ...s3.errors);
       await p2.close(); await s3.close();
     });
+    await step('当番: 県スポレクの表（招集開始〜完了・アップの幅・小1女・ジャベ・全体アップ）を貼り付けて読み取る', async () => {
+      const q = await openPortal(browser, gas, keys.parent, 'parent3');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="タイムテーブル"]');
+      await q.click('#ttEdit');
+      const n = await q.locator('.tte').count();
+      await q.fill('#ttIn', "7:40 全体アップ 7:40〜8:40\n9:30 小1女50mタイムレース 招集9:00〜9:10 全体アップ\n10:00 小2男50mタイムレース 招集9:30〜9:40 アップ9:00〜9:20\n10:15 小3女100mタイムレース 招集9:45〜9:55 アップ9:00〜9:35\n10:35 小4女100m予選 招集10:05〜10:15 アップ9:00〜9:35\n10:50 小5女100m予選 招集10:20〜10:30 アップ9:40〜10:10\n11:05 小6女100m予選 招集10:35〜10:45 アップ9:40〜10:25\n11:20 小3男100m決勝 招集10:50〜11:00 アップ9:40〜10:25\n12:05 小6男100m予選 招集11:35〜11:45 アップ10:45〜11:25\n13:30 小男4×100mリレー予選 招集13:00〜13:10 アップ12:30〜12:50\n14:10 小女800mタイムレース 招集13:40〜13:50 アップ13:00〜13:30\n14:35 小4女100m決勝 招集14:05〜14:15 アップ13:00〜13:55\n14:40 小5女100m決勝 招集14:10〜14:20 アップ13:00〜13:55\n14:45 小6女100m決勝 招集14:15〜14:25 アップ13:00〜13:55\n15:00 小6男100m決勝 招集14:30〜14:40 アップ13:55〜14:20\n16:00 小男4×100mリレー決勝 招集15:30〜15:40 アップ14:50〜15:20\n9:30 小男幅跳び 招集8:50〜9:00 全体アップ\n9:30 小女幅跳び 招集8:50〜9:00 全体アップ\n9:30 小男ジャベ 招集8:50〜9:00 全体アップ\n9:30 小女ジャベ 招集8:50〜9:00 全体アップ\n11:00 小男高跳び 招集10:20〜10:30 アップ9:40〜10:10");
+      await q.click('#ttPaste button[type=submit]');
+      const row = (i) => Promise.all(['start', 'race', 'group', 'heat', 'call', 'warm', 'memo'].map((k) => q.inputValue('[data-tt="' + (n + i) + '|' + k + '"]')));
+      assert.strictEqual(await q.locator('.tte').count(), n + 21, '21行');
+      assert.deepStrictEqual((await row(0)).slice(0, 2), ['7:40', '全体アップ']);
+      assert.deepStrictEqual(await row(1), ['9:30', '50m', '1年女子', 'タイムレース', '9:00〜9:10', '', 'アップは全体アップ']);
+      assert.deepStrictEqual(await row(4), ['10:35', '100m', '4年女子', '予選', '10:05〜10:15', '9:00〜9:35', '']);
+      assert.deepStrictEqual((await row(9)).slice(0, 5), ['13:30', '4×100mリレー', '男子', '予選', '13:00〜13:10']);
+      assert.deepStrictEqual((await row(18)).slice(0, 3), ['9:30', 'ジャベ', '男子']);
+      await q.click('#ttSave');
+      await q.idle();
+      assert.ok(gas.rows('タイムテーブル').some((r) => r['招集'] === '10:05〜10:15' && r['アップ'] === '9:00〜9:35'), '幅のある時刻も保存できる');
+      const text = await q.textContent('#view');
+      assert.ok(text.includes('全体') && text.includes('7:40〜8:40'), '全体アップが上に出る');
+      assert.ok(text.includes('2種目ダブリ'), '時間の近い種目に注意が出る');
+      await q.shot('12-sporec');
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('PC: スマホに出した番号でログインできる（GitHub Pages の画面）', async () => {
       const PAGES = 'https://kahokuss.github.io/portal/';
       const html = fs.readFileSync(path.join(__dirname, '../docs/index.html'), 'utf8');

@@ -138,6 +138,16 @@ function cleanTime_(s) {
   return t ? t.replace(/^0/, '') : '';
 }
 
+/** 「9:00〜9:10」のような幅のある時刻も受け付ける（招集・アップ） */
+function cleanTimeRange_(s) {
+  const parts = toHalfWidth_(s || '').split(/\s*[〜～~\-－ー]\s*/).filter(Boolean);
+  if (parts.length === 2) {
+    const a = cleanTime_(parts[0]), b = cleanTime_(parts[1]);
+    if (a && b) return a + '〜' + b;
+  }
+  return cleanTime_(s);
+}
+
 function saveTimetableAction_(ctx, p) {
   const ev = findEvent_(p.key);
   if (!ev) throw new Error('大会が見つかりません。');
@@ -148,8 +158,8 @@ function saveTimetableAction_(ctx, p) {
     '種目': String(r.race || '').trim().slice(0, 30),
     '区分': String(r.group || '').trim().slice(0, 30),
     '組': String(r.heat || '').trim().slice(0, 20),
-    '招集': cleanTime_(r.call),
-    'アップ': cleanTime_(r.warm),
+    '招集': cleanTimeRange_(r.call),
+    'アップ': cleanTimeRange_(r.warm),
     'メモ': String(r.memo || '').trim().slice(0, 100),
   })).filter((r) => r['種目']);
   withLock_(() => {

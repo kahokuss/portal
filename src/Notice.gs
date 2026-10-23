@@ -31,7 +31,16 @@ function parseScheduleNotice_(text, today) {
   let place = pm ? pm[1].replace(/^.*(?:から|は|、)/, '').replace(/^(?:の|で)/, '') : '';
   if (/^(?:今日|明日|次|練習|こちら|現地|いつも)/.test(place) || /\d/.test(place)) place = '';
   if (!cancel && !times.length && !place) return null;
-  return { date: date, start: cancel ? '' : times[0] || '', end: cancel ? '' : times[1] || '', place: cancel ? '' : place, cancel: cancel };
+  // 終わりの時刻は「16時〜18時」「16時から18時まで」のように幅で書かれたときだけ（「15時30分頃に連絡」などは使わない）
+  const T = '(\\d{1,2})(?:時(?:(\\d{1,2})分|半)?|:(\\d{2}))';
+  const rg = t.match(new RegExp(T + '\\s*(?:〜|~|-|－|ー|から)\\s*' + T + '(?:まで)?'));
+  let end = '';
+  if (rg && times.length >= 2) {
+    const hm = (h, a, b, half) => { let x = +h; if (x < 9) x += 12; return ('0' + x).slice(-2) + ':' + ('0' + (a ? +a : b ? +b : half ? 30 : 0)).slice(-2); };
+    const s0 = hm(rg[1], rg[2], rg[3], /^\d{1,2}時半/.test(rg[0])), e0 = hm(rg[4], rg[5], rg[6], /半(?:まで)?$/.test(rg[0]));
+    if (s0 === times[0] && e0 > s0) end = e0;
+  }
+  return { date: date, start: cancel ? '' : times[0] || '', end: cancel ? '' : end, place: cancel ? '' : place, cancel: cancel };
 }
 
 /** 「今日」「明日」「あさって」「次の木曜日」「木曜」「10/23」「10月23日」「23日」を日付にする */

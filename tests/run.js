@@ -631,8 +631,17 @@ test('Bot: 新着・今日・予定・休み・当番・出欠・エントリー
 
   const ab = gas.line(dm('U2'), '休み');
   assert.ok(ab.includes('休みの連絡をします'));
-  const btn = gas.fetches.filter((f) => /reply$/.test(f.url)).pop().payload.messages[0].quickReply.items[0].action.text;
-  assert.strictEqual(btn, '休み 鈴木けんた 2026-10-15', '次の練習の日のボタン');
+  const btns = gas.lastButtons();
+  assert.ok(btns.some((b) => b.type === 'datetimepicker' && /a=abs/.test(b.data)), '日付を選ぶボタン');
+  const day = btns.find((b) => b.type === 'postback' && /d=2026-10-15/.test(b.data));
+  assert.ok(day && day.label.includes('10/15'), '次の練習の日のボタン');
+  // 日にちのボタン → 理由のボタン → 押すと連絡（文字を打たなくてよい）
+  assert.ok(gas.postback(dm('U2'), day.data).includes('理由を選んでください'));
+  const why = gas.lastButtons().find((b) => b.label === '体調不良');
+  assert.ok(gas.postback(dm('U2'), why.data).includes('10/15(木) 鈴木けんたのお休みを連絡しました（体調不良）'));
+  const undo = gas.lastButtons().find((b) => b.label === '取り消す');
+  assert.ok(gas.postback(dm('U2'), undo.data).includes('取り消しました'));
+  assert.strictEqual(gas.rows('休み').filter((x) => x.id).length, 0);
   const r = gas.line(dm('U2'), '休み 明日 体調不良 熱っぽい');
   assert.ok(r.includes('10/15(木) 鈴木けんたのお休みを連絡しました（体調不良・熱っぽい）'), r);
   assert.strictEqual(gas.rows('休み')[0]['メモ'], '熱っぽい');
@@ -648,6 +657,68 @@ test('Bot: 新着・今日・予定・休み・当番・出欠・エントリー
   assert.ok(gas.line(dm('U2'), '今日').includes('今日の予定はありません'));
   assert.ok(gas.line(dm('U3'), '休み').includes('先にお子さんを登録'));
 });
+test('Bot：カレンダー・予定のカードから押すだけで、休み・エントリー・アンケート・集金・自主トレ', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kA = gas.login('U1').key;
+  gas.login('U2');
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kA, 'bootstrap');
+  const race = st.events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kA, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', place: '市営陸上競技場', target: '全員', fee: 500, deadline: '2026-10-25', races: ['100m', '走幅跳'], items: ['水筒'], meetTime: '8:00' });
+
+  // 1対1のトークでは「…」を出してから返事する
+  const n0 = gas.fetches.length;
+  const cal = gas.line(dm('U2'), 'カレンダー');
+  assert.ok(gas.fetches.slice(n0).some((f) => /chat\/loading\/start$/.test(f.url)), '読み込み中の「…」');
+  assert.ok(cal.includes('2026年10月'), cal.slice(0, 80));
+  const days = gas.lastButtons().filter((b) => /a=day&d=/.test(b.data || ''));
+  assert.ok(days.some((b) => /2026-10-15/.test(b.data)), '練習の日を押せる');
+  assert.ok(gas.lastButtons().some((b) => b.type === 'datetimepicker'), '日付を選ぶ');
+  assert.ok(gas.postback(dm('U2'), 'a=cal&m=2026-11').includes('2026年11月'), '次の月');
+  assert.ok(gas.postback(dm('U2'), 'a=day', { date: '2026-11-01' }).includes('秋季記録会'), '日付を選ぶとその日の予定');
+  assert.ok(gas.postback(dm('U2'), 'a=day&d=2026-10-16').includes('予定がありません'));
+
+  // 予定のカード → 参加 → 種目を押して選ぶ
+  const sched = gas.line(dm('U2'), '予定');
+  assert.ok(sched.includes('秋季記録会') && sched.includes('鈴木けんた：未回答') && sched.includes('集合 8:00'), sched);
+  const join = gas.lastButtons().find((b) => /a=ent/.test(b.data || '') && /j=%E5%8F%82%E5%8A%A0/.test(b.data));
+  assert.ok(gas.postback(dm('U2'), join.data).includes('出る種目を押してください'));
+  gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '＋100m').data);
+  assert.ok(gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '＋走幅跳').data).includes('いま：100m・走幅跳'));
+  let ent = gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた');
+  assert.strictEqual(ent['回答'], '参加');
+  assert.strictEqual(ent['種目'], '100m,走幅跳');
+  gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '✓100m').data);
+  assert.strictEqual(gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた')['種目'], '走幅跳', 'もう一度押すと外れる');
+  assert.throws(() => { throw new Error(gas.postback(dm('U2'), 'a=ent&k=' + race.key + '&c=' + encodeURIComponent('山田たろう') + '&j=' + encodeURIComponent('参加'))); }, /登録されていません/, 'よその子は押せない');
+
+  // アンケート
+  gas.ctx.api(kA, 'savePoll', { title: '送迎の車を出せますか', options: ['出せる', '出せない'], deadline: '2026-10-30' });
+  assert.ok(gas.line(dm('U2'), 'アンケート').includes('まだ答えていません'));
+  assert.ok(gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '出せる').data).includes('回答しました：出せる'));
+  assert.ok(gas.line(dm('U2'), 'アンケート').includes('わが家の回答：出せる'));
+
+  // 集金（大会の参加費も）
+  gas.ctx.api(kA, 'saveFee', { name: '年会費', amount: 3000, target: '全員' });
+  const fees = gas.line(dm('U2'), '集金');
+  assert.ok(fees.includes('年会費 3000円') && fees.includes('秋季記録会 参加費 500円'), fees);
+
+  // 自主トレ
+  assert.ok(gas.line(dm('U2'), '自主トレ').includes('自主トレを記録します'));
+  assert.ok(gas.line(dm('U2'), '自主トレ ランニング 3km 20分').includes('ランニング 3km 20分 を記録しました'));
+  const tr = gas.rows('自主トレ').find((r) => r['子ども'] === '鈴木けんた');
+  assert.strictEqual(tr['距離km'], '3');
+
+  // メニュー・お知らせ
+  assert.ok(gas.line(dm('U2'), 'メニュー').includes('[カレンダー]'));
+  gas.ctx.api(kA, 'saveNotice', { title: '集合時間の変更', body: '8時集合です' });
+  assert.ok(gas.line(dm('U2'), 'お知らせ').includes('集合時間の変更'));
+  // 新着には次の練習・大会のカードも
+  assert.ok(gas.line(dm('U2'), '新着').includes('次の練習・大会'));
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

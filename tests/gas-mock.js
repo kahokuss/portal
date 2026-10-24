@@ -117,6 +117,15 @@ class Calendar {
 /**
  * @param {{now?: string}} options now はテスト中の「現在時刻」
  */
+/** メッセージの文字（カード〈flex〉は代わりの文と中の文字・ボタンの名前） */
+function msgText(m) {
+  if (m.type !== 'flex') return m.text;
+  const out = [m.altText];
+  const walk = (o) => { if (!o || typeof o !== 'object') return; if (o.type === 'text' && o.text) out.push(o.text); if (o.type === 'button' && o.action) out.push('[' + o.action.label + ']'); Object.keys(o).forEach((k) => walk(o[k])); };
+  walk(m.contents);
+  return out.join('\n');
+}
+
 function createGas(options) {
   const NOW = new Date((options && options.now) || '2026-10-14T09:00:00+09:00').getTime();
   class FakeDate extends Date {
@@ -276,11 +285,27 @@ function createGas(options) {
       const before = fetches.length;
       const ev = { type: 'message', webhookEventId: crypto.randomUUID(), replyToken: 'r', timestamp: NOW, source, message: { type: 'text', id: 'm', text } };
       ctx.doPost({ parameter: { token: props.WEBHOOK_TOKEN }, postData: { contents: JSON.stringify({ events: [ev] }) } });
-      return fetches.slice(before).filter((f) => /reply$/.test(f.url)).map((f) => f.payload.messages.map((m) => m.text).join('\n')).join('\n');
+      return fetches.slice(before).filter((f) => /reply$/.test(f.url)).map((f) => f.payload.messages.map(msgText).join('\n')).join('\n');
+    },
+    /** ボタン（postback）を押したことにする。返信された文章（カードは中の文字）を返す */
+    postback(source, data, params) {
+      const before = fetches.length;
+      const ev = { type: 'postback', webhookEventId: crypto.randomUUID(), replyToken: 'r', timestamp: NOW, source, postback: { data, params } };
+      ctx.doPost({ parameter: { token: props.WEBHOOK_TOKEN }, postData: { contents: JSON.stringify({ events: [ev] }) } });
+      return fetches.slice(before).filter((f) => /reply$/.test(f.url)).map((f) => f.payload.messages.map(msgText).join('\n')).join('\n');
+    },
+    /** 最後の返信のメッセージ（そのまま） */
+    lastReply() { const f = fetches.filter((x) => /reply$/.test(x.url)).pop(); return f ? f.payload.messages : []; },
+    /** 最後の返信の、押せるボタン（クイックリプライ・カードのボタン）。{label, text|data} */
+    lastButtons() {
+      const out = [];
+      const walk = (o) => { if (!o || typeof o !== 'object') return; if (o.action && o.action.label) out.push(o.action); Object.keys(o).forEach((k) => { if (k !== 'action') walk(o[k]); }); };
+      gas.lastReply().forEach(walk);
+      return out;
     },
     pushes() { return fetches.filter((f) => /push$/.test(f.url) && !f.failed); },
     /** グループで送ったときに、送った人にだけ届いた返事 */
-    privateTo(userId) { return fetches.filter((f) => /push$/.test(f.url) && !f.failed && f.payload.to === userId).map((f) => f.payload.messages.map((m) => m.text).join('\n')).join('\n'); },
+    privateTo(userId) { return fetches.filter((f) => /push$/.test(f.url) && !f.failed && f.payload.to === userId).map((f) => f.payload.messages.map(msgText).join('\n')).join('\n'); },
     /** LINE ログインして戻ってきたことにする。ポータルのキー（または null）とエラー文を返す */
     login(userId) {
       const html = ctx.doGet({ parameter: {} }).getContent();

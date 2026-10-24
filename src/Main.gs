@@ -41,6 +41,7 @@ function doPost(e) {
   if (p.token === undefined) return apiPost_(e);
   if (p.token !== prop_('WEBHOOK_TOKEN')) return ok_();
   const body = JSON.parse(e.postData.contents);
+  const t0 = Date.now();
   (body.events || []).forEach((ev) => {
     try {
       if (isDuplicate_(ev)) return;
@@ -49,6 +50,7 @@ function doPost(e) {
       console.error(err && err.stack ? err.stack : err);
     }
   });
+  if ((body.events || []).length) console.log('Bot: ' + (body.events || []).map((x) => x.type).join(',') + ' ' + (Date.now() - t0) + 'ms');
   return ok_();
 }
 
@@ -111,7 +113,11 @@ function handleEvent_(ev) {
   if (source.type === 'room') return;
   if (!source.userId) return;
 
-  if (ev.type === 'message' && ev.message.type === 'text') return handleText_(ev);
+  if (ev.type === 'postback') { startLoading_(ev); return handlePostback_(ev); }
+  if (ev.type === 'message' && ev.message.type === 'text') {
+    if (source.type === 'user' && parseCommand_(ev.message.text)) startLoading_(ev);
+    return handleText_(ev);
+  }
   if (ev.type === 'message' && ev.message.type === 'image' && source.type === 'group') return handleImage_(ev);
 }
 

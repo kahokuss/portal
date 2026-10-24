@@ -4256,7 +4256,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
   if (q.get('tab') && /^(home|events|album|family|train|admin|dash)$/.test(q.get('tab'))) S.tab = q.get('tab');
-  if (q.get('v') || q.get('tab')) { q.delete('v'); q.delete('tab'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  if (q.get('ev') && /^[\w-]{6,40}$/.test(q.get('ev'))) { S.tab = 'events'; S.event = q.get('ev'); S.etab = '概要'; }
+  if (q.get('v') || q.get('tab') || q.get('ev')) { q.delete('v'); q.delete('tab'); q.delete('ev'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   // Strava のログインから戻ってきたとき（?strava=1&code=…&state=…）。LINEログインの code とは分けて扱う
   if (q.get('strava')) {
     S.stravaPending = { code: q.get('code') || '', state: q.get('state') || '', scope: q.get('scope') || '', error: q.get('error') || '' };

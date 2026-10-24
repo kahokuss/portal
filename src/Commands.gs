@@ -28,11 +28,16 @@ function helpText_() {
     '',
     '新着 … 次の練習・わが家の当番・エントリーの締切・お知らせなど、まとめて',
     '今日 … 今日の予定（大会の日は、子どもの時刻・招集・ナンバー）',
-    '予定 … これからの予定',
+    'カレンダー … 月のカレンダー（日にちを押すと、その日の予定）',
+    '予定 … これからの予定（カードから休み・エントリーをそのまま押せます）',
     '休み … 休みの連絡（例：休み 明日／休み たろう 10/20 体調不良）。「休み取消」で取り消し',
     '当番 … わが家の当番と、これからの当番',
     '出欠 … 次の練習で休む人',
     'エントリー … 大会のエントリーの状況',
+    'アンケート … 答えていないアンケートにボタンで回答',
+    '集金 … わが家の払っていない集金・参加費',
+    'お知らせ … 最近のお知らせ',
+    '自主トレ … 自主トレを記録（例：自主トレ ランニング 3km 20分）',
     'ポータル … 予定・大会のエントリー・休みの連絡ができるページのリンク（グループのメンバーだけが見られます）',
     '登録 名前 学年 … お子さんを登録（例：登録 山田たろう 3年 山田はなこ 1年）。ポータルの「わが家」からもできます',
     '結果 種目 記録 … レース結果を記録（例：結果 100m 15.2秒）',
@@ -57,7 +62,8 @@ function parseCommand_(text) {
     'ヘルプ': 'help', '使い方': 'help', 'help': 'help',
     '登録': 'register',
     'ポータル': 'portal', 'portal': 'portal',
-    '新着': 'news', '確認': 'news', 'お知らせ': 'news', 'メニュー': 'help',
+    '新着': 'news', '確認': 'news', 'お知らせ': 'notices', 'メニュー': 'help', 'もっと': 'help',
+    'カレンダー': 'calendar', '月': 'calendar', 'アンケート': 'polls', '集金': 'fees', '自主トレ': 'training', 'トレーニング': 'training',
     '今日': 'today', 'きょう': 'today',
     '予定': 'schedule', '次': 'schedule', 'スケジュール': 'schedule',
     '休み': 'absence', '欠席': 'absence', 'やすみ': 'absence',
@@ -95,7 +101,17 @@ function handleText_(ev) {
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
   switch (cmd.name) {
     case 'help':
-      return respond_(ev, botMessages_([helpText_()]));
+      return respond_(ev, [helpBubble_()]);
+    case 'calendar':
+      return handleCalendar_(ev, /^\d{1,2}$/.test(toHalfWidth_(cmd.args)) ? botMonthOf_(Number(toHalfWidth_(cmd.args))) : '');
+    case 'notices':
+      return handleNotices_(ev);
+    case 'polls':
+      return handlePolls_(ev);
+    case 'fees':
+      return handleFees_(ev);
+    case 'training':
+      return handleTraining_(ev, cmd.args);
     case 'register':
       return handleRegister_(ev, cmd.args);
     case 'portal':

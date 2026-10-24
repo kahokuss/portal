@@ -20,7 +20,14 @@ function quickItems_(labels) {
   };
 }
 
-const MAIN_QUICK = ['新着', '今日', '予定', '休み', '当番', 'ポータル'];
+const MAIN_QUICK = ['新着', '今日', 'カレンダー', '予定', '休み', '当番', 'メニュー'];
+
+/** 「カレンダー 12」→ 今日から見て近いほうの12月 */
+function botMonthOf_(m) {
+  const t = today_(), y = Number(t.slice(0, 4)), now = Number(t.slice(5, 7));
+  const yy = m < now - 3 ? y + 1 : y;
+  return yy + '-' + ('0' + Math.min(12, Math.max(1, m))).slice(-2);
+}
 
 /** 文章の配列を、最後にボタンを付けた返事にする */
 function botMessages_(texts, quick) {
@@ -162,7 +169,11 @@ function handleNews_(ev) {
 
   if (lines.length === 1) lines.push('', '新しいことはありません。');
   if (u.family) withLock_(() => { const f = findFamily_(u.userId); if (f) { f['新着確認'] = now_(); updateRow_(SHEETS.FAMILIES, f); } });
-  respond_(ev, botMessages_([lines.join('\n'), adminLines.length ? adminLines.join('\n') + '\n\n詳しくはポータルの管理メニューで\n' + portalUrl_() : '']));
+  const msgs = botMessages_([lines.join('\n'), adminLines.length ? adminLines.join('\n') + '\n\n詳しくはポータルの管理メニューで\n' + portalUrl_() : '']);
+  // 次の練習・次の大会をカードでも（休み・参加をそのまま押せる）
+  const cards = [d.events.find((e) => !e.race), d.events.find((e) => e.race)].filter(Boolean);
+  if (cards.length && u.kids.length) { try { msgs.push(eventsCarousel_(cards, u, d, '次の練習・大会')); } catch (err) { console.warn(err); } }
+  respond_(ev, msgs);
 }
 
 // ---- 今日・予定 ----
@@ -213,6 +224,8 @@ function handleSchedule_(ev) {
   const d = botData_();
   const list = d.events.slice(0, 6);
   if (!list.length) return respond_(ev, botMessages_(['これからの予定はありません。']));
+  // カードで出す（休み・エントリーをそのまま押せる）。カードが出せないときは文章
+  try { return respond_(ev, [eventsCarousel_(d.events.slice(0, 10), botUser_(ev), d, 'これからの予定：' + list.slice(0, 3).map((e) => formatDate_(e.date) + ' ' + e.title).join('、'))]); } catch (err) { console.warn(err); }
   const lines = ['📅 これからの予定'];
   const notices = pendingNotices_();
   list.forEach((e) => lines.push((e.race ? '🏅 ' : '・') + whenText_(e) + (e.race && e.detail && e.detail.deadline && e.detail.deadline >= d.today ? '\n　締切 ' + formatDate_(e.detail.deadline) : '') + (notices[e.key] ? '\n　' + noticeLine_(notices[e.key]) : '')));
@@ -249,8 +262,9 @@ function handleAbsence_(ev, args) {
   const practices = d.events.filter((e) => !e.race).slice(0, 4);
   if (!args) {
     const quick = [];
-    practices.slice(0, u.kids.length > 1 ? 3 : 4).forEach((e) => u.kids.forEach((k) => quick.push([(u.kids.length > 1 ? k.name.slice(-3) + ' ' : '') + formatDate_(e.date), '休み ' + k.name + ' ' + e.date])));
-    return respond_(ev, botMessages_(['休みの連絡をします。下のボタンから選ぶか、\n「休み 明日」「休み ' + u.kids[0].name + ' 10/20 体調不良」\nのように送ってください。\n理由とひとことは、役員と本人だけに見えます。'], quick.slice(0, 12).concat(['新着'])));
+    practices.slice(0, u.kids.length > 1 ? 3 : 4).forEach((e) => u.kids.forEach((k) => quick.push([(u.kids.length > 1 ? short_(k.name) + ' ' : '') + formatDate_(e.date), { a: 'abs', d: e.date, c: k.name }, formatDate_(e.date) + ' ' + k.name + 'は休み'])));
+    const picks = u.kids.map((k) => ({ type: 'datetimepicker', label: ('📅 ' + (u.kids.length > 1 ? short_(k.name) + ' ' : '') + '日付を選ぶ').slice(0, 20), data: pbData_({ a: 'abs', c: k.name }), mode: 'date', initial: d.today, min: d.today }));
+    return respond_(ev, [Object.assign(text_('休みの連絡をします。下のボタンから選ぶか、\n「休み 明日」「休み ' + u.kids[0].name + ' 10/20 体調不良」\nのように送ってください。\n理由とひとことは、役員と本人だけに見えます。'), { quickReply: quickPb_(picks.concat(quick.slice(0, 12 - picks.length))) })]);
   }
   const p = parseAbsenceArgs_(args, u.kids, practices.map((e) => e.date), d.today);
   if (!p.child) return respond_(ev, botMessages_(['だれのお休みか、名前も書いてください。\n例：休み ' + u.kids[0].name + ' 明日'], u.kids.map((k) => ['休み ' + k.name.slice(-6), '休み ' + k.name + ' ' + (p.date || '')])));
@@ -386,7 +400,7 @@ function groupMatchGs_(g, k) {
 function setupRichMenu() {
   requireOwner_();
   const W = 2500, H = 843, cw = W / 3, ch = H / 2;
-  const cells = [['新着', '新着'], ['今日', '今日'], ['休み', '休み'], ['予定', '予定'], ['当番', '当番'], ['uri', portalUrl_()]];
+  const cells = [['新着', '新着'], ['今日', '今日'], ['休み', '休み'], ['カレンダー', 'カレンダー'], ['メニュー', 'メニュー'], ['uri', portalUrl_()]];
   const menu = {
     size: { width: W, height: H }, selected: true, name: CONFIG.CLUB_NAME + ' メニュー', chatBarText: 'メニュー',
     areas: cells.map((c, i) => ({

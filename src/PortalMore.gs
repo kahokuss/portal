@@ -1290,3 +1290,47 @@ function setOwnerAction_(ctx, p) {
   });
   return p.on ? '管理者にしました' : '管理者から外しました';
 }
+
+// ---- 名簿：役員が子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつく ----
+
+/** @param {{rows: {name: string, grade: number, sex: string}[]}} p */
+function saveRosterAction_(ctx, p) {
+  const list = (p.rows || []).slice(0, 200).map((r) => ({
+    name: String(r.name || '').trim().replace(/\s+/g, ' ').slice(0, 30),
+    grade: Math.max(0, Math.min(6, Number(toHalfWidth_(String(r.grade || '')).replace(/[^0-9]/g, '')) || 0)),
+    sex: /男/.test(r.sex || '') ? '男' : /女/.test(r.sex || '') ? '女' : '',
+  })).filter((r) => r.name);
+  if (!list.length) throw new Error('名前を入れてください。');
+  let added = 0, updated = 0;
+  withLock_(() => {
+    const rows = readRows_(SHEETS.CHILDREN);
+    list.forEach((c) => {
+      const row = rows.find((r) => sameKidName_(r['名前'], c.name));
+      if (row) {
+        row['名簿'] = '○';
+        if (c.grade) row['学年'] = String(c.grade);
+        if (c.sex) row['性別'] = c.sex;
+        row['更新日時'] = now_();
+        updateRow_(SHEETS.CHILDREN, row);
+        updated++;
+      } else {
+        const r = { '名前': c.name, '学年': c.grade ? String(c.grade) : '', '保護者userId': '', '性別': c.sex, '更新日時': now_(), '名簿': '○' };
+        appendRow_(SHEETS.CHILDREN, r);
+        rows.push(r);
+        added++;
+      }
+    });
+  });
+  return '名簿に' + added + '人を入れました' + (updated ? '（' + updated + '人は学年などを直しました）' : '');
+}
+
+/** 名簿から外す。保護者が登録していない子は消える（記録はスプレッドシートに残る） */
+function removeRosterAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.CHILDREN).find((r) => r['名前'] && sameKidName_(r['名前'], p.name));
+    if (!row) throw new Error('見つかりません。');
+    if (splitNames_(row['保護者userId']).length) { row['名簿'] = ''; row['更新日時'] = now_(); updateRow_(SHEETS.CHILDREN, row); }
+    else clearRow_(SHEETS.CHILDREN, row);
+  });
+  return p.name + 'を名簿から外しました';
+}

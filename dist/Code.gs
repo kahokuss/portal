@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '76f2c89cbb';
+const SERVER_VERSION = 'a03ab5cc25';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1707,6 +1707,8 @@ const API_ACTIONS = {
   requestAdmin: { run: requestAdminAction_ },
   answerAdmin: { admin: true, run: answerAdminAction_ },
   setRole: { admin: true, run: setRoleAction_ },
+  saveRoster: { admin: true, run: saveRosterAction_ },
+  removeRoster: { admin: true, run: removeRosterAction_ },
   becomeOwner: { run: becomeOwnerAction_ },
   setOwner: { admin: true, run: setOwnerAction_ },
   adminCode: { admin: true, raw: true, run: adminCodeAction_ },
@@ -1855,7 +1857,7 @@ function buildState_(ctx) {
       family: myFam ? myFam.parents : [ctx.name],
       children: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     },
-    kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
+    kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex, free: !c.parents.length })),
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents, role: (familyRows.find((x) => famIdOf_(x) === f.id && x['係']) || {})['係'] || '', admin: familyRows.some((x) => famIdOf_(x) === f.id && isAdminRow_(x)) })),
     scriptUrl: ctx.admin ? scriptEditorUrl_() : '',
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
@@ -3407,6 +3409,50 @@ function setOwnerAction_(ctx, p) {
   return p.on ? '管理者にしました' : '管理者から外しました';
 }
 
+// ---- 名簿：役員が子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつく ----
+
+/** @param {{rows: {name: string, grade: number, sex: string}[]}} p */
+function saveRosterAction_(ctx, p) {
+  const list = (p.rows || []).slice(0, 200).map((r) => ({
+    name: String(r.name || '').trim().replace(/\s+/g, ' ').slice(0, 30),
+    grade: Math.max(0, Math.min(6, Number(toHalfWidth_(String(r.grade || '')).replace(/[^0-9]/g, '')) || 0)),
+    sex: /男/.test(r.sex || '') ? '男' : /女/.test(r.sex || '') ? '女' : '',
+  })).filter((r) => r.name);
+  if (!list.length) throw new Error('名前を入れてください。');
+  let added = 0, updated = 0;
+  withLock_(() => {
+    const rows = readRows_(SHEETS.CHILDREN);
+    list.forEach((c) => {
+      const row = rows.find((r) => sameKidName_(r['名前'], c.name));
+      if (row) {
+        row['名簿'] = '○';
+        if (c.grade) row['学年'] = String(c.grade);
+        if (c.sex) row['性別'] = c.sex;
+        row['更新日時'] = now_();
+        updateRow_(SHEETS.CHILDREN, row);
+        updated++;
+      } else {
+        const r = { '名前': c.name, '学年': c.grade ? String(c.grade) : '', '保護者userId': '', '性別': c.sex, '更新日時': now_(), '名簿': '○' };
+        appendRow_(SHEETS.CHILDREN, r);
+        rows.push(r);
+        added++;
+      }
+    });
+  });
+  return '名簿に' + added + '人を入れました' + (updated ? '（' + updated + '人は学年などを直しました）' : '');
+}
+
+/** 名簿から外す。保護者が登録していない子は消える（記録はスプレッドシートに残る） */
+function removeRosterAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.CHILDREN).find((r) => r['名前'] && sameKidName_(r['名前'], p.name));
+    if (!row) throw new Error('見つかりません。');
+    if (splitNames_(row['保護者userId']).length) { row['名簿'] = ''; row['更新日時'] = now_(); updateRow_(SHEETS.CHILDREN, row); }
+    else clearRow_(SHEETS.CHILDREN, row);
+  });
+  return p.name + 'を名簿から外しました';
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -3626,7 +3672,7 @@ function onScheduleSheetEdit(e) {
  */
 const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ', '役員申請', '係', '管理者'] },
-  CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
+  CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別', '名簿'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
@@ -3891,9 +3937,15 @@ function portalKeyFor_(userId, displayName, renew) {
 
 // ---- 子ども ----
 
+/** 名前の空白をのぞいてくらべる（「山田 たろう」と「山田たろう」は同じ子） */
+function sameKidName_(a, b) {
+  return String(a || '').replace(/\s|　/g, '') === String(b || '').replace(/\s|　/g, '');
+}
+
+/** 登録されている子ども：保護者が登録した子と、役員が名簿に入れた子（保護者がまだでも） */
 function activeChildren_() {
   return readRows_(SHEETS.CHILDREN)
-    .filter((c) => c['名前'] && splitNames_(c['保護者userId']).length)
+    .filter((c) => c['名前'] && (splitNames_(c['保護者userId']).length || c['名簿'] === '○'))
     .map((c) => ({ name: c['名前'], grade: Number(c['学年']) || 0, sex: c['性別'] === '男' || c['性別'] === '女' ? c['性別'] : '', parents: splitNames_(c['保護者userId']), _row: c._row }));
 }
 
@@ -3918,7 +3970,7 @@ function saveChildren_(userId, list) {
     const names = list.map((c) => c.name);
     rows.forEach((row) => {
       const parents = splitNames_(row['保護者userId']);
-      const keep = names.indexOf(row['名前']) >= 0;
+      const keep = names.some((n) => sameKidName_(n, row['名前']));
       const rest = parents.filter((u) => members.indexOf(u) < 0);
       if (!keep && rest.length !== parents.length) {
         row['保護者userId'] = rest.join(',');
@@ -3927,7 +3979,8 @@ function saveChildren_(userId, list) {
       }
     });
     list.forEach((c) => {
-      const row = rows.find((r) => r['名前'] === c.name);
+      // 名簿に入っている子なら、その子に保護者を足す（名前は名簿のまま）
+      const row = rows.find((r) => sameKidName_(r['名前'], c.name));
       if (row) {
         const parents = splitNames_(row['保護者userId']);
         members.forEach((u) => { if (parents.indexOf(u) < 0) parents.push(u); });

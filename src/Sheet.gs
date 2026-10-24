@@ -4,7 +4,7 @@
  */
 const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ', '役員申請', '係', '管理者'] },
-  CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
+  CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別', '名簿'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
@@ -269,9 +269,15 @@ function portalKeyFor_(userId, displayName, renew) {
 
 // ---- 子ども ----
 
+/** 名前の空白をのぞいてくらべる（「山田 たろう」と「山田たろう」は同じ子） */
+function sameKidName_(a, b) {
+  return String(a || '').replace(/\s|　/g, '') === String(b || '').replace(/\s|　/g, '');
+}
+
+/** 登録されている子ども：保護者が登録した子と、役員が名簿に入れた子（保護者がまだでも） */
 function activeChildren_() {
   return readRows_(SHEETS.CHILDREN)
-    .filter((c) => c['名前'] && splitNames_(c['保護者userId']).length)
+    .filter((c) => c['名前'] && (splitNames_(c['保護者userId']).length || c['名簿'] === '○'))
     .map((c) => ({ name: c['名前'], grade: Number(c['学年']) || 0, sex: c['性別'] === '男' || c['性別'] === '女' ? c['性別'] : '', parents: splitNames_(c['保護者userId']), _row: c._row }));
 }
 
@@ -296,7 +302,7 @@ function saveChildren_(userId, list) {
     const names = list.map((c) => c.name);
     rows.forEach((row) => {
       const parents = splitNames_(row['保護者userId']);
-      const keep = names.indexOf(row['名前']) >= 0;
+      const keep = names.some((n) => sameKidName_(n, row['名前']));
       const rest = parents.filter((u) => members.indexOf(u) < 0);
       if (!keep && rest.length !== parents.length) {
         row['保護者userId'] = rest.join(',');
@@ -305,7 +311,8 @@ function saveChildren_(userId, list) {
       }
     });
     list.forEach((c) => {
-      const row = rows.find((r) => r['名前'] === c.name);
+      // 名簿に入っている子なら、その子に保護者を足す（名前は名簿のまま）
+      const row = rows.find((r) => sameKidName_(r['名前'], c.name));
       if (row) {
         const parents = splitNames_(row['保護者userId']);
         members.forEach((u) => { if (parents.indexOf(u) < 0) parents.push(u); });

@@ -708,6 +708,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return '<section class="card"><h2>管理者になる<small>ポータルの持ち主だけ</small></h2><div class="sub">Apps Script で「setup」（または「showOwnerCode」）を実行すると、下の「実行ログ」に「管理者の番号」が出ます。その8けたを入れてください。</div>' +
       '<div class="row"><input id="owCode" class="tmin" inputmode="numeric" maxlength="8" placeholder="8けた" style="width:9em"><button class="btn small ghost" id="owBtn" type="button">管理者になる</button></div></section>';
   }
+  /** わが家：名簿にあって保護者がまだの子を、ボタンで選べるように */
+  function rosterPick(rows) {
+    var free = ST.kids.filter(function (k) { return k.free && !rows.some(function (r) { return r.name.replace(/\s/g, '') === k.name.replace(/\s/g, ''); }); }).sort(byGrade);
+    if (!free.length) return '';
+    return '<div class="lbl" style="font-size:12px;color:var(--muted)">クラブの名簿から選ぶ（押すと上に入ります）</div><div class="quick">' + free.map(function (k) { return '<button type="button" data-pick="' + esc(k.name) + '">' + esc(k.name) + (k.grade ? ' ' + k.grade + '年' : '') + '</button>'; }).join('') + '</div>';
+  }
   /** わが家：役員になる（申請・役員の番号） */
   function adminRequestCard() {
     if (ST.me.admin) return '<section class="card"><h2>役員<small>役員です</small></h2><div class="sub">下のメニューの「管理」から、予定・大会・当番・お知らせ・メンバーなどを直せます。</div></section>';
@@ -1004,7 +1010,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         [1, 2, 3, 4, 5, 6].map(function (g) { return '<option value="' + g + '"' + (c.grade === g ? ' selected' : '') + '>' + g + '年</option>'; }).join('') + '</select>' +
         '<select data-ks="' + i + '" aria-label="男女"><option value="">男女</option>' + ['男', '女'].map(function (x) { return '<option' + (c.sex === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
         '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
-    }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' +
+    }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' + rosterPick(rows) +
       '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() + rolesCard() + adminRequestCard() + ownerCard() +
       '<section class="card"><h2>PCでも使う</h2><div class="sub">PCで ' + esc(HOME_URL) + ' を開き、「スマホに出した番号でログイン」に下の番号を入れてください（LINEのアカウントやパスワードは使いません）。</div>' +
         (S.pc ? '<div class="big" style="font-size:2rem;letter-spacing:.3em;text-align:center">' + esc(S.pc.code) + '</div><div class="hint" style="text-align:center">' + S.pc.minutes + '分間・1回だけ使えます。人に見せないでください。</div>' : '<button class="btn small ghost" type="button" id="pcCodeBtn" style="justify-self:start">番号を出す</button>') + '</section>' +
@@ -1020,6 +1026,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#arCodeBtn', function () { var v = document.getElementById('arCode').value; if (v.trim()) call('requestAdmin', { code: v }); });
     on('#pcCodeBtn', function () { var b = this; b.disabled = true; rpc('pcCode', {}, function (r) { S.pc = r; render(); setTimeout(function () { S.pc = null; if (S.tab === 'family') render(); }, r.minutes * 60000); }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); });
     on('[data-kdel]', function () { rows.splice(+this.dataset.kdel, 1); render(); });
+    on('[data-pick]', function () {
+      var k = ST.kids.find(function (x) { return x.name === this.dataset.pick; }, this); if (!k) return;
+      var empty = rows.find(function (r) { return !r.name.trim(); });
+      if (empty) { empty.name = k.name; empty.grade = k.grade; empty.sex = k.sex; } else rows.push({ name: k.name, grade: k.grade, sex: k.sex });
+      render();
+    });
     on('#kidAdd', function () { rows.push({ name: '', grade: 0, sex: '' }); render(); });
     on('#logout', function () { clearKey(); ST = null; showLogin('ログアウトしました。'); });
     document.getElementById('kidsForm').addEventListener('submit', function (e) {
@@ -1045,10 +1057,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'records') return adminRecords();
     if (S.admin === 'ttb') return adminTtb();
     if (S.admin === 'polls') return adminPolls();
+    if (S.admin === 'roster') return adminRoster();
     if (S.admin === 'fees') return adminFees();
     var items = [['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新・まだ測っていない子でまとめて見る（コーチも見られます）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
-      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
+      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     view.innerHTML = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
@@ -1310,6 +1323,45 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-fclose]', function () { call('closeFee', { id: this.dataset.fclose }); });
     on('[data-freopen]', function () { call('closeFee', { id: this.dataset.freopen, reopen: true }); });
     on('[data-fdel]', function () { if (confirm('この集金と記録を消しますか？')) call('closeFee', { id: this.dataset.fdel, remove: true }); });
+  }
+
+  /** 名簿の文を読む：1行に1人。「山田 はな 6年 女」「山田はな,6,女」「名前\t学年\t男女」など */
+  function parseRoster(text) {
+    return String(text || '').split(/\r?\n/).map(function (line) {
+      var t = toHalf(line).replace(/[,，、\t]/g, ' ').trim();
+      if (!t || /^(名前|氏名|No|番号)/.test(t)) return null;
+      var toks = t.split(/\s+/), grade = 0, sex = '', name = [];
+      toks.forEach(function (x, i) {
+        var g = x.match(/^([1-6])(年生?)?$/);
+        if (g && !grade && (i > 0 || toks.length === 1)) { grade = +g[1]; return; }
+        if (/^(男|女|男子|女子|M|F)$/i.test(x) && !sex) { sex = /女|F/i.test(x) ? '女' : '男'; return; }
+        if (/^\d+$/.test(x) && i === 0) return; // 行の番号
+        name.push(x);
+      });
+      return name.length ? { name: name.join(' '), grade: grade, sex: sex } : null;
+    }).filter(Boolean);
+  }
+  function adminRoster() {
+    var R = S.roster || (S.roster = { text: '', preview: null });
+    var kids = ST.kids.slice().sort(byGrade), free = kids.filter(function (k) { return k.free; }).length;
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>名簿にまとめて入れる</h2><div class="sub">1行に1人、<b>名前・学年・男女</b>を書いて（Excelやスプレッドシートからのコピーでも）貼り付けてください。学年と男女はなくてもOK。</div>' +
+      '<form class="f" id="rosForm"><textarea id="rosIn" rows="8" placeholder="山田 はな 6年 女&#10;佐藤 じろう 5年 男&#10;鈴木 さくら 4 女">' + esc(R.text) + '</textarea><button class="btn ghost" type="submit">読み取って確認する</button></form>';
+    if (R.preview) {
+      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>学年</th><th>男女</th><th></th></tr></thead><tbody>' + R.preview.map(function (r) {
+        var have = ST.kids.some(function (k) { return k.name.replace(/\s/g, '') === r.name.replace(/\s/g, ''); });
+        return '<tr><td>' + esc(r.name) + '</td><td>' + (r.grade ? r.grade + '年' : '<span class="sub">—</span>') + '</td><td>' + (r.sex || '<span class="sub">—</span>') + '</td><td class="sub">' + (have ? '登録済み（学年などを直す）' : '新しく入れる') + '</td></tr>';
+      }).join('') + '</tbody></table></div><div class="row"><button class="btn" id="rosSave" type="button">' + R.preview.length + '人を名簿に入れる</button><button class="btn ghost" id="rosX" type="button">やめる</button></div>';
+    }
+    h += '<div class="hint">保護者がポータルの「わが家」で同じ名前（空白はあってもなくてもOK）を登録すると、その子に結びつきます。「わが家」の登録画面にも、名簿の名前がボタンで出ます。</div></section>';
+    h += '<section class="card"><h2>名簿<small>' + kids.length + '人・保護者まだ ' + free + '人</small></h2>' + (kids.length ? '<div class="list">' + kids.map(function (k) {
+      return '<div class="between"><span><b>' + esc(k.name) + '</b> <span class="sub">' + (k.grade ? k.grade + '年' : '学年？') + (k.sex ? '・' + k.sex : '') + '</span>' + (k.free ? ' <span class="pill p-warn">保護者まだ</span>' : '') + '</span>' + (k.free ? '<button class="btn small ghost" data-rosdel="' + esc(k.name) + '" type="button">外す</button>' : '') + '</div>';
+    }).join('') + '</div>' : '<div class="sub">まだだれもいません。</div>') + '<div class="hint">保護者が登録した子の学年・男女は、上に同じ名前で書いて入れると直せます。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    document.getElementById('rosForm').addEventListener('submit', function (x) { x.preventDefault(); R.text = document.getElementById('rosIn').value; R.preview = parseRoster(R.text); if (!R.preview.length) { S.toast = '名前が読み取れませんでした。'; S.toastErr = true; } render(); });
+    on('#rosX', function () { R.preview = null; render(); });
+    on('#rosSave', function () { call('saveRoster', { rows: R.preview }, function (st) { if (st.message) { R.preview = null; R.text = ''; } }); });
+    on('[data-rosdel]', function () { if (confirm(this.dataset.rosdel + 'を名簿から外しますか？')) call('removeRoster', { name: this.dataset.rosdel }); });
   }
   function adminAbsences() {
     var list = ST.absences.slice(), h = backBtn() + toastHtml(), date = '';

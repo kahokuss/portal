@@ -938,6 +938,25 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(await a.$('[data-owner]'), '管理者には「管理者にする」ボタン');
       await a.shot('27-members-family');
     });
+    await step('名簿：役員がまとめて貼り付け → 保護者は「わが家」で名簿の名前をボタンで選べる', async () => {
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="roster"]');
+      await a.fill('#rosIn', '1 海野 そら 5年 女\n川辺りく,3,男');
+      await a.click('#rosForm button[type="submit"]');
+      const pv = await a.textContent('#view');
+      assert.ok(pv.includes('海野 そら') && pv.includes('5年') && pv.includes('川辺りく'), pv);
+      await a.click('#rosSave');
+      await a.idle();
+      assert.ok(gas.rows('子ども').some((r) => r['名前'] === '海野 そら' && r['名簿'] === '○' && r['性別'] === '女'));
+      await a.shot('28-roster');
+      const q = await openPortal(browser, gas, 'U3', 'parent6');
+      await q.click('[data-nav="family"]');
+      await q.click('[data-pick="川辺りく"]');
+      assert.ok((await q.inputValue('[data-kn="1"]')) === '川辺りく' || (await q.inputValue('[data-kn="2"]')) === '川辺りく', '名簿の名前が入る');
+      await q.shot('family-roster-pick');
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

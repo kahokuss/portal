@@ -1061,6 +1061,29 @@ test('管理者：Apps Scriptの番号を入れた人だけ。いつでも役員
   assert.throws(() => gas.ctx.api(k3, 'becomeOwner', { code: code }), /しばらく/);
 });
 
+test('名簿：役員がまとめて入れた子に、保護者が同じ名前（空白ちがいOK）で登録すると結びつく', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.throws(() => gas.ctx.api(k2, 'saveRoster', { rows: [{ name: 'x' }] }), /役員/);
+  gas.ctx.api(kA, 'saveRoster', { rows: [{ name: '海野 そら', grade: '５年', sex: '女' }, { name: '川辺 りく', grade: 3, sex: '男' }, { name: '  ' }] });
+  let st = gas.ctx.api(k2, 'bootstrap');
+  assert.deepStrictEqual(plain(st.kids.map((k) => [k.name, k.grade, k.sex, k.free])).sort(), [['川辺 りく', 3, '男', true], ['海野 そら', 5, '女', true]]);
+  // 名簿の子にも記録を入れられる
+  assert.ok(gas.ctx.api(kA, 'addRecords', { rows: [{ child: '海野 そら', race: '100m', record: '15.5', date: '2026-10-01' }] }).message.includes('1件'));
+  // 保護者が空白なしで登録 → 名簿の子に結びつく（ふえない）
+  gas.ctx.api(k2, 'saveChildren', { children: [{ name: '海野そら', grade: 5, sex: '女' }] });
+  st = gas.ctx.api(k2, 'bootstrap');
+  assert.strictEqual(st.kids.length, 2, '同じ子がふえない');
+  assert.deepStrictEqual(plain(st.me.children.map((c) => c.name)), ['海野 そら'], '名前は名簿のまま');
+  assert.ok(!st.kids.find((k) => k.name === '海野 そら').free);
+  // 外す：保護者がまだの子は消える、登録済みの子は残る
+  gas.ctx.api(kA, 'removeRoster', { name: '川辺 りく' });
+  gas.ctx.api(kA, 'removeRoster', { name: '海野 そら' });
+  st = gas.ctx.api(kA, 'bootstrap');
+  assert.deepStrictEqual(plain(st.kids.map((k) => k.name)), ['海野 そら']);
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

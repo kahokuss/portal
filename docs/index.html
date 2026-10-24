@@ -443,9 +443,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "b18bd0d0fd";
+var BUILD = "162bc75df3";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "490ffb7b15";
+var EXPECT_SERVER = "40787f58a7";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -574,6 +574,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var u = trUnread(k.name);
       if (u.length) out.push({ ic: '💬', hot: true, t: 'コーチからコメント（' + esc(k.name) + '）', s: esc(u[u.length - 1].text.slice(0, 30)), a: 'data-tab="train"', order: 1 });
     });
+    if (ST.me.admin) { var rq = ST.parents.filter(function (p) { return p.request; }); if (rq.length) out.push({ ic: '🙋', hot: true, t: '役員の申請 ' + rq.length + '件', s: rq.map(function (p) { return esc(p.name); }).join('・'), a: 'data-tab="admin"', order: 0 }); }
     var unread = ST.notices.filter(function (n) { return !n.read; });
     if (unread.length) out.push({ ic: '📢', hot: unread.some(function (n) { return n.important; }), t: '新しいお知らせ ' + unread.length + '件', s: esc(unread[0].title), a: 'data-todo="notices"', order: unread.some(function (n) { return n.important; }) ? 0 : 50 });
     var du = myDuties()[0], dE = du && evByKey(du.key);
@@ -692,6 +693,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<li>上の欄で「setup」を選んで「▶ 実行」（新しいシートができるとき）</li>' +
       '<li>「デプロイ」→「デプロイを管理」→ 鉛筆 → バージョン「新バージョン」→「デプロイ」<br><span class="hint">「新しいデプロイ」は押さない（URLが変わります）</span></li>' +
       '<li>ポータルの「更新」を押して、ここが「✅ 最新です」になればOK</li></ol>' + versionLine() + '</section>';
+  }
+
+  /** わが家：役員になる（申請・役員の番号） */
+  function adminRequestCard() {
+    if (ST.me.admin) return '<section class="card"><h2>役員<small>役員です</small></h2><div class="sub">下のメニューの「管理」から、予定・大会・当番・お知らせ・メンバーなどを直せます。</div></section>';
+    return '<section class="card"><h2>役員になる<small>' + (ST.me.adminRequested ? '申請中' : '役員ではありません') + '</small></h2>' +
+      '<div class="sub">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。</div>' +
+      (ST.me.adminRequested ? '<div class="row"><span class="pill p-warn">申請中</span><span class="sub">役員の人が承認すると「管理」が出ます</span><button class="btn small ghost" id="arCancel" type="button">取り下げる</button></div>'
+        : '<button class="btn small" id="arReq" type="button" style="justify-self:start">役員にしてもらう（申請する）</button>') +
+      '<div class="lbl" style="font-size:12px;color:var(--muted)">役員の番号を聞いているとき</div><div class="row"><input id="arCode" class="tmin" inputmode="numeric" maxlength="6" placeholder="6けた" style="width:8em"><button class="btn small ghost" id="arCodeBtn" type="button">番号で役員になる</button></div>' +
+      '<div class="hint">申請は、役員の人の「管理」→「メンバーと役員」に出ます。役員の番号は、役員の人がそこで見られます。</div></section>';
   }
   function home() {
     var h = serverBanner() + toastHtml();
@@ -980,7 +992,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<select data-ks="' + i + '" aria-label="男女"><option value="">男女</option>' + ['男', '女'].map(function (x) { return '<option' + (c.sex === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
         '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
     }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' +
-      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() +
+      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() + adminRequestCard() +
       '<section class="card"><h2>PCでも使う</h2><div class="sub">PCで ' + esc(HOME_URL) + ' を開き、「スマホに出した番号でログイン」に下の番号を入れてください（LINEのアカウントやパスワードは使いません）。</div>' +
         (S.pc ? '<div class="big" style="font-size:2rem;letter-spacing:.3em;text-align:center">' + esc(S.pc.code) + '</div><div class="hint" style="text-align:center">' + S.pc.minutes + '分間・1回だけ使えます。人に見せないでください。</div>' : '<button class="btn small ghost" type="button" id="pcCodeBtn" style="justify-self:start">番号を出す</button>') + '</section>' +
       '<section class="card"><h2>ログイン</h2><div class="sub">' + esc(ST.me.name) + 'さんのLINEでログインしています。このページは' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。家族のスマホで使うときは、ログアウトしてからそれぞれのLINEでログインしてください。</div><button class="btn small ghost" id="logout" type="button" style="justify-self:start">ログアウト</button></section>';
@@ -989,6 +1001,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.querySelectorAll('[data-kg]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.kg].grade = +this.value; }); });
     view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
     bindFamilyCard(); bindCommon(); bindCharts();
+    on('#arReq', function () { call('requestAdmin', {}); });
+    on('#arCancel', function () { call('requestAdmin', { cancel: true }); });
+    on('#arCodeBtn', function () { var v = document.getElementById('arCode').value; if (v.trim()) call('requestAdmin', { code: v }); });
     on('#pcCodeBtn', function () { var b = this; b.disabled = true; rpc('pcCode', {}, function (r) { S.pc = r; render(); setTimeout(function () { S.pc = null; if (S.tab === 'family') render(); }, r.minutes * 60000); }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); });
     on('[data-kdel]', function () { rows.splice(+this.dataset.kdel, 1); render(); });
     on('#kidAdd', function () { rows.push({ name: '', grade: 0, sex: '' }); render(); });
@@ -1019,7 +1034,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'fees') return adminFees();
     var items = [['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新・まだ測っていない子でまとめて見る（コーチも見られます）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
-      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
+      ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     view.innerHTML = toastHtml() + (API_URL && serverOld() ? updateCard() : '') + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
@@ -3516,13 +3531,25 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   function adminMembers() {
     var list = ST.parents.slice().sort(function (a, b) { return (b.admin - a.admin) || (a.name < b.name ? -1 : 1); });
-    var h = backBtn() + toastHtml() + '<section class="card"><h2>メンバーと役員<small>' + list.length + '人・役員 ' + list.filter(function (p) { return p.admin; }).length + '人</small></h2><div class="list">' + list.map(function (p) {
+    var reqs = ST.parents.filter(function (p) { return p.request; });
+    var h = backBtn() + toastHtml();
+    if (reqs.length) h += '<section class="card banner"><h2>役員の申請<small>' + reqs.length + '件</small></h2><div class="list">' + reqs.map(function (p) {
+      return '<div class="between"><span><b>' + esc(p.name) + '</b><br><span class="sub">' + (p.kids.length ? esc(p.kids.join('・')) : 'お子さん未登録') + '・' + esc(String(p.request).slice(5, 16).replace('-', '/')) + '</span></span><span class="row nowrap"><button class="btn small ok" data-arok="' + esc(p.id) + '" type="button">役員にする</button><button class="btn small ghost" data-arng="' + esc(p.id) + '" type="button">断る</button></span></div>';
+    }).join('') + '</div></section>';
+    h += '<section class="card"><h2>役員の番号<small>教えた人はすぐ役員になれます</small></h2><div class="row">' + (S.adminCode ? '<span class="big" style="letter-spacing:.2em">' + esc(S.adminCode) + '</span><button class="btn small ghost" id="acRenew" type="button">番号を変える</button>' : '<button class="btn small ghost" id="acShow" type="button">番号を見る</button>') + '</div>' +
+      '<div class="hint">新しい役員に口頭で伝えると、その人が「わが家」→「役員になる」に入れて役員になれます。広まってしまったら「番号を変える」を押してください（前の番号は使えなくなります）。</div></section>';
+    h += '<section class="card"><h2>メンバーと役員<small>' + list.length + '人・役員 ' + list.filter(function (p) { return p.admin; }).length + '人</small></h2><div class="list">' + list.map(function (p) {
       return '<div class="between"><span>' + esc(p.name) + (p.me ? '（自分）' : '') + (p.admin ? ' <span class="pill p-race">役員</span>' : '') + (p.coach ? ' <span class="pill p-prac">コーチ</span>' : '') + '<br><span class="sub">' + (p.kids.length ? esc(p.kids.join('・')) : 'お子さん未登録') + '</span></span><span class="row" style="justify-content:flex-end">' +
         '<button class="btn small ' + (p.admin ? 'ghost' : 'ok') + '" type="button" data-admin="' + esc(p.id) + '" data-on="' + (p.admin ? '' : '1') + '" data-name="' + esc(p.name) + '" data-me="' + (p.me ? '1' : '') + '">' + (p.admin ? '役員から外す' : '役員にする') + '</button>' +
         '<button class="btn small ghost" type="button" data-coach="' + esc(p.id) + '" data-on="' + (p.coach ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.coach ? 'コーチから外す' : 'コーチにする') + '</button></span></div>';
     }).join('') + '</div><div class="hint">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。コーチにすると、家族が「コーチに見せる」にしている子の自主トレを見られます（役員でなくてもOK）。ここに出るのは、一度でもポータルにログインした人です。役員が1人もいなくなる操作はできません。</div></section>';
     view.innerHTML = h;
     bindBack();
+    on('[data-arok]', function () { call('answerAdmin', { userId: this.dataset.arok, ok: true }); });
+    on('[data-arng]', function () { call('answerAdmin', { userId: this.dataset.arng, ok: false }); });
+    var showCode = function (renew) { rpc('adminCode', { renew: renew }, function (r) { S.adminCode = r.code; render(); }, function (err) { S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); };
+    on('#acShow', function () { showCode(false); });
+    on('#acRenew', function () { if (confirm('役員の番号を変えますか？前の番号は使えなくなります。')) showCode(true); });
     on('[data-admin]', function () {
       var d = this.dataset;
       if (!confirm(d.name + 'さんを' + (d.on ? '役員にしますか？' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
@@ -3681,7 +3708,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     nav.hidden = false;
     nav.className = 'nav' + (ST.me.admin ? ' admin' : '');
     var badges = { home: ST.me.children.length ? todoItems().length : 0, events: 0, admin: 0 };
-    if (ST.me.admin) badges.admin = ST.absences.filter(function (a) { return a.date >= ST.today && !a.ack; }).length + ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; }).length;
+    if (ST.me.admin) badges.admin = ST.absences.filter(function (a) { return a.date >= ST.today && !a.ack; }).length + ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; }).length + ST.parents.filter(function (p) { return p.request; }).length;
     nav.innerHTML = NAV.filter(function (n) { return n[0] !== 'admin' || ST.me.admin; }).map(function (n) {
       var b = badges[n[0]] ? '<span class="badge" aria-label="' + badges[n[0]] + '件">' + badges[n[0]] + '</span>' : '';
       return '<button type="button" data-nav="' + n[0] + '"' + (S.tab === n[0] ? ' aria-current="page"' : '') + '>' + b + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n[0]] + '</svg>' + n[1] + '</button>';

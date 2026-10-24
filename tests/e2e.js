@@ -898,6 +898,30 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('#dBack');
       assert.ok((await a.textContent('#view')).includes('管理メニュー') || (await a.$('[data-go="dash"]')));
     });
+    await step('役員になる：保護者が「わが家」で申請 → 役員が「メンバーと役員」で承認すると「管理」が出る', async () => {
+      const q = await openPortal(browser, gas, 'U3', 'parent5');
+      assert.ok(!(await q.$('[data-nav="admin"]')), 'はじめは管理なし');
+      await q.click('[data-nav="family"]');
+      await q.click('#arReq');
+      await q.idle();
+      assert.ok((await q.textContent('#view')).includes('申請中'));
+      await a.click('[data-nav="home"]');
+      await a.click('#reload');
+      await a.idle();
+      assert.ok((await a.textContent('#view')).includes('役員の申請'), '役員のやることに出る');
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="members"]');
+      await a.click('[data-arok="U3"]');
+      await a.idle();
+      await a.click('#acShow');
+      await a.waitForFunction(() => /\d{6}/.test(document.querySelector('#view').textContent));
+      await a.shot('26-members');
+      await q.click('#reload');
+      await q.idle();
+      assert.ok(await q.$('[data-nav="admin"]'), '承認されると管理が出る');
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

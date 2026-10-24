@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '490ffb7b15';
+const SERVER_VERSION = '40787f58a7';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1629,7 +1629,7 @@ function api(key, action, payload) {
   if (handler.raw) return message;
   // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
-  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); }
+  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); }
   const state = buildState_(ctx);
   if (message) state.message = message;
   return state;
@@ -1697,6 +1697,9 @@ const API_ACTIONS = {
   deleteTrainComment: { run: deleteTrainCommentAction_ },
   markTrainRead: { raw: true, run: markTrainReadAction_ },
   setCoach: { admin: true, run: setCoachAction_ },
+  requestAdmin: { run: requestAdminAction_ },
+  answerAdmin: { admin: true, run: answerAdminAction_ },
+  adminCode: { admin: true, raw: true, run: adminCodeAction_ },
   deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
@@ -1833,6 +1836,7 @@ function buildState_(ctx) {
       name: ctx.name,
       admin: ctx.admin,
       coach: !!ctx.coach,
+      adminRequested: !ctx.admin && !!(me['役員申請']),
       fam: ctx.famId,
       canManage: manageKeys,
       notify: wantsAbsenceNotice_(me),
@@ -1844,7 +1848,7 @@ function buildState_(ctx) {
     scriptUrl: ctx.admin ? scriptEditorUrl_() : '',
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
-    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), request: !isAdmin_(f) && f['役員申請'] ? String(f['役員申請']) : '', notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
     entries: entries,
     absences: absences,
@@ -3272,6 +3276,66 @@ function participationFor_(ctx, children) {
   return { kids: kids, avg: avg };
 }
 
+// ---- 役員になる：申請して役員が承認する／合言葉（役員の番号）を入れる／役員がだれもいなければすぐ役員 ----
+
+function adminCode_(renew) {
+  const props = PropertiesService.getScriptProperties();
+  let code = props.getProperty('ADMIN_CODE');
+  if (!code || renew) {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+    props.setProperty('ADMIN_CODE', code);
+  }
+  return code;
+}
+
+/** 役員の番号を見る・作りなおす（役員だけ） */
+function adminCodeAction_(ctx, p) {
+  return { code: adminCode_(!!p.renew) };
+}
+
+function makeAdmin_(f) {
+  f['役員'] = '○';
+  f['役員申請'] = '';
+  f['更新日時'] = now_();
+  updateRow_(SHEETS.FAMILIES, f);
+}
+
+/**
+ * 役員になりたいと申請する。code（役員の番号）が合えば、すぐ役員。
+ * 役員がひとりもいないときも、すぐ役員（最初の設定のため）。cancel で申請を取り下げる
+ */
+function requestAdminAction_(ctx, p) {
+  if (ctx.admin) return 'すでに役員です';
+  const code = String(p.code || '').replace(/[^0-9]/g, '');
+  return withLock_(() => {
+    const rows = readRows_(SHEETS.FAMILIES);
+    const f = rows.find((x) => x.userId === ctx.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (p.cancel) { f['役員申請'] = ''; updateRow_(SHEETS.FAMILIES, f); return '役員の申請を取り下げました'; }
+    if (!rows.some(isAdmin_)) { makeAdmin_(f); return '役員がまだいなかったので、役員になりました'; }
+    if (code) {
+      if (code !== adminCode_(false)) throw new Error('役員の番号がちがいます。役員の人に「管理」→「メンバーと役員」で番号を見てもらってください。');
+      makeAdmin_(f);
+      return '役員になりました';
+    }
+    f['役員申請'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+    return '役員の申請をしました。役員の人が「管理」→「メンバーと役員」で承認すると、「管理」が出ます';
+  });
+}
+
+/** 役員の申請を承認する・断る（役員だけ） */
+function answerAdminAction_(ctx, p) {
+  return withLock_(() => {
+    const f = findFamily_(p.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (p.ok) { makeAdmin_(f); return (f['表示名'] || '') + 'さんを役員にしました'; }
+    f['役員申請'] = '';
+    updateRow_(SHEETS.FAMILIES, f);
+    return '申請を断りました';
+  });
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -3490,7 +3554,7 @@ function onScheduleSheetEdit(e) {
  * どのシートも1行目が見出しで、2行目以降がデータ。値はすべて文字列で保存する。
  */
 const SHEETS = {
-  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ'] },
+  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ', '役員申請'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },

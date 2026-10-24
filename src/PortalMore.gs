@@ -1171,3 +1171,63 @@ function participationFor_(ctx, children) {
   visible.forEach((n) => (kids[n] = out[n]));
   return { kids: kids, avg: avg };
 }
+
+// ---- 役員になる：申請して役員が承認する／合言葉（役員の番号）を入れる／役員がだれもいなければすぐ役員 ----
+
+function adminCode_(renew) {
+  const props = PropertiesService.getScriptProperties();
+  let code = props.getProperty('ADMIN_CODE');
+  if (!code || renew) {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+    props.setProperty('ADMIN_CODE', code);
+  }
+  return code;
+}
+
+/** 役員の番号を見る・作りなおす（役員だけ） */
+function adminCodeAction_(ctx, p) {
+  return { code: adminCode_(!!p.renew) };
+}
+
+function makeAdmin_(f) {
+  f['役員'] = '○';
+  f['役員申請'] = '';
+  f['更新日時'] = now_();
+  updateRow_(SHEETS.FAMILIES, f);
+}
+
+/**
+ * 役員になりたいと申請する。code（役員の番号）が合えば、すぐ役員。
+ * 役員がひとりもいないときも、すぐ役員（最初の設定のため）。cancel で申請を取り下げる
+ */
+function requestAdminAction_(ctx, p) {
+  if (ctx.admin) return 'すでに役員です';
+  const code = String(p.code || '').replace(/[^0-9]/g, '');
+  return withLock_(() => {
+    const rows = readRows_(SHEETS.FAMILIES);
+    const f = rows.find((x) => x.userId === ctx.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (p.cancel) { f['役員申請'] = ''; updateRow_(SHEETS.FAMILIES, f); return '役員の申請を取り下げました'; }
+    if (!rows.some(isAdmin_)) { makeAdmin_(f); return '役員がまだいなかったので、役員になりました'; }
+    if (code) {
+      if (code !== adminCode_(false)) throw new Error('役員の番号がちがいます。役員の人に「管理」→「メンバーと役員」で番号を見てもらってください。');
+      makeAdmin_(f);
+      return '役員になりました';
+    }
+    f['役員申請'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+    return '役員の申請をしました。役員の人が「管理」→「メンバーと役員」で承認すると、「管理」が出ます';
+  });
+}
+
+/** 役員の申請を承認する・断る（役員だけ） */
+function answerAdminAction_(ctx, p) {
+  return withLock_(() => {
+    const f = findFamily_(p.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (p.ok) { makeAdmin_(f); return (f['表示名'] || '') + 'さんを役員にしました'; }
+    f['役員申請'] = '';
+    updateRow_(SHEETS.FAMILIES, f);
+    return '申請を断りました';
+  });
+}

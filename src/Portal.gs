@@ -17,7 +17,7 @@ function api(key, action, payload) {
   if (handler.raw) return message;
   // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
-  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); }
+  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); }
   const state = buildState_(ctx);
   if (message) state.message = message;
   return state;
@@ -85,6 +85,9 @@ const API_ACTIONS = {
   deleteTrainComment: { run: deleteTrainCommentAction_ },
   markTrainRead: { raw: true, run: markTrainReadAction_ },
   setCoach: { admin: true, run: setCoachAction_ },
+  requestAdmin: { run: requestAdminAction_ },
+  answerAdmin: { admin: true, run: answerAdminAction_ },
+  adminCode: { admin: true, raw: true, run: adminCodeAction_ },
   deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
@@ -221,6 +224,7 @@ function buildState_(ctx) {
       name: ctx.name,
       admin: ctx.admin,
       coach: !!ctx.coach,
+      adminRequested: !ctx.admin && !!(me['役員申請']),
       fam: ctx.famId,
       canManage: manageKeys,
       notify: wantsAbsenceNotice_(me),
@@ -232,7 +236,7 @@ function buildState_(ctx) {
     scriptUrl: ctx.admin ? scriptEditorUrl_() : '',
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
-    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), request: !isAdmin_(f) && f['役員申請'] ? String(f['役員申請']) : '', notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
     entries: entries,
     absences: absences,

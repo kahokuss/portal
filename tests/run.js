@@ -512,7 +512,7 @@ test('前の版のシートに、新しい列の見出しが足される', () =>
   gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k]); resetMemo_();");
   Object.keys(gas.cache).filter((k) => k.startsWith('hdr:')).forEach((k) => delete gas.cache[k]);
   gas.run('readRows_(SHEETS.FAMILIES)');
-  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認', 'コーチ']);
+  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認', 'コーチ', '役員申請']);
   assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
 });
 
@@ -982,6 +982,34 @@ test('練習に参加した時間：休みの連絡がなかった練習の時�
   assert.strictEqual(p['山田たろう'].m['2026-07'], 210, '役員には全員');
   gas.ctx.api(kA, 'setCoach', { userId: 'U4', on: true });
   assert.ok(gas.ctx.api(k4, 'bootstrap').participation.kids['鈴木けんた'], 'コーチにも全員');
+});
+
+test('役員になる：役員がいなければすぐ・申請して承認・役員の番号', () => {
+  const gas = setupClub();
+  const k1 = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key, k4 = gas.login('U4').key;
+  // 役員がひとりもいない → 最初の人はすぐ役員
+  assert.ok(gas.ctx.api(k1, 'requestAdmin', {}).message.includes('役員になりました'));
+  assert.ok(gas.ctx.api(k1, 'bootstrap').me.admin);
+  // 申請 → 役員に出る → 承認
+  let st = gas.ctx.api(k2, 'requestAdmin', {});
+  assert.ok(!st.me.admin && st.me.adminRequested);
+  assert.ok(gas.ctx.api(k1, 'bootstrap').parents.find((p) => p.id === 'U2').request, '役員に申請が見える');
+  assert.throws(() => gas.ctx.api(k3, 'answerAdmin', { userId: 'U2', ok: true }), /役員/);
+  gas.ctx.api(k1, 'answerAdmin', { userId: 'U2', ok: true });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').me.admin);
+  // 断る
+  gas.ctx.api(k3, 'requestAdmin', {});
+  gas.ctx.api(k1, 'answerAdmin', { userId: 'U3', ok: false });
+  st = gas.ctx.api(k3, 'bootstrap');
+  assert.ok(!st.me.admin && !st.me.adminRequested);
+  // 役員の番号
+  assert.throws(() => gas.ctx.api(k4, 'adminCode', {}), /役員/);
+  const code = gas.ctx.api(k1, 'adminCode', {}).code;
+  assert.ok(/^\d{6}$/.test(code));
+  assert.throws(() => gas.ctx.api(k4, 'requestAdmin', { code: code === '111111' ? '222222' : '111111' }), /ちがいます/);
+  assert.ok(gas.ctx.api(k4, 'requestAdmin', { code: code }).me.admin, '番号が合えばすぐ役員');
+  const code2 = gas.ctx.api(k1, 'adminCode', { renew: true }).code;
+  assert.strictEqual(gas.ctx.api(k1, 'adminCode', {}).code, code2, '変えた番号が残る');
 });
 
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {

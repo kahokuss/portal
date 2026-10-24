@@ -538,6 +538,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (Array.isArray(st.trainShare.mine)) { var m0 = {}; st.trainShare.mine.forEach(function (k) { m0[k] = 'coach'; }); st.trainShare.mine = m0; }
     if (!st.trainComments) st.trainComments = { list: [], read: {} };
     if (!st.participation) st.participation = { kids: {} };
+    if (!st.strava) st.strava = { configured: false, connected: false, kw: {} };
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
     if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
@@ -2480,6 +2481,44 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function hmText(min) { return min >= 600 ? Math.round(min / 60) + '時間' : min >= 60 ? Math.floor(min / 60) + '時間' + (min % 60 ? (min % 60) + '分' : '') : min + '分'; }
   function round1(n) { return Math.round(n * 10) / 10; }
+  /** 自主トレ：Strava とつなぐ（家族ごと）。取り込んだ記録は家族だけに見せる */
+  function stravaCard() {
+    var V = ST.strava;
+    var h = '<section class="card" id="strava"><h2>Strava<small>' + (V.connected ? 'つながっています' : V.configured ? 'つながっていません' : '準備中') + '</small></h2>';
+    if (!V.configured) {
+      if (!ST.me.owner) return h + '<div class="sub">管理者が Strava の設定をすると、Strava の記録を自主トレに取り込めるようになります。</div></section>';
+      return h + '<div class="sub">管理者の設定（1回だけ）</div><ol class="sub" style="margin:0;padding-left:1.4em;line-height:1.8">' +
+        '<li>PCで <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a> を開き、Strava アカウントでアプリを作る（アプリ名の例：' + esc(ST.club) + ' ポータル、Webサイト：ポータルのURL）</li>' +
+        '<li>「Authorization Callback Domain」に <b>' + esc(V.domain || 'kahokuss.github.io') + '</b> を入れる</li>' +
+        '<li>出てきた Client ID と Client Secret を下に入れて保存</li></ol>' +
+        '<div class="f"><div class="two"><label>Client ID<input id="svId" inputmode="numeric" placeholder="12345"></label><label>Client Secret<input id="svSecret" placeholder="英数字40文字"></label></div></div>' +
+        '<button class="btn small" id="svKeys" type="button" style="justify-self:start">保存する</button></section>';
+    }
+    var ex = (ST.me.children[0] || { name: 'たろう' }).name.replace(/^.*[\s　]/, '');
+    if (!V.connected) {
+      return h + '<div class="sub">保護者の Strava とつなぐと、<b>タイトルに子どもの名前が入った活動</b>（ランニング・自転車など）を自主トレに取り込みます。例：「' + esc(ex) + ' 朝ラン」</div>' +
+        '<button class="btn small" id="svConnect" type="button" style="justify-self:start">Strava とつなぐ</button><div class="hint">取り込んだ記録はわが家だけに見えます（Strava の決まりのため、コーチやみんなには見せません）。</div></section>';
+    }
+    h += '<div class="sub">' + esc(V.name || 'Strava') + ' さんの Strava とつながっています。取り込んだ記録 ' + V.count + '件' + (V.last ? '・最後に確かめた ' + esc(String(V.last).slice(5, 16).replace('-', '/')) : '') + '</div>' +
+      '<div class="lbl" style="font-size:12px;color:var(--muted)">見分ける言葉（タイトルにこの言葉か名前が入った活動を取り込みます）</div>' +
+      ST.me.children.map(function (k) { return '<div class="row"><span style="min-width:6em">' + esc(k.name) + '</span><input class="tmin" style="width:12em" data-svkw="' + esc(k.name) + '" value="' + esc(V.kw[k.name] || '') + '" placeholder="例：' + esc(k.name.replace(/^.*[\s　]/, '')) + '、あだ名"></div>'; }).join('') +
+      '<div class="row"><button class="btn small" id="svSync" type="button">今すぐ取り込む</button><button class="btn small ghost" id="svKw" type="button">言葉を保存</button><button class="btn small ghost" id="svOff" type="button">つながりを切る</button></div>' +
+      '<div class="hint">1時間ごとに自動で取り込みます。ランニング→「ランニング」、自転車→「自転車」、ウォーキング・水泳も入ります。取り込んだ記録はわが家だけに見えます。</div></section>';
+    return h;
+  }
+  function bindStrava() {
+    on('#svKeys', function () { call('setStravaKeys', { id: val('svId'), secret: val('svSecret') }); });
+    on('#svConnect', function () {
+      var b = this; b.disabled = true;
+      rpc('stravaAuthUrl', {}, function (r) { location.href = r.url; }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
+    });
+    on('#svSync', function () { call('stravaSync', {}); });
+    on('#svKw', function () { var kw = {}; view.querySelectorAll('[data-svkw]').forEach(function (el) { kw[el.dataset.svkw] = el.value; }); call('stravaKeywords', { kw: kw }); });
+    on('#svOff', function () {
+      if (!confirm('Strava とのつながりを切りますか？')) return;
+      call('stravaDisconnect', { remove: confirm('Strava から取り込んだ記録も消しますか？（「キャンセル」で記録は残します）') });
+    });
+  }
   function train() {
     var coachKids = ST.trainShare.kids;
     var others = ST.me.coach || coachKids.length;
@@ -2496,11 +2535,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + effortCard(child) + trCalendarCard(child) + trReportCard(child) +
       '<section class="card"><h2>だれに見せる<small>' + LV.filter(function (x) { return x[0] === level; })[0][1] + '</small></h2><div class="choice" role="group" aria-label="だれに見せる">' +
       LV.map(function (x) { return '<button type="button" data-trlv="' + x[0] + '" aria-pressed="' + (level === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-      '<div class="hint">' + esc(child) + 'の自主トレを、' + LV.filter(function (x) { return x[0] === level; })[0][2] + '。直せるのは家族だけです。</div></section>';
+      '<div class="hint">' + esc(child) + 'の自主トレを、' + LV.filter(function (x) { return x[0] === level; })[0][2] + '。直せるのは家族だけです。Strava から取り込んだ記録は、家族だけに見えます。</div></section>' + stravaCard();
     view.innerHTML = modeTabs + h;
     bindCommon();
     bindTrain(child, F);
     bindTips();
+    bindStrava();
     bindTrComments(child);
     on('[data-trlv]', function () { if (this.dataset.trlv !== level) call('setTrainShare', { child: child, level: this.dataset.trlv }); });
     if (trUnread(child).length && !serverOld()) rpc('markTrainRead', { child: child }, function () { ST.trainComments.read[child] = '9999'; saveState(ST); }, function () {});
@@ -3974,6 +4014,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var vt = document.getElementById('vtip'); if (vt) vt.hidden = true;
     var app = document.querySelector('.app'); if (app) app.classList.toggle('wide', S.tab === 'dash');
     ({ home: home, events: events, album: album, family: family, admin: admin, train: train, dash: dash })[S.tab]();
+    if (S.stravaPending && !serverOld()) { var sp = S.stravaPending; S.stravaPending = null; setTimeout(function () { call('stravaConnect', sp); }, 0); }
     applyFolds();
   }
   // ---- 折りたたみ：カードの見出しを押すと閉じる・開く（このスマホに覚える） ----
@@ -4079,6 +4120,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   var q = new URLSearchParams(location.search);
   if (q.get('tab') && /^(home|events|album|family|train|admin|dash)$/.test(q.get('tab'))) S.tab = q.get('tab');
   if (q.get('v') || q.get('tab')) { q.delete('v'); q.delete('tab'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  // Strava のログインから戻ってきたとき（?strava=1&code=…&state=…）。LINEログインの code とは分けて扱う
+  if (q.get('strava')) {
+    S.stravaPending = { code: q.get('code') || '', state: q.get('state') || '', scope: q.get('scope') || '', error: q.get('error') || '' };
+    S.tab = 'train';
+    q.delete('strava'); q.delete('code'); q.delete('state'); q.delete('scope'); q.delete('error');
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+  }
   if (q.get('join')) {
     try { localStorage.setItem(JOIN, q.get('join').replace(/\D/g, '').slice(0, 6)); } catch (e) {}
     q.delete('join');

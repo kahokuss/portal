@@ -1089,13 +1089,14 @@ function setCoachAction_(ctx, p) {
 }
 
 function trainingFor_(ctx, children) {
-  let mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
-  mine = mine.concat(viewableTrainKids_(ctx));
+  const own = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  const mine = own.concat(viewableTrainKids_(ctx));
   if (!mine.length) return [];
   const from = addDays_(today_(), -400);
+  // Strava から取り込んだ記録（id が sv…）は、Strava の決まりで、その家族だけに見せる
   return readRows_(SHEETS.TRAINING)
-    .filter((x) => x.id && mine.indexOf(x['子ども']) >= 0 && x['日付'] >= from)
-    .map((x) => ({ id: x.id, date: x['日付'], child: x['子ども'], kind: x['種類'], km: Number(x['距離km']) || 0, min: Number(x['時間分']) || 0, count: Number(x['回数']) || 0, feel: x['調子'], memo: x['メモ'] }));
+    .filter((x) => x.id && mine.indexOf(x['子ども']) >= 0 && x['日付'] >= from && (!/^sv/.test(x.id) || own.indexOf(x['子ども']) >= 0))
+    .map((x) => ({ strava: /^sv/.test(x.id), id: x.id, date: x['日付'], child: x['子ども'], kind: x['種類'], km: Number(x['距離km']) || 0, min: Number(x['時間分']) || 0, count: Number(x['回数']) || 0, feel: x['調子'], memo: x['メモ'] }));
 }
 
 /** 自主トレを入れる・直す（id があれば直す） */

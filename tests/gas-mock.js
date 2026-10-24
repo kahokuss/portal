@@ -127,6 +127,8 @@ function createGas(options) {
   const spreadsheets = {};
   const calendar = new Calendar();
   const fetches = [];
+  // Strava のまね：code が 'sv:ok' ならつながる。activities に活動を入れておく
+  const strava = { activities: [], deauthorized: 0 };
   const cache = {};
   const profiles = {};
   const members = new Set();
@@ -181,6 +183,17 @@ function createGas(options) {
         const payload = typeof raw === 'string' ? JSON.parse(raw) : raw || null;
         fetches.push({ url, method: opt && opt.method, payload });
         const res = (code, obj) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(obj), getBlob: () => ({ getContentType: () => 'image/jpeg', setName() { return this; } }) });
+        if (/strava\.com\/oauth\/token$/.test(url)) {
+          const exp = Math.floor(Date.now() / 1000) + 21600;
+          if (payload.grant_type === 'authorization_code') return payload.code === 'sv:ok' ? res(200, { access_token: 'A1', refresh_token: 'R1', expires_at: exp, athlete: { id: 9, firstname: 'Taro', lastname: 'Y' } }) : res(400, { message: 'Bad Request' });
+          if (payload.grant_type === 'refresh_token') return res(200, { access_token: 'A2', refresh_token: 'R2', expires_at: exp });
+          return res(400, {});
+        }
+        if (/strava\.com\/api\/v3\/athlete\/activities/.test(url)) {
+          const after = Number((url.match(/after=(\d+)/) || [])[1] || 0);
+          return res(200, strava.activities.filter((a) => new Date(a.start_date).getTime() / 1000 > after));
+        }
+        if (/strava\.com\/oauth\/deauthorize$/.test(url)) { strava.deauthorized++; return res(200, {}); }
         // LINE ログイン：code は「login:<userId>」の形にしておく
         if (/oauth2\/v2\.1\/token$/.test(url)) {
           const m = String(payload.code).match(/^login:(.+)$/);
@@ -234,6 +247,7 @@ function createGas(options) {
     props,
     calendar,
     fetches,
+    strava,
     profiles,
     members,
     cache,

@@ -121,6 +121,7 @@ function syncJob() {
   resetMemo_();
   importScheduleSafely_();
   syncCalendar_();
+  try { stravaSyncAll_(); } catch (err) { console.warn('Strava: ' + err); }
 }
 
 function dailyJob() {

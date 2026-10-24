@@ -1012,6 +1012,27 @@ async function openPortal(browser, gas, userId, name) {
       await a.shot('29-pdf');
       await a.click('#vClose');
     });
+    await step('Strava：管理者が鍵を入れる → 「Stravaとつなぐ」→ 戻ってくると、名前の入った活動が自主トレに入る', async () => {
+      await a.click('[data-nav="train"]');
+      if (await a.$('[data-trkid="山田たろう"]')) await a.click('[data-trkid="山田たろう"]');
+      await a.fill('#svId', '123');
+      await a.fill('#svSecret', 'abcdef0123456789abcdef0123456789abcdef01');
+      await a.click('#svKeys');
+      await a.idle();
+      let authUrl = '';
+      await a.route('https://www.strava.com/**', (r) => { authUrl = r.request().url(); r.fulfill({ contentType: 'text/html', body: 'strava' }); });
+      gas.strava.activities.push({ id: 77, name: 'たろう ジョグ', sport_type: 'Run', distance: 2500, moving_time: 900, start_date: new Date(Date.now() - 3600e3).toISOString(), start_date_local: '2026-10-14T07:00:00Z' });
+      await a.click('#svConnect');
+      await a.waitForURL('https://www.strava.com/**');
+      const state = new URL(authUrl).searchParams.get('state');
+      assert.ok(state && state.startsWith('sv'), authUrl);
+      await a.goto('https://portal.test/?strava=1&code=sv:ok&state=' + state + '&scope=read,activity:read_all');
+      await a.waitForSelector('#nav:not([hidden])');
+      await a.waitForFunction(() => /Strava とつなぎました/.test(document.querySelector('#view').textContent), null, { timeout: 15000 });
+      assert.ok(gas.rows('自主トレ').some((r) => /^sv77/.test(r.id) && r['子ども'] === '山田たろう' && r['距離km'] === '2.5'));
+      assert.ok((await a.textContent('#strava')).includes('つながっています'));
+      await a.shot('30-strava');
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

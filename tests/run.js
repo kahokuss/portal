@@ -1134,6 +1134,44 @@ test('記録の種類：大会名が加速走などは「練習」として入�
   assert.strictEqual(res.find((r) => r.race === '100m').kind, '公式', '大会の記録はそのまま');
 });
 
+test('Strava：管理者が設定 → 家族がつなぐ → 子どもの名前が入った活動だけ自主トレに入る（家族だけに見える）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k4 = gas.login('U4').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.ok(!gas.ctx.api(k2, 'bootstrap').strava.configured);
+  assert.throws(() => gas.ctx.api(k2, 'stravaAuthUrl', {}), /設定/);
+  assert.throws(() => gas.ctx.api(kA, 'setStravaKeys', { id: '123', secret: 'abcdef0123456789abcdef0123456789abcdef01' }), /管理者/);
+  gas.ctx.api(gas.login('U1').key, 'becomeOwner', { code: gas.run('ownerCode_()') });
+  gas.ctx.api(kA, 'setStravaKeys', { id: '123', secret: 'abcdef0123456789abcdef0123456789abcdef01' });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').strava.configured);
+  const url = gas.ctx.api(k2, 'stravaAuthUrl', {}).url;
+  assert.ok(url.startsWith('https://www.strava.com/oauth/authorize?client_id=123') && url.includes(encodeURIComponent('https://kahokuss.github.io/portal/?strava=1')), url);
+  const state = url.match(/state=(sv\w+)/)[1];
+  const now = Date.now();
+  gas.strava.activities.push(
+    { id: 1, name: 'けんた 朝ラン', sport_type: 'Run', distance: 3210, moving_time: 1260, start_date: new Date(now - 864e5).toISOString(), start_date_local: '2026-10-13T07:00:00Z' },
+    { id: 2, name: '父のジョグ', sport_type: 'Run', distance: 8000, moving_time: 2700, start_date: new Date(now - 864e5).toISOString(), start_date_local: '2026-10-13T06:00:00Z' },
+    { id: 3, name: '鈴木けんた サイクリング', sport_type: 'Ride', distance: 12000, moving_time: 2400, start_date: new Date(now - 2 * 864e5).toISOString(), start_date_local: '2026-10-12T09:00:00Z' });
+  assert.throws(() => gas.ctx.api(kA, 'stravaConnect', { code: 'sv:ok', state, scope: 'read,activity:read_all' }), /時間が切れ/, 'ほかの人の state では入れない');
+  const st = gas.ctx.api(k2, 'stravaConnect', { code: 'sv:ok', state, scope: 'read,activity:read_all' });
+  assert.ok(st.message.includes('2件'), st.message);
+  assert.ok(st.strava.connected && st.strava.name === 'Taro Y');
+  const t = st.training.filter((x) => x.strava);
+  assert.deepStrictEqual(plain(t.map((x) => [x.kind, x.km, x.min])).sort(), [['ランニング', 3.21, 21], ['自転車', 12, 40]], '名前の入った活動だけ');
+  assert.strictEqual(gas.ctx.api(k2, 'stravaSync', {}).message.startsWith('新しい活動はありません'), true, '2重に取り込まない');
+  // みんなに見せる設定でも、Strava の分はほかの家族やコーチには見せない
+  gas.ctx.api(k2, 'setTrainShare', { child: '鈴木けんた', level: 'all' });
+  gas.ctx.api(k2, 'saveTraining', { date: '2026-10-13', child: '鈴木けんた', kind: '腹筋', count: 30 });
+  gas.ctx.api(kA, 'setCoach', { userId: 'U4', on: true });
+  const others = gas.ctx.api(k4, 'bootstrap').training.filter((x) => x.child === '鈴木けんた');
+  assert.deepStrictEqual(plain(others.map((x) => x.kind)), ['腹筋'], '自分で入れた分だけ見える');
+  // つながりを切る（取り込んだ分も消す）
+  const d = gas.ctx.api(k2, 'stravaDisconnect', { remove: true });
+  assert.ok(d.message.includes('2件') && !d.strava.connected && gas.strava.deauthorized === 1, d.message);
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

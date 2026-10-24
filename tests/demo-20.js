@@ -33,6 +33,24 @@ SEI.forEach((s, i) => { if (i % 4 !== 3) gas.ctx.api(gas.login('U' + (i + 1)).ke
 api('setDuty', { key: prac.key, fam: 'U2', on: true });
 api('saveFee', { name: '年会費', amount: 3000, target: '全員' });
 api('savePoll', { title: '11/1 の送迎、車を出せますか', options: ['出せる', '出せない'] });
+// 1年分の記録（架空）：練習で月に1回100m・走幅跳を測り、少しずつ伸びる。大会の記録も少し
+let seed = 11;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const recs = [];
+SEI.forEach((s, i) => {
+  const g = (i % 6) + 1, name = s + MEI[i];
+  if (i % 9 === 8) return; // 記録のない子もいる
+  for (let m = 11; m >= 0; m--) {
+    const d = new Date(Date.UTC(2026, 9 - m, 10 + (i % 15))).toISOString().slice(0, 10);
+    if (rnd() < 0.25) continue;
+    const t100 = (21 - g * 0.9 - (11 - m) * 0.05 + rnd() * 0.6).toFixed(2);
+    recs.push({ child: name, race: g <= 2 ? '50m' : '100m', record: g <= 2 ? (11 - g * 0.5 - (11 - m) * 0.03 + rnd() * 0.4).toFixed(2) : t100, date: d, meet: '練習', kind: '練習' });
+    if (g >= 3 && rnd() < 0.6) { const cm = Math.round(220 + g * 25 + (11 - m) * 3 + rnd() * 20); recs.push({ child: name, race: '走幅跳', record: Math.floor(cm / 100) + 'm' + String(cm % 100).padStart(2, '0'), date: d, meet: '練習', kind: '練習' }); }
+  }
+  if (g >= 3) recs.push({ child: name, race: '100m', record: (20.5 - g * 0.9 + rnd() * 0.5).toFixed(2), date: '2026-09-27', meet: '県小学生陸上', kind: '公式' });
+});
+api('addRecords', { rows: recs });
+
 
 (async () => {
   fs.mkdirSync(shotDir, { recursive: true });
@@ -81,6 +99,15 @@ api('savePoll', { title: '11/1 の送迎、車を出せますか', options: ['�
   await page.click('#aBack');
   await page.click('[data-go="members"]');
   await shot('8-members');
+  await page.click('#aBack');
+  await page.click('[data-go="dash"]');
+  await shot('9-dash');
+  await page.click('[data-dk="練習"]');
+  await page.click('button[data-dr="走幅跳"]');
+  await shot('9b-dash-long');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await shot('9c-dash-pc');
+  await page.setViewportSize({ width: 375, height: 800 });
   await idle();
   assert.deepStrictEqual(errors, []);
   await browser.close();

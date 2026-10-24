@@ -886,6 +886,18 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors);
       await q.close();
     });
+    await step('記録ダッシュボード：大会と練習の記録をまとめて、種目を押すとランキング', async () => {
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="dash"]');
+      const t = await a.textContent('#view');
+      assert.ok(t.includes('記録ダッシュボード') && t.includes('ベスト更新') && t.includes('種目ごと') && t.includes('ランキング'), t);
+      await a.click('[data-dp="all"]');
+      await a.click('[data-dk="練習"]');
+      assert.ok((await a.textContent('#view')).includes('50m'), '練習で測った記録も入る');
+      await a.shot('25-dash');
+      await a.click('#dBack');
+      assert.ok((await a.textContent('#view')).includes('管理メニュー') || (await a.$('[data-go="dash"]')));
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

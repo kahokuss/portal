@@ -922,6 +922,22 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors);
       await q.close();
     });
+    await step('管理者：わが家で番号を入れると管理者になり、メンバーで家族ごとの役員・係を決められる', async () => {
+      await a.click('[data-nav="family"]');
+      await a.fill('#owCode', gas.run('ownerCode_()'));
+      await a.click('#owBtn');
+      await a.idle();
+      assert.ok((await a.textContent('#me')).includes('管理者'));
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="members"]');
+      await a.click('[data-role]');
+      await a.click('[data-rq="会計"]');
+      await a.click('#roleSave');
+      await a.idle();
+      assert.ok(gas.rows('家族').some((r) => r['係'] === '会計'));
+      assert.ok(await a.$('[data-owner]'), '管理者には「管理者にする」ボタン');
+      await a.shot('27-members-family');
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

@@ -256,6 +256,7 @@ form.f, .f { display: grid; gap: 8px; }
 .legend .k.avg { border-top: 2px dotted var(--muted); } .legend .k.avg2 { border-top: 2px dashed var(--fg); opacity: .7; } .legend .k.kd { border-top: 2px dashed var(--fg); }
 .rchart .ln.avg { fill: none; stroke: var(--muted); stroke-dasharray: 2 4; stroke-width: 2; }
 .rchart .ln.avg2 { fill: none; stroke: var(--fg); stroke-dasharray: 7 4; stroke-width: 1.5; opacity: .6; }
+.fam { display: grid; gap: 6px; }
 .cmpbars { display: grid; gap: 6px; }
 .cmpbars .r { display: grid; grid-template-columns: 9.5em minmax(40px, 1fr) 4.6em; gap: 8px; align-items: center; font-size: 12.5px; }
 .cmpbars .bar { height: 10px; background: var(--surface-2); border-radius: 0 5px 5px 0; overflow: hidden; }
@@ -443,9 +444,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "162bc75df3";
+var BUILD = "b32df7cac7";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "40787f58a7";
+var EXPECT_SERVER = "76f2c89cbb";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -545,7 +546,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function serverBanner() {
     if (!serverOld()) return '';
     return '<section class="card" style="box-shadow:inset 4px 0 0 var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
-      (ST.me.admin ? '<div class="sub">PCで更新してください。<b>保存だけでは変わりません。</b></div>' + updateButtons() + versionLine() : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
+      (ST.me.admin && (ST.me.owner || !ST.me.hasOwner) ? '<div class="sub">PCで更新してください。<b>保存だけでは変わりません。</b></div>' + updateButtons() + versionLine() : ST.me.admin ? '<div class="sub">管理者に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>' : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
   }
   // ---- やること・お知らせの既読・アンケート・集金 ----
   /** 自分の家でまだやっていないこと（エントリー・集金・アンケート・お知らせ・当番） */
@@ -695,6 +696,21 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<li>ポータルの「更新」を押して、ここが「✅ 最新です」になればOK</li></ol>' + versionLine() + '</section>';
   }
 
+  var ROLE_CHOICES = ['会長', '副会長', '会計', '書記', '監査', '記録係', '用具係', '連絡係', '写真係', '大会係', '当番係'];
+  /** 役員・係の一覧（だれでも見られる。連絡先をさがすとき用） */
+  function rolesCard() {
+    var list = ST.families.filter(function (f) { return f.role || f.admin; });
+    if (!list.length) return '';
+    return '<section class="card"><h2>役員・係<small>' + list.length + '家族</small></h2><div class="list">' + list.map(function (f) {
+      return '<div class="between"><span>' + esc(f.label || (f.parents || []).join('・')) + (f.id === ST.me.fam ? ' <span class="sub">（わが家）</span>' : '') + '</span><span class="row nowrap">' + (f.role ? '<span class="pill p-ok">' + esc(f.role) + '</span>' : '') + (f.admin ? '<span class="pill p-race">役員</span>' : '') + '</span></div>';
+    }).join('') + '</div></section>';
+  }
+  /** わが家：管理者（ポータルの持ち主）。番号は Apps Script のログに出る */
+  function ownerCard() {
+    if (ST.me.owner) return '<section class="card"><h2>管理者<small>管理者です</small></h2><div class="sub">役員の管理、サーバー（Apps Script）の更新などができます。「管理」→「メンバーと役員」で、ほかの人を管理者にもできます。</div></section>';
+    return '<section class="card"><h2>管理者になる<small>ポータルの持ち主だけ</small></h2><div class="sub">Apps Script で「setup」（または「showOwnerCode」）を実行すると、下の「実行ログ」に「管理者の番号」が出ます。その8けたを入れてください。</div>' +
+      '<div class="row"><input id="owCode" class="tmin" inputmode="numeric" maxlength="8" placeholder="8けた" style="width:9em"><button class="btn small ghost" id="owBtn" type="button">管理者になる</button></div></section>';
+  }
   /** わが家：役員になる（申請・役員の番号） */
   function adminRequestCard() {
     if (ST.me.admin) return '<section class="card"><h2>役員<small>役員です</small></h2><div class="sub">下のメニューの「管理」から、予定・大会・当番・お知らせ・メンバーなどを直せます。</div></section>';
@@ -992,7 +1008,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<select data-ks="' + i + '" aria-label="男女"><option value="">男女</option>' + ['男', '女'].map(function (x) { return '<option' + (c.sex === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
         '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
     }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' +
-      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() + adminRequestCard() +
+      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() + rolesCard() + adminRequestCard() + ownerCard() +
       '<section class="card"><h2>PCでも使う</h2><div class="sub">PCで ' + esc(HOME_URL) + ' を開き、「スマホに出した番号でログイン」に下の番号を入れてください（LINEのアカウントやパスワードは使いません）。</div>' +
         (S.pc ? '<div class="big" style="font-size:2rem;letter-spacing:.3em;text-align:center">' + esc(S.pc.code) + '</div><div class="hint" style="text-align:center">' + S.pc.minutes + '分間・1回だけ使えます。人に見せないでください。</div>' : '<button class="btn small ghost" type="button" id="pcCodeBtn" style="justify-self:start">番号を出す</button>') + '</section>' +
       '<section class="card"><h2>ログイン</h2><div class="sub">' + esc(ST.me.name) + 'さんのLINEでログインしています。このページは' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。家族のスマホで使うときは、ログアウトしてからそれぞれのLINEでログインしてください。</div><button class="btn small ghost" id="logout" type="button" style="justify-self:start">ログアウト</button></section>';
@@ -1002,6 +1018,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
     bindFamilyCard(); bindCommon(); bindCharts();
     on('#arReq', function () { call('requestAdmin', {}); });
+    on('#owBtn', function () { var v = document.getElementById('owCode').value; if (v.trim()) call('becomeOwner', { code: v }); });
     on('#arCancel', function () { call('requestAdmin', { cancel: true }); });
     on('#arCodeBtn', function () { var v = document.getElementById('arCode').value; if (v.trim()) call('requestAdmin', { code: v }); });
     on('#pcCodeBtn', function () { var b = this; b.disabled = true; rpc('pcCode', {}, function (r) { S.pc = r; render(); setTimeout(function () { S.pc = null; if (S.tab === 'family') render(); }, r.minutes * 60000); }, function (err) { b.disabled = false; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); });
@@ -1036,9 +1053,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
-    view.innerHTML = toastHtml() + (API_URL && serverOld() ? updateCard() : '') + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
+    view.innerHTML = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
-      '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() ? updateCard() : '');
+      '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '');
     on('[data-go="dash"]', function (ev) { ev.stopImmediatePropagation(); S.dashFrom = 'admin'; go('dash'); });
     on('[data-go]', function () { if (this.dataset.go === 'dash') return; S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
   }
@@ -3538,13 +3555,32 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }).join('') + '</div></section>';
     h += '<section class="card"><h2>役員の番号<small>教えた人はすぐ役員になれます</small></h2><div class="row">' + (S.adminCode ? '<span class="big" style="letter-spacing:.2em">' + esc(S.adminCode) + '</span><button class="btn small ghost" id="acRenew" type="button">番号を変える</button>' : '<button class="btn small ghost" id="acShow" type="button">番号を見る</button>') + '</div>' +
       '<div class="hint">新しい役員に口頭で伝えると、その人が「わが家」→「役員になる」に入れて役員になれます。広まってしまったら「番号を変える」を押してください（前の番号は使えなくなります）。</div></section>';
-    h += '<section class="card"><h2>メンバーと役員<small>' + list.length + '人・役員 ' + list.filter(function (p) { return p.admin; }).length + '人</small></h2><div class="list">' + list.map(function (p) {
-      return '<div class="between"><span>' + esc(p.name) + (p.me ? '（自分）' : '') + (p.admin ? ' <span class="pill p-race">役員</span>' : '') + (p.coach ? ' <span class="pill p-prac">コーチ</span>' : '') + '<br><span class="sub">' + (p.kids.length ? esc(p.kids.join('・')) : 'お子さん未登録') + '</span></span><span class="row" style="justify-content:flex-end">' +
-        '<button class="btn small ' + (p.admin ? 'ghost' : 'ok') + '" type="button" data-admin="' + esc(p.id) + '" data-on="' + (p.admin ? '' : '1') + '" data-name="' + esc(p.name) + '" data-me="' + (p.me ? '1' : '') + '">' + (p.admin ? '役員から外す' : '役員にする') + '</button>' +
-        '<button class="btn small ghost" type="button" data-coach="' + esc(p.id) + '" data-on="' + (p.coach ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.coach ? 'コーチから外す' : 'コーチにする') + '</button></span></div>';
-    }).join('') + '</div><div class="hint">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。コーチにすると、家族が「コーチに見せる」にしている子の自主トレを見られます（役員でなくてもOK）。ここに出るのは、一度でもポータルにログインした人です。役員が1人もいなくなる操作はできません。</div></section>';
+    // 家族ごと：役員と係は家族単位、コーチは一人ずつ
+    var fams = {}, order = [];
+    list.forEach(function (p) { var id = p.fam || p.id; if (!fams[id]) { fams[id] = []; order.push(id); } fams[id].push(p); });
+    var finfo = function (id) { return ST.families.find(function (f) { return f.id === id; }) || { label: '', role: '' }; };
+    order.sort(function (a, b) { var A = fams[a][0], B = fams[b][0]; return (B.admin - A.admin) || (finfo(b).role ? 1 : 0) - (finfo(a).role ? 1 : 0) || (finfo(a).label < finfo(b).label ? -1 : 1); });
+    h += '<section class="card"><h2>家族と役員・係<small>' + order.length + '家族・役員 ' + order.filter(function (id) { return fams[id][0].admin; }).length + '家族</small></h2><div class="list">' + order.map(function (id) {
+      var ps = fams[id], fi = finfo(id), adm = ps[0].admin, kids = ps.reduce(function (a, p) { p.kids.forEach(function (k) { if (a.indexOf(k) < 0) a.push(k); }); return a; }, []);
+      var editing = S.roleEdit === id;
+      return '<div class="fam"><div class="between"><span><b>' + esc(kids.length ? kids.join('・') : ps.map(function (p) { return p.name; }).join('・')) + '</b>' + (adm ? ' <span class="pill p-race">役員</span>' : '') +
+        (fi.role ? ' <span class="pill p-ok">' + esc(fi.role) + '</span>' : '') + '</span>' +
+        '<span class="row nowrap"><button class="btn small ghost" type="button" data-role="' + esc(id) + '">係</button><button class="btn small ' + (adm ? 'ghost' : 'ok') + '" type="button" data-admin="' + esc(ps[0].id) + '" data-on="' + (adm ? '' : '1') + '" data-name="' + esc(kids.join('・') || ps[0].name) + 'の家族" data-me="' + (ps.some(function (p) { return p.me; }) ? '1' : '') + '">' + (adm ? '役員から外す' : '役員にする') + '</button></span></div>' +
+        (editing ? '<div class="row"><input id="roleIn" class="tmin" style="width:12em" value="' + esc(fi.role) + '" placeholder="例：会計、記録係"><button class="btn small" id="roleSave" type="button" data-fam="' + esc(id) + '">決める</button><button class="link" id="roleX" type="button">やめる</button></div><div class="quick">' +
+          ROLE_CHOICES.map(function (r) { return '<button type="button" data-rq="' + r + '">' + r + '</button>'; }).join('') + '</div>' : '') +
+        '<div class="list" style="margin-left:6px">' + ps.map(function (p) {
+          return '<div class="between"><span class="sub">' + esc(p.name) + (p.me ? '（自分）' : '') + (p.owner ? ' <span class="pill p-imp">管理者</span>' : '') + (p.coach ? ' <span class="pill p-prac">コーチ</span>' : '') + '</span><span class="row nowrap">' +
+            (ST.me.owner ? '<button class="btn small ghost" type="button" data-owner="' + esc(p.id) + '" data-on="' + (p.owner ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.owner ? '管理者から外す' : '管理者にする') + '</button>' : '') +
+            '<button class="btn small ghost" type="button" data-coach="' + esc(p.id) + '" data-on="' + (p.coach ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.coach ? 'コーチから外す' : 'コーチにする') + '</button></span></div>';
+        }).join('') + '</div></div>';
+    }).join('') + '</div><div class="hint">役員と係は家族ごとです（父・母どちらも同じ役になります）。役員になると下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。コーチは一人ずつで、家族が「コーチに見せる」にしている子の自主トレを見られます。ここに出るのは、一度でもポータルにログインした人です。役員が1家族もいなくなる操作はできません。</div></section>';
     view.innerHTML = h;
     bindBack();
+    on('[data-owner]', function () { var d = this.dataset; if (confirm(d.name + 'さんを' + (d.on ? '管理者にしますか？（役員の管理やサーバーの更新ができるようになります）' : '管理者から外しますか？'))) call('setOwner', { userId: d.owner, on: !!d.on }); });
+    on('[data-role]', function () { S.roleEdit = S.roleEdit === this.dataset.role ? '' : this.dataset.role; render(); });
+    on('#roleX', function () { S.roleEdit = ''; render(); });
+    on('[data-rq]', function () { var el = document.getElementById('roleIn'), v = el.value.trim(), r = this.dataset.rq; el.value = v && v.split(/[・、,]/).indexOf(r) < 0 ? v + '・' + r : v || r; });
+    on('#roleSave', function () { var fam = this.dataset.fam; call('setRole', { fam: fam, role: document.getElementById('roleIn').value }, function (st) { if (st.message) S.roleEdit = ''; }); });
     on('[data-arok]', function () { call('answerAdmin', { userId: this.dataset.arok, ok: true }); });
     on('[data-arng]', function () { call('answerAdmin', { userId: this.dataset.arng, ok: false }); });
     var showCode = function (renew) { rpc('adminCode', { renew: renew }, function (r) { S.adminCode = r.code; render(); }, function (err) { S.toast = '⚠ ' + err.message; S.toastErr = true; render(); }); };
@@ -3552,7 +3588,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#acRenew', function () { if (confirm('役員の番号を変えますか？前の番号は使えなくなります。')) showCode(true); });
     on('[data-admin]', function () {
       var d = this.dataset;
-      if (!confirm(d.name + 'さんを' + (d.on ? '役員にしますか？' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
+      if (!confirm(d.name + 'を' + (d.on ? '役員にしますか？（父・母どちらも役員になります）' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
       call('setAdmin', { userId: d.admin, on: !!d.on }, function () { if (d.me && !d.on) S.tab = 'home'; });
     });
     on('[data-coach]', function () {
@@ -3718,7 +3754,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function render() {
     CURKEY = ''; FORMDROP = {};
     document.getElementById('clubName').textContent = ST.club + ' ポータル';
-    document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.admin ? '・役員' : '');
+    document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.owner ? '・管理者' : ST.me.admin ? '・役員' : '');
     document.getElementById('reload').hidden = false;
     if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
     if (S.tab === 'dash' && !ST.me.admin && !ST.me.coach) S.tab = 'home';

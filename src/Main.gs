@@ -184,6 +184,13 @@ function setup() {
   console.log('スプレッドシート: ' + ss_().getUrl());
   console.log('写真フォルダ: ' + photoFolderUrl_());
   console.log('Webhook URL: <ウェブアプリのURL>?token=' + prop_('WEBHOOK_TOKEN'));
+  console.log('管理者の番号: ' + ownerCode_() + '（ポータルの「わが家」→「管理者になる」に入れると、その人が管理者になります。人に教えないでください）');
+}
+
+/** 管理者の番号をログに出す（setup をしなくても見られる） */
+function showOwnerCode() {
+  requireOwner_();
+  console.log('管理者の番号: ' + ownerCode_());
 }
 
 /** 動作確認用：カレンダーをすぐ同期する */

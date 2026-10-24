@@ -3,7 +3,7 @@
  * どのシートも1行目が見出しで、2行目以降がデータ。値はすべて文字列で保存する。
  */
 const SHEETS = {
-  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ', '役員申請'] },
+  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ', '役員申請', '係', '管理者'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
@@ -203,8 +203,26 @@ function isCoach_(family) {
   return !!family && /^(○|◯|〇|o|yes|true|1|コーチ)$/i.test(String(family['コーチ'] || '').trim());
 }
 
-function isAdmin_(family) {
+function isAdminRow_(family) {
   return !!family && /^(○|◯|〇|o|yes|true|1|役員)$/i.test(String(family['役員']).trim());
+}
+
+/** 管理者（ポータルの持ち主）。一人ずつ。管理者はいつでも役員として扱う */
+function isOwner_(family) {
+  return !!family && /^(○|◯|〇|o|yes|true|1|管理者)$/i.test(String(family['管理者'] || '').trim());
+}
+
+/** 役員は家族ごと：父・母のどちらかに ○ があれば、同じ家族の人はみな役員 */
+function isAdmin_(family) {
+  if (!family) return false;
+  if (isAdminRow_(family) || isOwner_(family)) return true;
+  const id = famIdOf_(family);
+  return readRows_(SHEETS.FAMILIES).some((f) => famIdOf_(f) === id && isAdminRow_(f));
+}
+
+/** 同じ家族の行（家族ごとの設定は、全員の行にそろえて書く） */
+function familyRowsOf_(rows, famId) {
+  return rows.filter((f) => famIdOf_(f) === famId);
 }
 
 /** 家族のまとまり（夫婦など）。まとめていない人は userId がそのまま家族ID */

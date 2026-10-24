@@ -512,7 +512,8 @@ test('前の版のシートに、新しい列の見出しが足される', () =>
   gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k]); resetMemo_();");
   Object.keys(gas.cache).filter((k) => k.startsWith('hdr:')).forEach((k) => delete gas.cache[k]);
   gas.run('readRows_(SHEETS.FAMILIES)');
-  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認', 'コーチ', '役員申請']);
+  assert.deepStrictEqual(sh.data[0].slice(6, 9), ['家族ID', '休み通知', '新着確認']);
+  assert.deepStrictEqual(sh.data[0].slice(6), plain(gas.run('SHEETS.FAMILIES.headers')).slice(6), '足りない見出しが全部足される');
   assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
 });
 
@@ -728,7 +729,7 @@ test('役員: 役員がポータルでほかの人を役員にでき、最後の
   const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
   gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
   assert.throws(() => gas.ctx.api(k2, 'setAdmin', { userId: 'U2', on: true }), /役員だけ/);
-  assert.throws(() => gas.ctx.api(kAdmin, 'setAdmin', { userId: 'U1', on: false }), /1人もいなくなる/);
+  assert.throws(() => gas.ctx.api(kAdmin, 'setAdmin', { userId: 'U1', on: false }), /1家族もいなくなる/);
   gas.ctx.api(kAdmin, 'setAdmin', { userId: 'U2', on: true });
   assert.strictEqual(gas.ctx.api(k2, 'bootstrap').me.admin, true);
   gas.ctx.api(k2, 'setAdmin', { userId: 'U1', on: false });
@@ -1010,6 +1011,54 @@ test('役員になる：役員がいなければすぐ・申請して承認・�
   assert.ok(gas.ctx.api(k4, 'requestAdmin', { code: code }).me.admin, '番号が合えばすぐ役員');
   const code2 = gas.ctx.api(k1, 'adminCode', { renew: true }).code;
   assert.strictEqual(gas.ctx.api(k1, 'adminCode', {}).code, code2, '変えた番号が残る');
+});
+
+test('役員と係は家族ごと：父・母どちらも同じ役', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const k1 = gas.login('U1').key, k2 = gas.login('U2').key, k4 = gas.login('U4').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  // 山田（父）U4 が山田の家族に入る → 役員になる
+  const inv = gas.ctx.api(k1, 'inviteFamily');
+  gas.ctx.api(k4, 'joinFamily', { code: inv.code });
+  assert.ok(gas.ctx.api(k4, 'bootstrap').me.admin, '家族のだれかが役員なら、父・母どちらも役員');
+  // 鈴木の家族を役員に → 外す
+  gas.ctx.api(k1, 'setAdmin', { userId: 'U2', on: true });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').me.admin);
+  gas.ctx.api(k4, 'setAdmin', { userId: 'U1', on: false });
+  assert.ok(!gas.ctx.api(k1, 'bootstrap').me.admin && !gas.ctx.api(k4, 'bootstrap').me.admin, '外すと家族の全員が外れる');
+  assert.throws(() => gas.ctx.api(k2, 'setAdmin', { userId: 'U2', on: false }), /1家族もいなく/);
+  // 係
+  const fam = gas.ctx.api(k2, 'bootstrap').families.find((f) => f.parents.some((x) => /山田/.test(x)));
+  assert.throws(() => gas.ctx.api(k1, 'setRole', { fam: fam.id, role: '会計' }), /役員/);
+  gas.ctx.api(k2, 'setRole', { fam: fam.id, role: '会計・記録係' });
+  const st = gas.ctx.api(k1, 'bootstrap');
+  assert.strictEqual(st.families.find((f) => f.id === fam.id).role, '会計・記録係', 'だれでも係が見られる');
+  assert.ok(gas.rows('家族').filter((r) => r.userId === 'U1' || r.userId === 'U4').every((r) => r['係'] === '会計・記録係'), '父・母どちらの行にも');
+});
+
+test('管理者：Apps Scriptの番号を入れた人だけ。いつでも役員、ほかの人を管理者にできるのは管理者だけ', () => {
+  const gas = setupClub();
+  const k1 = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const code = gas.run('ownerCode_()');
+  assert.ok(/^\d{8}$/.test(code));
+  assert.throws(() => gas.ctx.api(k2, 'becomeOwner', { code: '12345678' === code ? '87654321' : '12345678' }), /ちがいます/);
+  let st = gas.ctx.api(k2, 'becomeOwner', { code: code });
+  assert.ok(st.me.owner && st.me.admin, '管理者は役員としても使える');
+  assert.ok(gas.ctx.api(k1, 'bootstrap').parents.find((p) => p.id === 'U2').owner);
+  // 役員が管理者の家族を役員から外しても、管理者は役員のまま
+  gas.ctx.api(k1, 'setAdmin', { userId: 'U2', on: false });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').me.admin);
+  assert.throws(() => gas.ctx.api(k1, 'setOwner', { userId: 'U1', on: true }), /管理者だけ/);
+  gas.ctx.api(k2, 'setOwner', { userId: 'U1', on: true });
+  assert.ok(gas.ctx.api(k1, 'bootstrap').me.owner);
+  gas.ctx.api(k1, 'setOwner', { userId: 'U2', on: false });
+  assert.throws(() => gas.ctx.api(k1, 'setOwner', { userId: 'U1', on: false }), /一人もいなく/);
+  // 5回まちがえると、しばらく入れられない
+  for (let i = 0; i < 5; i++) assert.throws(() => gas.ctx.api(k3, 'becomeOwner', { code: '0' }));
+  assert.throws(() => gas.ctx.api(k3, 'becomeOwner', { code: code }), /しばらく/);
 });
 
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {

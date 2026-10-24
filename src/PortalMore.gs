@@ -37,12 +37,12 @@ function setAdminAction_(ctx, p) {
     const rows = readRows_(SHEETS.FAMILIES);
     const f = rows.find((x) => x.userId === p.userId);
     if (!f) throw new Error('見つかりません。');
-    if (!p.on && rows.filter((x) => isAdmin_(x) && x.userId !== f.userId).length === 0) throw new Error('役員が1人もいなくなるので、外せません。先にほかの人を役員にしてください。');
-    f['役員'] = p.on ? '○' : '';
-    f['更新日時'] = now_();
-    updateRow_(SHEETS.FAMILIES, f);
+    const id = famIdOf_(f);
+    if (!p.on && !rows.some((x) => famIdOf_(x) !== id && isAdminRow_(x))) throw new Error('役員が1家族もいなくなるので、外せません。先にほかの家族を役員にしてください。');
+    // 役員は家族ごと：父・母どちらの行もそろえる
+    familyRowsOf_(rows, id).forEach((x) => { x['役員'] = p.on ? '○' : ''; x['役員申請'] = ''; x['更新日時'] = now_(); updateRow_(SHEETS.FAMILIES, x); });
   });
-  return (p.on ? '役員にしました' : '役員から外しました');
+  return (p.on ? '役員にしました（家族の全員）' : '役員から外しました（家族の全員）');
 }
 
 /** 休みの連絡をLINEで受け取る人を切り替える（役員だけ） */
@@ -1189,11 +1189,14 @@ function adminCodeAction_(ctx, p) {
   return { code: adminCode_(!!p.renew) };
 }
 
+/** 家族ごと役員にする（父・母どちらの行も） */
 function makeAdmin_(f) {
-  f['役員'] = '○';
-  f['役員申請'] = '';
-  f['更新日時'] = now_();
-  updateRow_(SHEETS.FAMILIES, f);
+  familyRowsOf_(readRows_(SHEETS.FAMILIES), famIdOf_(f)).forEach((x) => {
+    x['役員'] = '○';
+    x['役員申請'] = '';
+    x['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, x);
+  });
 }
 
 /**
@@ -1208,7 +1211,7 @@ function requestAdminAction_(ctx, p) {
     const f = rows.find((x) => x.userId === ctx.userId);
     if (!f) throw new Error('見つかりません。');
     if (p.cancel) { f['役員申請'] = ''; updateRow_(SHEETS.FAMILIES, f); return '役員の申請を取り下げました'; }
-    if (!rows.some(isAdmin_)) { makeAdmin_(f); return '役員がまだいなかったので、役員になりました'; }
+    if (!rows.some(isAdminRow_)) { makeAdmin_(f); return '役員がまだいなかったので、役員になりました'; }
     if (code) {
       if (code !== adminCode_(false)) throw new Error('役員の番号がちがいます。役員の人に「管理」→「メンバーと役員」で番号を見てもらってください。');
       makeAdmin_(f);
@@ -1225,9 +1228,65 @@ function answerAdminAction_(ctx, p) {
   return withLock_(() => {
     const f = findFamily_(p.userId);
     if (!f) throw new Error('見つかりません。');
-    if (p.ok) { makeAdmin_(f); return (f['表示名'] || '') + 'さんを役員にしました'; }
-    f['役員申請'] = '';
-    updateRow_(SHEETS.FAMILIES, f);
+    if (p.ok) { makeAdmin_(f); return (f['表示名'] || '') + 'さんの家族を役員にしました'; }
+    familyRowsOf_(readRows_(SHEETS.FAMILIES), famIdOf_(f)).forEach((x) => { x['役員申請'] = ''; updateRow_(SHEETS.FAMILIES, x); });
     return '申請を断りました';
   });
+}
+
+/** 家族の係（会計・記録係など）を決める（役員だけ）。父・母どちらの行もそろえる */
+function setRoleAction_(ctx, p) {
+  const role = String(p.role || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  withLock_(() => {
+    const rows = familyRowsOf_(readRows_(SHEETS.FAMILIES), String(p.fam || ''));
+    if (!rows.length) throw new Error('家族が見つかりません。');
+    rows.forEach((x) => { x['係'] = role; x['更新日時'] = now_(); updateRow_(SHEETS.FAMILIES, x); });
+  });
+  return role ? '係を「' + role + '」にしました' : '係を外しました';
+}
+
+// ---- 管理者（ポータルの持ち主）：Apps Script の setup のログに出る番号を入れた人。一人ずつ ----
+
+function ownerCode_() {
+  const props = PropertiesService.getScriptProperties();
+  let code = props.getProperty('OWNER_CODE');
+  if (!code) { code = String(Math.floor(10000000 + Math.random() * 90000000)); props.setProperty('OWNER_CODE', code); }
+  return code;
+}
+
+/** 管理者の番号を入れて管理者になる（番号は Apps Script の持ち主だけがログで見られる） */
+function becomeOwnerAction_(ctx, p) {
+  const code = String(p.code || '').replace(/[^0-9]/g, '');
+  const now = Date.now(), props = PropertiesService.getScriptProperties();
+  const lock = Number(props.getProperty('OWNER_LOCK_' + ctx.userId) || 0);
+  if (lock > now) throw new Error('まちがいが続いたので、しばらくしてからもう一度ためしてください。');
+  if (!code || code !== ownerCode_()) {
+    const miss = Number(props.getProperty('OWNER_MISS_' + ctx.userId) || 0) + 1;
+    props.setProperty('OWNER_MISS_' + ctx.userId, String(miss));
+    if (miss >= 5) { props.setProperty('OWNER_LOCK_' + ctx.userId, String(now + 30 * 60000)); props.deleteProperty('OWNER_MISS_' + ctx.userId); }
+    throw new Error('管理者の番号がちがいます。Apps Script で「setup」か「showOwnerCode」を実行すると、ログに番号が出ます。');
+  }
+  props.deleteProperty('OWNER_MISS_' + ctx.userId);
+  withLock_(() => {
+    const f = findFamily_(ctx.userId);
+    f['管理者'] = '○';
+    f['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+  });
+  return '管理者になりました';
+}
+
+/** 管理者にする・外す（管理者だけ）。管理者が一人もいなくなる操作はできない */
+function setOwnerAction_(ctx, p) {
+  if (!ctx.owner) throw new Error('この操作は管理者だけができます。');
+  withLock_(() => {
+    const rows = readRows_(SHEETS.FAMILIES);
+    const f = rows.find((x) => x.userId === p.userId);
+    if (!f) throw new Error('見つかりません。');
+    if (!p.on && !rows.some((x) => x.userId !== f.userId && isOwner_(x))) throw new Error('管理者が一人もいなくなるので、外せません。');
+    f['管理者'] = p.on ? '○' : '';
+    f['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+  });
+  return p.on ? '管理者にしました' : '管理者から外しました';
 }

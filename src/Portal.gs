@@ -11,13 +11,13 @@ function api(key, action, payload) {
   const handler = API_ACTIONS[action];
   if (!handler) throw new Error('不明な操作です: ' + action);
   if (handler.admin && !isAdmin_(family)) throw new Error('この操作は役員だけができます。');
-  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family), coach: isCoach_(family) };
+  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family), coach: isCoach_(family), owner: isOwner_(family) };
   const message = handler.run(ctx, payload || {});
   // 写真などは、画面の状態ではなく結果だけを返す
   if (handler.raw) return message;
   // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
-  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); }
+  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); ctx.owner = isOwner_(fresh); }
   const state = buildState_(ctx);
   if (message) state.message = message;
   return state;
@@ -87,6 +87,9 @@ const API_ACTIONS = {
   setCoach: { admin: true, run: setCoachAction_ },
   requestAdmin: { run: requestAdminAction_ },
   answerAdmin: { admin: true, run: answerAdminAction_ },
+  setRole: { admin: true, run: setRoleAction_ },
+  becomeOwner: { run: becomeOwnerAction_ },
+  setOwner: { admin: true, run: setOwnerAction_ },
   adminCode: { admin: true, raw: true, run: adminCodeAction_ },
   deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
@@ -224,6 +227,8 @@ function buildState_(ctx) {
       name: ctx.name,
       admin: ctx.admin,
       coach: !!ctx.coach,
+      owner: !!ctx.owner,
+      hasOwner: familyRows.some(isOwner_),
       adminRequested: !ctx.admin && !!(me['役員申請']),
       fam: ctx.famId,
       canManage: manageKeys,
@@ -232,11 +237,11 @@ function buildState_(ctx) {
       children: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     },
     kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
-    families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
+    families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents, role: (familyRows.find((x) => famIdOf_(x) === f.id && x['係']) || {})['係'] || '', admin: familyRows.some((x) => famIdOf_(x) === f.id && isAdminRow_(x)) })),
     scriptUrl: ctx.admin ? scriptEditorUrl_() : '',
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
-    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), request: !isAdmin_(f) && f['役員申請'] ? String(f['役員申請']) : '', notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', fam: famIdOf_(f), admin: isAdmin_(f), owner: isOwner_(f), coach: isCoach_(f), request: !isAdmin_(f) && f['役員申請'] ? String(f['役員申請']) : '', notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
     entries: entries,
     absences: absences,

@@ -820,6 +820,13 @@ async function openPortal(browser, gas, userId, name) {
       await a.idle();
       const t = await a.textContent('.tmt');
       assert.ok(t.includes('1本目') && t.includes('2本目') && t.includes('9.43'), t);
+      // 3本目の入力欄の薄い字は、その子のベスト（9.43）
+      await a.click('[data-tmr="3"]');
+      assert.strictEqual(await a.getAttribute('[data-tmk="山田はなこ"]', 'placeholder'), '9.43');
+      assert.ok((await a.textContent('.tmt')).includes('ベスト 9.43'));
+      const vis = await a.evaluate(() => { const i = document.querySelector('[data-tmk="山田はなこ"]').getBoundingClientRect(); return i.right <= window.innerWidth; });
+      assert.ok(vis, '入れる列が画面に見えている');
+      await a.shot('20b-times-best');
       await a.shot('20-times');
       await a.click('[data-tmn="立ち幅跳び"]');
       await a.fill('[data-tmk="山田たろう"]', '185');
@@ -1099,6 +1106,20 @@ async function openPortal(browser, gas, userId, name) {
       if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pc-admin.png'), fullPage: true });
       assert.deepStrictEqual(errs, []);
       await g.close();
+    });
+    await step('スマホ：下のメニューはスクロールの途中でも画面の下に出ている', async () => {
+      const p = await openPortal(browser, gas, 'U3', 'navchk');
+      await p.evaluate(() => window.scrollTo(0, 300));
+      const vh = await p.evaluate(() => window.innerHeight);
+      const box = await p.locator('#nav').boundingBox();
+      assert.ok(box && Math.abs(box.y + box.height - vh) < 2, JSON.stringify({ box, vh }));
+      const sw = await p.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth, window.scrollX]);
+      const wide = await p.evaluate(() => [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map((el) => el.tagName + '.' + el.className + '#' + el.id + ' ' + Math.round(el.getBoundingClientRect().right)));
+      assert.ok(sw[0] <= sw[1] + 1, '横にはみ出さない ' + JSON.stringify(sw) + JSON.stringify(wide));
+      await p.click('[data-nav="events"]');
+      assert.strictEqual(await p.getAttribute('[data-nav="events"]', 'aria-current'), 'page');
+      if (process.env.SHOTDIR) await p.screenshot({ path: path.join(process.env.SHOTDIR, 'nav-fixed.png') });
+      await p.close();
     });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);

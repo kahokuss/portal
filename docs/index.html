@@ -30,8 +30,8 @@
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.6;
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
-.app { max-width: 520px; margin: 0 auto; display: grid; gap: 10px; }
-.frame { background: var(--surface-2); border: 0; border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; min-height: calc(100vh - 24px); }
+.app { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.frame { background: var(--surface-2); border: 0; border-radius: 22px; overflow: hidden; overflow: clip; display: flex; flex-direction: column; min-height: calc(100vh - 24px); }
 .top { background: var(--surface); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
 .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--track); display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 13px; flex: none; }
 .top h1 { font-family: var(--font-display); font-size: 1.05rem; margin: 0; line-height: 1.3; }
@@ -40,7 +40,10 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .top .me { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .reload { margin-left: auto; flex: none; white-space: nowrap; }
 .view { flex: 1; padding: 12px; display: grid; gap: 12px; align-content: start; }
-.nav { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: sticky; bottom: 0; }
+.nav { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px; z-index: 6; padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -2px 8px rgba(0,0,0,.06); }
+/* 下のメニューは画面の下に固定（LINEのブラウザでも、スクロールしなくても押せる）。その分だけ中身の下をあける */
+.frame:has(.nav:not([hidden])) .view { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+.view.navpad { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 .nav.admin { grid-template-columns: repeat(6, 1fr); }
 .nav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 8px 0 7px; cursor: pointer; display: grid; justify-items: center; gap: 2px; }
 .nav button svg { width: 22px; height: 22px; }
@@ -138,7 +141,8 @@ form.f, .f { display: grid; gap: 8px; }
   .frame { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "top top" "nav view"; }
   .top { grid-area: top; padding: 14px 22px; }
   .view { grid-area: view; padding: 18px 26px; }
-  .nav, .nav.admin { grid-area: nav; grid-template-columns: 1fr; align-content: start; position: sticky; top: 0; border-top: 0; border-right: 1px solid var(--line); padding: 10px 0; }
+  .nav, .nav.admin { grid-area: nav; grid-template-columns: 1fr; align-content: start; position: sticky; top: 0; left: auto; right: auto; margin: 0; max-width: none; box-shadow: none; align-self: start; border-top: 0; border-right: 1px solid var(--line); padding: 10px 0; }
+  .frame:has(.nav:not([hidden])) .view, .view.navpad { padding-bottom: 18px; }
   .nav button { grid-auto-flow: column; justify-content: start; align-items: center; gap: 10px; padding: 11px 18px; font-size: 14px; }
   .nav button[aria-current="page"] { background: var(--track-soft); }
   .busy { bottom: 24px; }
@@ -340,7 +344,11 @@ tr.sel td { background: var(--sky-soft); }
 @media (min-width: 900px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tmt td, .tmt th { padding: 5px 6px; }
 .tmt th.on { color: var(--track); }
+/* 横に送っても名前が見えるように、名前の列は左に止める */
+.tmt th:nth-child(2), .tmt td:nth-child(2) { position: sticky; left: 0; z-index: 1; background: var(--surface); white-space: nowrap; box-shadow: 1px 0 0 var(--line); line-height: 1.35; }
+.tmt tr.hl td:nth-child(2) { background: var(--track-soft); }
 .tmin { font: inherit; font-size: 16px; width: 5.2em; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); font-variant-numeric: tabular-nums; }
+.tmbest { color: var(--track); font-weight: 700; white-space: nowrap; }
 .tmsel { font: inherit; font-size: 14px; padding: 4px 6px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); }
 .tally-names { font-size: 13px; display: grid; gap: 4px; }
 .tally-names .g { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -488,7 +496,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "bd46da0335";
+var BUILD = "263e3a91df";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "0ae5792a39";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1647,10 +1655,6 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (/^\d{3,4}$/.test(t)) return t.slice(0, -2) + '.' + t.slice(-2);
     return t;
   }
-  function tmHint(race, unit) {
-    var k = unit === 'count' ? 'count' : unit === 'm' ? 'field' : unit === 'time' ? 'short' : recKind(race || '');
-    return { short: '1455', long: '312', field: '185', count: '45' }[k];
-  }
   function timeRuns(e) {
     var runs = {};
     ST.results.filter(function (r) { return r.key === e.key && r.kind === '練習'; }).forEach(function (r) {
@@ -1692,17 +1696,22 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<div class="tbl-wrap"><table class="tmt"><thead><tr><th>学年</th><th>名前</th><th>種目</th>' + Array.apply(null, { length: maxRun }).map(function (_, i) { return '<th' + (edit && T.run === i + 1 ? ' class="on"' : '') + '>' + (i + 1) + '本目</th>'; }).join('') + '</tr></thead><tbody>' +
       kids.map(function (k) {
         var dist = (cur[k.name] && Object.keys(cur[k.name]).map(function (n) { return cur[k.name][n].race; })[0]) || (pre ? (pre.grade ? (k.grade && k.grade <= 2 ? T.low : T.high) : pre.race) : T.name);
-        return '<tr class="' + (mine.indexOf(k.name) >= 0 ? 'hl' : '') + '"><td>' + (k.grade || '') + '</td><td>' + esc(k.name) + '</td><td class="sub">' + esc(dist) + '</td>' + Array.apply(null, { length: maxRun }).map(function (_, i) {
+        // 入力欄の薄い字は、その子のベスト記録（大会・練習あわせて）。なければ入れ方の例
+        var best = bests(k.name)[canon(dist)];
+        return '<tr class="' + (mine.indexOf(k.name) >= 0 ? 'hl' : '') + '"><td>' + (k.grade || '') + '</td><td>' + esc(k.name) + (best ? '<br><small class="tmbest">ベスト ' + esc(best.record) + '</small>' : '') + '</td><td class="sub">' + esc(dist) + '</td>' + Array.apply(null, { length: maxRun }).map(function (_, i) {
           var r = cur[k.name] && cur[k.name][i + 1], v = r ? r.record : '';
-          if (edit && T.run === i + 1) { var dv = T.vals[k.name] !== undefined ? T.vals[k.name] : v; return '<td><input class="tmin" data-tmk="' + esc(k.name) + '" data-tmd="' + esc(dist) + '" inputmode="decimal" enterkeyhint="next" value="' + esc(dv) + '" placeholder="' + tmHint(dist, isOther ? T.unit : '') + '" aria-label="' + esc(k.name) + ' ' + (i + 1) + '本目"></td>'; }
+          if (edit && T.run === i + 1) { var dv = T.vals[k.name] !== undefined ? T.vals[k.name] : v; return '<td><input class="tmin" data-tmk="' + esc(k.name) + '" data-tmd="' + esc(dist) + '" inputmode="decimal" enterkeyhint="next" value="' + esc(dv) + '" placeholder="' + esc(best ? String(best.record).replace(/秒$/, '') : '') + '" aria-label="' + esc(k.name) + ' ' + (i + 1) + '本目"></td>'; }
           return '<td>' + (r ? '<b>' + esc(v) + '</b>' + (isPB(r) ? ' <span class="pill p-race">ベスト</span>' : '') : '') + '</td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
     if (edit && isOther && !T.name) return h.replace(/<div class="tbl-wrap">[\s\S]*$/, '') + '<div class="hint">測るものの名前と、記録の種類（タイム・長さ・回数）を決めてください。</div></section>';
-    if (edit) h += '<button class="btn" id="tmSave" type="button">' + T.run + '本目を保存</button><div class="hint">打った数字は「1455」→14.55、800mなどは「312」→3:12、跳ぶ・投げるは「185」→1m85、回数は「45」→45回 になります。休みの子は出ません。保存すると、わが家の記録グラフ（練習）にも入ります。</div>';
+    if (edit) h += '<button class="btn" id="tmSave" type="button">' + T.run + '本目を保存</button><div class="hint">薄い字はその子のベスト記録です。打った数字は「1455」→14.55、800mなどは「312」→3:12、跳ぶ・投げるは「185」→1m85、回数は「45」→45回 になります。休みの子は出ません。保存すると、わが家の記録グラフ（練習）にも入ります。</div>';
     return h + '</section>';
   }
   function bindTimes(e) {
+    // スマホで3本目・4本目…を入れるとき、入れる列が見えるように表を横に送る
+    var thOn = document.querySelector('.tmt th.on'), wrap = thOn && thOn.closest('.tbl-wrap');
+    if (wrap && thOn.offsetLeft + thOn.offsetWidth > wrap.clientWidth) wrap.scrollLeft = thOn.offsetLeft + thOn.offsetWidth - wrap.clientWidth + 8;
     var T = S.tm; if (!T || T.key !== e.key) return;
     var keep = function () { view.querySelectorAll('[data-tmk]').forEach(function (x) { T.vals[x.dataset.tmk] = x.value; }); };
     on('[data-tmn]', function () { keep(); T.name = this.dataset.tmn; T.run = 1; T.vals = {}; render(); });
@@ -4134,7 +4143,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['train', '自主トレ'], ['album', '写真'], ['family', 'わが家'], ['admin', '管理']];
   function renderNav() {
     var nav = document.getElementById('nav');
-    nav.hidden = false;
+    nav.hidden = false; document.getElementById('view').classList.add('navpad');
     nav.className = 'nav' + (ST.me.admin ? ' admin' : '');
     var badges = { home: ST.me.children.length ? todoItems().length : 0, events: 0, admin: 0 };
     if (ST.me.admin) badges.admin = ST.absences.filter(function (a) { return a.date >= ST.today && !a.ack; }).length + ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; }).length + ST.parents.filter(function (p) { return p.request; }).length;
@@ -4222,7 +4231,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (ST) document.getElementById('busy').textContent = '最新にしています…';
   }
   function showLogin(msg) {
-    document.getElementById('nav').hidden = true;
+    document.getElementById('nav').hidden = true; document.getElementById('view').classList.remove('navpad');
     document.getElementById('reload').hidden = true;
     document.getElementById('me').textContent = '';
     view.innerHTML = '<section class="card"><div class="big">ようこそ</div><div class="sub">このページは、' + esc(CLUB) + 'のLINEグループのメンバーだけが見られます。グループに入っているLINEアカウントでログインしてください。</div>' +

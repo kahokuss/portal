@@ -107,6 +107,8 @@ api('addRecords', { rows: recs });
   await shot('9b-dash-long');
   await page.setViewportSize({ width: 1280, height: 900 });
   await shot('9c-dash-pc');
+  await page.click('[data-dkid="田中ゆうと"]');
+  await shot('9d-dash-pc-kid');
   await page.setViewportSize({ width: 375, height: 800 });
   await idle();
   assert.deepStrictEqual(errors, []);

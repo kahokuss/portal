@@ -771,7 +771,10 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(!(await r.textContent('#view')).includes('アンケート：11/1'), '答えたら「やること」から消える');
       assert.ok(gas.rows('既読').some((x) => x.userId === 'U3'), 'ホームで見たお知らせは既読');
       await r.click('[data-nav="home"]');
-      await r.click('button.ev[data-ev]:has-text("秋季記録会")');
+      // 次の大会：あと何日を大きく、大会までにやること（まだの分が上）
+      assert.match(await r.textContent('.hero .cd'), /\d+日|明日|今日/);
+      assert.ok((await r.textContent('.rtodo')).includes('大会までにやること'));
+      await r.click('.hero [data-ev]');
       const cal = await r.getAttribute('.callink', 'href');
       assert.ok(cal && cal.startsWith('https://calendar.google.com/calendar/render?action=TEMPLATE'), cal);
       await r.shot('todo');

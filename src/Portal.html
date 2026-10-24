@@ -349,6 +349,26 @@ tr.sel td { background: var(--sky-soft); }
 .todo .ic.hot { background: var(--track-soft); }
 .todo .main { flex: 1; min-width: 0; display: grid; }
 .todo .main b { font-size: 13.5px; }
+.hero { display: flex; align-items: center; gap: 14px; }
+.hero .cd { flex: none; min-width: 84px; padding: 8px 10px; border-radius: 14px; text-align: center; background: var(--sky-soft); color: var(--sky); }
+.hero .cd small { display: block; font-size: 11px; font-weight: 700; }
+.hero .cd b { font-family: var(--font-display); font-size: 2.4rem; line-height: 1; font-weight: 800; }
+.hero .cd b span { font-size: 1rem; margin-left: 2px; }
+.hero.warn .cd { background: var(--warn-soft); color: var(--warn); }
+.hero.hot .cd { background: var(--track-soft); color: var(--track); }
+.hero .main { flex: 1; min-width: 0; display: grid; gap: 2px; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; cursor: pointer; padding: 0; }
+.hero .ttl { font-weight: 800; font-size: 15px; }
+.rtodo { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.rtodo .lbl { display: flex; justify-content: space-between; align-items: center; }
+.rtodo .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 4px 0 6px; }
+.rtodo .bar i { display: block; height: 100%; background: var(--field); }
+.rtodo .it { display: flex; align-items: flex-start; gap: 8px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 6px 0; cursor: pointer; }
+.rtodo .it .mk { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; margin-top: 1px; }
+.rtodo .it.ng .mk { background: var(--track); color: #fff; }
+.rtodo .it.ok .mk { background: var(--field-soft); color: var(--field); }
+.rtodo .it.ok b { color: var(--muted); font-weight: 600; text-decoration: line-through; text-decoration-color: var(--line); }
+.rtodo .it.info .mk { background: var(--sky-soft); color: var(--sky); }
+.rtodo .it .main { flex: 1; min-width: 0; display: grid; }
 .todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
 .newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
 .p-imp { background: var(--track); color: #fff; }
@@ -578,8 +598,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     upcoming(isRace).forEach(function (e) {
       var det = e.detail || {};
       if (!det.target && !e.detail) return;
-      if (det.deadline && det.deadline < ST.today) return;
-      var miss = ST.me.children.filter(function (k) { return inTarget(det.target, k.grade) && !entryOf(e.key, k.name); });
+      var closed = det.deadline && det.deadline < ST.today;
+      var miss = closed ? [] : ST.me.children.filter(function (k) { return inTarget(det.target, k.grade) && !entryOf(e.key, k.name); });
+      // 参加と答えたあとに残っていること（種目・参加費）
+      var joined = ST.me.children.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
+      var noRace = joined.filter(function (k) { return det.races && det.races.length > 1 && !entryOf(e.key, k.name).races.length; });
+      var unpaid = det.fee ? joined.filter(function (k) { return !entryOf(e.key, k.name).paid; }) : [];
+      var dleft = diff(ST.today, e.date);
+      if (noRace.length && !closed) out.push({ ic: '🏃', hot: true, t: esc(e.title) + 'の種目を選ぶ', s: noRace.map(function (k) { return esc(k.name); }).join('・'), a: 'data-entry="' + e.key + '"', order: det.deadline ? diff(ST.today, det.deadline) : dleft });
+      if (unpaid.length) out.push({ ic: '💴', hot: dleft <= 7, t: esc(e.title) + 'の参加費 ' + yen(det.fee * unpaid.length), s: (unpaid.length > 1 ? unpaid.length + '人分　' : '') + '役員に渡してください（大会まであと' + dleft + '日）', a: 'data-entry="' + e.key + '"', order: dleft });
       if (!miss.length) return;
       var left = det.deadline ? diff(ST.today, det.deadline) : 99;
       out.push({ ic: '🏃', hot: left <= 3, t: esc(e.title) + 'のエントリー', s: miss.map(function (k) { return esc(k.name); }).join('・') + (det.deadline ? '　締切 ' + md(det.deadline) + (left === 0 ? '（今日）' : '（あと' + left + '日）') : ''), a: 'data-entry="' + e.key + '"', order: left });
@@ -820,13 +847,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '</section>';
 
     var ne = upcoming(isRace)[0];
-    h += '<section class="card"><h2>次の大会・記録会' + (ne ? '<small>あと' + diff(ST.today, ne.date) + '日</small>' : '') + '</h2>';
-    if (ne) {
-      var det = ne.detail || {};
-      h += '<button class="ev" data-ev="' + ne.key + '" type="button"><div class="date race"><b>' + d(ne.date).getUTCDate() + '</b><span>' + (d(ne.date).getUTCMonth() + 1) + '月</span></div><div class="main"><div class="ttl">' + esc(ne.title) + '</div><div class="sub">' + esc(ne.place || '') + (det.target ? '・' + esc(det.target) : '') + '</div></div>›</button>' +
-        rsvpRows(ne) + tallyHtml(ne) +
-        '<div class="between"><span class="sub">' + (det.deadline ? 'エントリー締切 ' + md(det.deadline) + (det.deadline >= ST.today ? '（あと' + diff(ST.today, det.deadline) + '日）' : '（締切済み）') : '参加・不参加を回答してください') + '</span><button class="btn small" data-entry="' + ne.key + '" type="button">エントリー</button></div>';
-    } else h += '<div class="sub">予定されている大会はありません</div>';
+    if (ne) h += '<section class="card"><h2>次の大会・記録会</h2>' + raceHero(ne) + raceTodoHtml(ne, true) +
+      '<div class="between"><span class="lbl">' + (ST.me.children.length ? '参加の回答' : 'みんなの参加') + '</span><button class="btn small ghost" data-entry="' + ne.key + '" type="button">エントリー一覧 ›</button></div>' + rsvpRows(ne) + tallyHtml(ne);
+    else h += '<section class="card"><h2>次の大会・記録会</h2><div class="sub">予定されている大会はありません</div>';
     h += '</section>' + info;
     view.innerHTML = h;
     bindCommon();
@@ -950,7 +973,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<div class="tabs grid" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + (t === 'タイムテーブル' ? '時刻表' : t) + '</button>'; }).join('') + '</div>' + toastHtml();
     if (S.etab === '概要') {
       if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
-      h += statusCard(e);
+      h += (e.date >= ST.today ? '<section class="card">' + raceHero(e) + raceTodoHtml(e, true) + '</section>' : '') + statusCard(e);
       if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + (ST.me.admin ? '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button><button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button></div>' : '') + '</section>';
       else {
         h += '<section class="card"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
@@ -1436,6 +1459,50 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function nowHM() { var x = new Date(Date.now() + 9 * 3600000); return pad(x.getUTCHours()) + ':' + pad(x.getUTCMinutes()); }
   function minutesUntil(t) { var a = tkey(t).split(':'), b = nowHM().split(':'); return (+a[0] * 60 + +a[1]) - (+b[0] * 60 + +b[1]); }
   function taskOf(key, kind, target) { return ST.tasks.find(function (t) { return t.key === key && t.kind === kind && t.target === target; }); }
+
+  // ---- 大会までのカウントダウンと「大会までにやること」 ----
+  function raceHero(e) {
+    var n = diff(ST.today, e.date), det = e.detail || {};
+    var prac = ST.events.filter(function (x) { return !x.cancelled && x.type === '練習' && x.date >= ST.today && x.date < e.date; }).length;
+    return '<div class="hero' + (n <= 3 ? ' hot' : n <= 7 ? ' warn' : '') + '"><div class="cd">' + (n === 0 ? '<b>今日</b>' : n === 1 ? '<b>明日</b>' : '<small>大会まで</small><b>' + n + '<span>日</span></b>') + '</div>' +
+      '<button class="main" type="button" data-ev="' + e.key + '"><span class="ttl">' + esc(e.title) + ' ›</span><span class="sub">' + md(e.date) + (e.place ? '・' + esc(e.place) : '') + (det.target ? '・' + esc(det.target) : '') + '</span>' +
+      (n > 0 ? '<span class="sub">🏃 大会までの練習 <b>あと' + prac + '回</b></span>' : '') + '</button></div>';
+  }
+  /** わが家が大会までにやること。ng=まだ・ok=済み・info=確認 */
+  function raceTodo(e) {
+    var det = e.detail || {}, out = [], open = 'data-entry="' + e.key + '"', ev = 'data-ev="' + e.key + '"';
+    var dl = det.deadline ? (det.deadline < ST.today ? '（締切済み・役員に連絡）' : '締切 ' + md(det.deadline) + '（' + untilText(det.deadline) + '）') : '';
+    ST.me.children.forEach(function (k) {
+      if (!inTarget(det.target, k.grade)) return;
+      var x = entryOf(e.key, k.name);
+      if (!x) return out.push({ st: 'ng', t: k.name + 'の参加・不参加を回答', s: dl, a: open, order: 0 });
+      if (x.join !== '参加') return out.push({ st: 'ok', t: k.name + '：不参加で回答済み', a: open });
+      if (det.races && det.races.length > 1 && !x.races.length) out.push({ st: 'ng', t: k.name + 'の出る種目を選ぶ', s: dl, a: open, order: 1 });
+      else out.push({ st: 'ok', t: k.name + '：参加' + (x.races.length ? '（' + x.races.join('・') + '）' : ''), a: open });
+      if (det.fee) out.push(x.paid ? { st: 'ok', t: k.name + 'の参加費 ' + yen(det.fee) + ' 支払い済み', a: open } : { st: 'ng', t: k.name + 'の参加費 ' + yen(det.fee) + ' を役員へ', s: '集金係に渡してください', a: open, order: 2 });
+    });
+    var joined = ST.me.children.some(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
+    if (dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; })) out.push({ st: 'info', ic: '🙋', t: 'わが家は大会当番です', s: '当日の動きを確認してください', a: ev, order: 3 });
+    if (joined && (det.meetTime || det.meetPlace)) out.push({ st: 'info', ic: '⏰', t: '集合 ' + [det.meetTime, det.meetPlace].filter(Boolean).join(' '), s: '送り迎えの予定を立てる', a: ev, order: 4 });
+    if (joined && det.items && det.items.length) out.push({ st: 'info', ic: '🎒', t: '持ち物をそろえる', s: det.items.join('・'), a: ev, order: 5 });
+    if (joined && (docsOf(e.key).length || det.url)) out.push({ st: 'info', ic: '📄', t: '要項・資料に目を通す', s: '種目・時間・会場', a: ev, order: 6 });
+    if (ST.me.admin && det.applyBy && STEPS.indexOf(raceStatus(e)) < STEPS.indexOf('申込済み')) out.push({ st: 'ng', t: '【役員】主催者への申込', s: '期限 ' + md(det.applyBy) + '（' + untilText(det.applyBy) + '）', a: ev, order: 1 });
+    return out;
+  }
+  function raceTodoHtml(e, compact) {
+    if (e.date < ST.today) return '';
+    var list = raceTodo(e);
+    if (!list.length) return '';
+    var check = list.filter(function (x) { return x.st !== 'info'; }), done = check.filter(function (x) { return x.st === 'ok'; }).length;
+    var ng = check.length - done, ord = { ng: 0, info: 1, ok: 2 };
+    list.sort(function (a, b) { return ord[a.st] - ord[b.st] || (a.order || 0) - (b.order || 0); });
+    var head = '<div class="lbl"><span>大会までにやること</span>' + (check.length ? '<span class="pill ' + (ng ? 'p-race' : 'p-ok') + '">' + (ng ? 'のこり ' + ng + '件' : '✓ ぜんぶ済み') + '</span>' : '') + '</div>' +
+      (check.length ? '<div class="bar" aria-hidden="true"><i style="width:' + Math.round(done * 100 / check.length) + '%"></i></div>' : '');
+    var body = list.map(function (x) {
+      return '<button type="button" class="it ' + x.st + '" ' + x.a + '><span class="mk" aria-hidden="true">' + (x.st === 'ok' ? '✓' : x.st === 'ng' ? '!' : x.ic || 'i') + '</span><span class="main"><b>' + esc(x.t) + '</b>' + (x.s ? '<span class="sub">' + esc(x.s) + '</span>' : '') + '</span></button>';
+    }).join('');
+    return compact ? '<div class="rtodo">' + head + body + '</div>' : '<section class="card rtodo" style="margin-top:0;border-top:0">' + head + body + '</section>';
+  }
 
   function dutyCard(e) {
     var type = dutyType(e), list = dutyOf(e.key);

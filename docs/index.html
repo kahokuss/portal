@@ -266,6 +266,15 @@ form.f, .f { display: grid; gap: 8px; }
 .rchart .ln.avg { fill: none; stroke: var(--muted); stroke-dasharray: 2 4; stroke-width: 2; }
 .rchart .ln.avg2 { fill: none; stroke: var(--fg); stroke-dasharray: 7 4; stroke-width: 1.5; opacity: .6; }
 .fam { display: grid; gap: 6px; }
+.cmpbox { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--surface); }
+.kid .cmpbox { background: var(--surface); }
+.cmprow { display: grid; grid-template-columns: minmax(3.5em, auto) minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.cmprow .nm { font-weight: 700; }
+.cmprow .gp { text-align: right; white-space: nowrap; }
+.cmpdet summary { cursor: pointer; }
+.cmpdates { margin-top: 6px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; font-size: 12.5px; }
+.cmpdates .lb { font-weight: 700; color: var(--muted); }
+.cmpdates input { font: inherit; font-size: 13px; padding: 5px 4px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); min-width: 0; width: 100%; }
 .cmpbars { display: grid; gap: 6px; }
 .cmpbars .r { display: grid; grid-template-columns: 9.5em minmax(40px, 1fr) 4.6em; gap: 8px; align-items: center; font-size: 12.5px; }
 .cmpbars .bar { height: 10px; background: var(--surface-2); border-radius: 0 5px 5px 0; overflow: hidden; }
@@ -453,7 +462,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "06f896b7f1";
+var BUILD = "1f8f2a9d3b";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "8ae0ba9558";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1033,6 +1042,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
     bindFamilyCard(); bindCommon(); bindCharts();
     on('#toDash2', function () { S.dashFrom = 'family'; go('dash'); });
+    bindCompare();
     on('#arReq', function () { call('requestAdmin', {}); });
     on('#owBtn', function () { var v = document.getElementById('owCode').value; if (v.trim()) call('becomeOwner', { code: v }); });
     on('#arCancel', function () { call('requestAdmin', { cancel: true }); });
@@ -2862,6 +2872,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<section class="card c6"><h2>' + esc(rname) + ' の推移<small>月ごとの平均</small></h2><div class="tabs" role="group" aria-label="比べる">' + [['team', 'チーム全体'], ['grade', '学年ごと'], ['sex', '男女ごと']].map(function (x) { return '<button type="button" data-dcmp="' + x[0] + '" aria-pressed="' + (cmp === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       dashTrendChart(rname, months, rAll.filter(function (r) { return r.date >= from; }), D.kid, cmp) +
       (D.kid ? recordChart(D.kid, race, rname, true).replace('<div class="rtip">記録の点をタップすると、日付と大会が出ます</div>', '<div class="rtip">' + esc(D.kid) + 'のすべての記録。点に合わせると日付と大会が出ます</div>') : '') + '</section>';
+    if (D.kid) h += '<section class="card c12"><h2>' + esc(D.kid) + ' の記録の変化<small>期間で比べる</small></h2>' + compareCard(D.kid) + '</section>';
     h += '<section class="card c12"><h2>' + esc(rname) + ' 学年・男女ごとの平均<small>この期間の一人ひとりのベストの平均</small></h2>' + avgTable(rname, rAll, from, D.kid) + '</section>';
     if (staff) h += dashEffortCards(kids, months);
     // 伸びた子・最近のベスト更新・記録がない子
@@ -2883,6 +2894,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.innerHTML = h;
     bindDash(D);
     bindCharts();
+    bindCompare();
   }
   function bindDash(D) {
     on('#dBack', function () { var f = S.dashFrom || 'home'; if (f === 'admin') S.admin = 'menu'; if (f === 'admin' && !ST.me.admin) f = 'home'; go(f); });
@@ -3192,6 +3204,49 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       c.addEventListener('click', show); c.addEventListener('mouseenter', show);
     });
   }
+
+  // ---- 期間で比べる（個人）：前の期間と後の期間の、種目ごとのベストと変化 ----
+  function cmpPresets() {
+    var t = ST.today, y = +t.slice(0, 4), m = +t.slice(5, 7), fy = m >= 4 ? y : y - 1;
+    var mStart = t.slice(0, 7) + '-01', pmEnd = addDays(mStart, -1), pmStart = pmEnd.slice(0, 7) + '-01';
+    return [
+      ['3m', '前の3か月 → 最近3か月', addDays(t, -181), addDays(t, -91), addDays(t, -90), t],
+      ['month', '先月 → 今月', pmStart, pmEnd, mStart, t],
+      ['half', '前の半年 → 最近半年', addDays(t, -365), addDays(t, -183), addDays(t, -182), t],
+      ['fy', '去年度 → 今年度', (fy - 1) + '-04-01', fy + '-03-31', fy + '-04-01', t],
+    ];
+  }
+  function cmpState() {
+    if (!S.cmp) { var p = cmpPresets()[0]; S.cmp = { preset: p[0], a1: p[2], a2: p[3], b1: p[4], b2: p[5], kind: '' }; }
+    return S.cmp;
+  }
+  /** 個人の「期間で比べる」。id はこのカードの区別（同じ画面に何人分も出すため） */
+  function compareCard(child, id) {
+    var C = cmpState();
+    var rows = ST.results.filter(function (r) { return r.child === child && (!C.kind || r.kind === C.kind) && markValue(r.record) !== null; });
+    var best = function (from, to) { var o = {}; rows.forEach(function (r) { if (r.date < from || r.date > to) return; var k = canon(r.race); if (!o[k] || isBetter(r.race, r.record, o[k].record)) o[k] = r; }); return o; };
+    var A = best(C.a1, C.a2), B = best(C.b1, C.b2), keys = Object.keys(A).concat(Object.keys(B)).filter(function (k, i, a) { return a.indexOf(k) === i; });
+    var up = keys.filter(function (k) { return A[k] && B[k] && isBetter(B[k].race, B[k].record, A[k].record); }).length;
+    var h = '<div class="cmpbox"><div class="between"><b style="font-size:13px">期間で比べる</b><span class="sub">' + (keys.length ? '伸びた種目 ' + up + '／' + keys.filter(function (k) { return A[k] && B[k]; }).length : '') + '</span></div>' +
+      '<div class="quick">' + cmpPresets().map(function (p) { return '<button type="button" data-cmpp="' + p[0] + '" aria-pressed="' + (C.preset === p[0]) + '" style="' + (C.preset === p[0] ? 'background:var(--sky-soft);color:var(--sky);font-weight:700' : '') + '">' + p[1] + '</button>'; }).join('') + '</div>' +
+      '<details class="cmpdet"' + (C.preset ? '' : ' open') + '><summary class="sub">前 ' + md(C.a1) + '〜' + md(C.a2) + '　後 ' + md(C.b1) + '〜' + md(C.b2) + '（日付を指定）</summary><div class="cmpdates"><span class="lb">前</span><input type="date" data-cmpd="a1" value="' + C.a1 + '"><span>〜</span><input type="date" data-cmpd="a2" value="' + C.a2 + '">' +
+      '<span class="lb">後</span><input type="date" data-cmpd="b1" value="' + C.b1 + '"><span>〜</span><input type="date" data-cmpd="b2" value="' + C.b2 + '"></div></details>' +
+      '<div class="choice" role="group" aria-label="記録の種類">' + [['', '公式＋練習'], ['公式', '公式'], ['練習', '練習']].map(function (x) { return '<button type="button" data-cmpk="' + x[0] + '" aria-pressed="' + (C.kind === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (!keys.length) return h + '<div class="sub">この期間の記録はありません。</div></div>';
+    h += '<div class="list">' + keys.map(function (k) {
+      var a = A[k], b = B[k], name = (b || a).race;
+      var rec = function (r) { return r ? '<b>' + esc(r.record) + '</b>' : '<span class="sub">—</span>'; };
+      var when = function (r) { return r ? md(r.date) + (r.kind === '練習' && !C.kind ? ' 練習' : '') : '記録なし'; };
+      return '<div class="cmprow"><span class="nm">' + esc(name) + '</span><span class="rv">' + rec(a) + ' → ' + rec(b) + '<br><span class="sub">' + when(a) + ' → ' + when(b) + '</span></span><span class="gp">' + (a && b ? gapText(name, b.record, a.record) : '<span class="sub">' + (b ? 'はじめて' : '') + '</span>') + '</span></div>';
+    }).join('') + '</div><div class="hint">それぞれの期間の中のベストどうしを比べています。▲は伸び、▼は前より下。</div></div>';
+    return h;
+  }
+  function bindCompare() {
+    var C = cmpState();
+    on('[data-cmpp]', function () { var p = cmpPresets().find(function (x) { return x[0] === this.dataset.cmpp; }, this); C.preset = p[0]; C.a1 = p[2]; C.a2 = p[3]; C.b1 = p[4]; C.b2 = p[5]; render(); });
+    on('[data-cmpk]', function () { C.kind = this.dataset.cmpk; render(); });
+    view.querySelectorAll('[data-cmpd]').forEach(function (el) { el.addEventListener('change', function () { if (this.value) { C[this.dataset.cmpd] = this.value; C.preset = ''; render(); } }); });
+  }
   function recordsCard() {
     if (!ST.me.children.length) return '';
     var h = '<section class="card"><h2>記録<small>公式（大会）と練習</small></h2><button class="btn small ghost" id="toDash2" type="button" style="justify-self:start">📊 みんなの記録（ダッシュボード）</button>';
@@ -3200,7 +3255,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += '<div class="kid"><b>' + esc(k.name) + '</b>' + (keys.length ? '<div class="tbl-wrap"><table><thead><tr><th>種目</th><th>自己ベスト（公式）</th><th>練習ベスト</th></tr></thead><tbody>' + keys.map(function (c) {
         var o = bo[c], p = bp[c], name = (o || p).race;
         return '<tr><td>' + esc(name) + '</td><td class="wrap">' + (o ? '<b>' + esc(o.record) + '</b> <span class="sub">' + esc(o.meet.replace(/^\d{4}-\d{2}-\d{2}\s*/, '')) + '</span>' : '—') + '</td><td class="wrap">' + (p ? '<b>' + esc(p.record) + '</b> <span class="sub nw">' + md(p.date) + '</span>' : '—') + '</td></tr>';
-      }).join('') + '</tbody></table></div>' + keys.map(function (c) { return recordChart(k.name, c, (bo[c] || bp[c]).race, true); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
+      }).join('') + '</tbody></table></div>' + compareCard(k.name) + keys.map(function (c) { return recordChart(k.name, c, (bo[c] || bp[c]).race, true); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
     });
     return h + '</section>';
   }

@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'ffe4ad367a';
+const SERVER_VERSION = '12a9a65dc5';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -818,7 +818,7 @@ const CONFIG = {
 /** 大会の種目・持ち物・会場の候補（ポータルの入力補助に使います） */
 const CHOICES = {
   RACES: ['50m', '100m', '80mH', '800m', '1000m', '走幅跳', '走高跳', 'ジャベボール投', 'リレー', '1km', '2km', '駅伝'],
-  ITEMS: ['ユニフォーム', 'アスリートビブス', '弁当', '水筒', '帽子', 'レジャーシート', 'ベンチコート', 'タオル', '着替え', '雨具'],
+  ITEMS: ['ユニフォーム', 'アスリートビブス', 'ゼッケン', 'スパイク', '弁当', '水筒', '帽子', 'レジャーシート', 'ベンチコート', 'タオル', '着替え', '雨具'],
   TARGETS: ['全員', '3年生以上', '4年生以上', '希望者'],
   ABSENCE_REASONS: ['体調不良', '家の都合', '学校行事', 'その他'],
   // 大会の手続き（チェックリスト）の種類

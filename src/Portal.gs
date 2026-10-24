@@ -63,6 +63,7 @@ const API_ACTIONS = {
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
   deleteResult: { run: deleteResultAction_ },
   addRecords: { admin: true, run: addRecordsAction_ },
+  removeDuplicateRecords: { admin: true, run: removeDuplicateRecordsAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },

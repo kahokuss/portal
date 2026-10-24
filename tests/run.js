@@ -1084,6 +1084,22 @@ test('名簿：役員がまとめて入れた子に、保護者が同じ名前�
   assert.deepStrictEqual(plain(st.kids.map((k) => k.name)), ['海野 そら']);
 });
 
+test('記録の取り込み：同じ表を2回貼っても2重にならない・2重の分を消せる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const rows = [{ child: '山田たろう', race: '100m', record: '17.14', date: '2026-10-22', meet: '加速走1本目', kind: '練習' }, { child: '山田たろう', race: '100m', record: '17.65', date: '2026-10-22', meet: '加速走2本目', kind: '練習' }];
+  assert.ok(gas.ctx.api(kA, 'addRecords', { rows }).message.startsWith('2件'));
+  assert.ok(gas.ctx.api(kA, 'addRecords', { rows }).message.includes('もう入っています'));
+  assert.ok(gas.ctx.api(kA, 'addRecords', { rows: rows.concat([{ child: '山田たろう', race: '100m', record: '16.90', date: '2026-10-29', meet: '加速走', kind: '練習' }]) }).message.includes('1件の記録を入れました（2件はもう入っていた'));
+  assert.strictEqual(gas.rows('結果').filter((r) => r['記録']).length, 3);
+  // 前の版で2重に入ってしまった分を消す
+  gas.run("appendRow_(SHEETS.RESULTS, { '子ども': '山田たろう', '種目': '100m', '記録': '17.14', '大会・練習': '2026-10-22 加速走1本目', '区分': '練習', id: 'dup1' })");
+  assert.ok(gas.ctx.api(kA, 'removeDuplicateRecords', {}).message.includes('1件'));
+  assert.strictEqual(gas.rows('結果').filter((r) => r['記録']).length, 3);
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

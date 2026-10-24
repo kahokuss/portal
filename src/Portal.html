@@ -3493,7 +3493,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           return '<tr data-rk="' + esc(x.k.name) + '" style="cursor:pointer"' + (R.open === x.k.name ? ' class="hl"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.k.name) + '</td><td>' + (x.k.grade || '') + '</td><td><b>' + esc(x.b.record) + '</b></td><td>' + esc(x.b.meet) + '</td><td>' + x.n + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="sub">この種目の' + R.kind + 'の記録はまだありません。</div>') +
         (R.open ? recordChart(R.open, R.race, names[R.race]) || '<div class="sub">' + esc(R.open) + 'さんは、記録が2つ以上になるとグラフが出ます。</div>' : '<div class="hint">名前を押すと、その子の記録の移り変わり（公式と練習）がグラフで出ます。</div>') +
-        '<button class="btn small ghost" type="button" id="recCopy" style="justify-self:start">表計算に貼れる形でコピー</button></section>';
+        '<button class="btn small ghost" type="button" id="recCopy" style="justify-self:start">表計算に貼れる形でコピー</button>' + (function () {
+          var seen = {}, n = 0;
+          ST.results.forEach(function (x) { var k = [String(x.child).replace(/\s|　/g, ''), x.race, x.record, x.meet, x.kind, x.memo].join('|'); if (seen[k]) n++; else seen[k] = 1; });
+          return n ? '<div class="toast err">同じ記録が2重に入っています（' + n + '件）。<button class="btn small" id="recDedup" type="button">2重の分を消す</button></div>' : '';
+        })() + '</section>';
     } else h += '<div class="card empty">まだ記録がありません。</div>';
     h += '<section class="card"' + dropAttr('form', '', 'rec', '', true) + '><h2>過去の記録を取り込む</h2>' +
       '<div class="sub">いまつけている表を、<b>Excelやスプレッドシートからそのままコピーして貼り付け</b>るか、<b>ファイル（.xlsx・.csv）をドロップ</b>してください。1行目に見出し（名前・種目・記録・日付・大会、または 名前・100m・走幅跳…）があれば読み取ります。</div>' +
@@ -3504,10 +3508,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<button class="btn ghost" type="submit">読み取って確認する</button></form>';
     if (R.preview) {
       var bad = R.preview.filter(function (r) { return !ST.kids.some(function (k) { return k.name === r.child; }); }).length;
-      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th><th>日付</th><th>大会</th></tr></thead><tbody>' + R.preview.slice(0, 200).map(function (r) {
-        var ok = ST.kids.some(function (k) { return k.name === r.child; });
-        return '<tr' + (ok ? '' : ' class="hl"') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td><td>' + esc(r.date || R.impDate || '（今日）') + '</td><td>' + esc(r.meet || R.impMeet || '過去の記録') + '</td></tr>';
-      }).join('') + '</tbody></table></div>' + (bad ? '<div class="hint">⚠ の ' + bad + '行は、名前が登録と合わないので入りません（「わが家」の名前と同じ書き方にしてください。空白はあってもなくてもOK）。</div>' : '') +
+      // もう入っている記録（同じ子・種目・記録・日付・大会名）は、取り込んでもとばす
+      var nm = function (x) { return String(x).replace(/\s|　/g, ''); };
+      var already = function (r) { var meet = (r.date || R.impDate || ST.today) + ' ' + (r.meet || R.impMeet || '過去の記録'); return ST.results.some(function (x) { return nm(x.child) === nm(r.child) && x.race === r.race && x.record === r.record && x.meet === meet; }); };
+      var dupN = R.preview.filter(already).length;
+      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th><th>日付</th><th>大会</th><th></th></tr></thead><tbody>' + R.preview.slice(0, 200).map(function (r) {
+        var ok = ST.kids.some(function (k) { return k.name === r.child; }), dup = ok && already(r);
+        return '<tr' + (ok ? '' : ' class="hl"') + (dup ? ' style="opacity:.55"' : '') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td><td>' + esc(r.date || R.impDate || '（今日）') + '</td><td>' + esc(r.meet || R.impMeet || '過去の記録') + '</td><td class="sub">' + (dup ? '入っています' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' + (dupN ? '<div class="hint">「入っています」の ' + dupN + '行は、もう取り込んであるので、とばします（2重にはなりません）。</div>' : '') + (bad ? '<div class="hint">⚠ の ' + bad + '行は、名前が登録と合わないので入りません（「わが家」の名前と同じ書き方にしてください。空白はあってもなくてもOK）。</div>' : '') +
         '<button class="btn" type="button" id="recSave">' + (R.preview.length - bad) + '件を入れる（' + R.impKind + '）</button>';
     }
     h += '</section>';
@@ -3518,6 +3526,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-rr]', function () { R.race = this.dataset.rr; R.open = ''; render(); });
     on('[data-rk]', function () { R.open = R.open === this.dataset.rk ? '' : this.dataset.rk; render(); });
     on('[data-ikind]', function () { keep(); R.impKind = this.dataset.ikind; render(); });
+    on('#recDedup', function () { if (confirm('2重に入っている記録を、1つだけ残して消しますか？')) call('removeDuplicateRecords', {}); });
     on('#recCopy', function () {
       var rows = ST.kids.map(function (k) { var b = bests(k.name, R.kind)[R.race]; return b ? [k.name, k.grade || '', b.race, b.record, b.meet, R.kind].join('\t') : null; }).filter(Boolean);
       var text = ['名前\t学年\t種目\t記録\tいつ・どこで\t区分'].concat(rows).join('\n'), b = this;

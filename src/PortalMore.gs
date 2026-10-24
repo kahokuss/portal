@@ -697,6 +697,11 @@ function addRecordsAction_(ctx, p) {
   activeChildren_().forEach((c) => (kids[c.name] = true));
   const ok = [];
   const ng = [];
+  // 同じ子・同じ種目・同じ記録・同じ日・同じ大会名は、もう入っていれば入れない（同じ表を2回貼っても2重にならない）
+  const sig = (child, race, record, meet) => [String(child).replace(/\s|　/g, ''), String(race).trim(), String(record).trim(), String(meet).trim()].join('|');
+  const have = {};
+  readRows_(SHEETS.RESULTS).forEach((x) => { if (x['記録']) have[sig(x['子ども'], x['種目'], x['記録'], x['大会・練習'])] = true; });
+  let dup = 0;
   (p.rows || []).slice(0, 300).forEach((r, i) => {
     const child = String(r.child || '').trim();
     const race = String(r.race || '').trim().slice(0, 30);
@@ -704,16 +709,21 @@ function addRecordsAction_(ctx, p) {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : today_();
     if (!kids[child]) return ng.push((i + 1) + '行目：「' + child + '」というお子さんが登録されていません');
     if (!race || !record) return ng.push((i + 1) + '行目：種目と記録を入れてください');
+    const meet = date + ' ' + String(r.meet || '過去の記録').trim().slice(0, 60);
+    const k = sig(child, race, record, meet);
+    if (have[k]) { dup++; return; }
+    have[k] = true;
     ok.push({
-      '日時': now_(), eventKey: '', '大会・練習': date + ' ' + String(r.meet || '過去の記録').trim().slice(0, 60), '子ども': child, '種目': race, '記録': record,
+      '日時': now_(), eventKey: '', '大会・練習': meet, '子ども': child, '種目': race, '記録': record,
       '順位': String(r.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(r.round) >= 0 ? r.round : '',
       '区分': (r.kind || p.kind) === '練習' ? '練習' : '公式',
       'メモ': String(r.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
     });
   });
+  if (!ok.length && dup && !ng.length) return 'どの記録も、もう入っています（' + dup + '件）。2重にはしていません';
   if (!ok.length) throw new Error(ng.join('\n') || '入れる記録がありません。');
   withLock_(() => ok.forEach((row) => appendRow_(SHEETS.RESULTS, row)));
-  return ok.length + '件の記録を入れました' + (ng.length ? '（入れられなかったもの：' + ng.join('／') + '）' : '');
+  return ok.length + '件の記録を入れました' + (dup ? '（' + dup + '件はもう入っていたので、とばしました）' : '') + (ng.length ? '（入れられなかったもの：' + ng.join('／') + '）' : '');
 }
 
 // ---- タイムテーブルづくり（コーチ・役員が事前に） ----
@@ -1333,4 +1343,18 @@ function removeRosterAction_(ctx, p) {
     else clearRow_(SHEETS.CHILDREN, row);
   });
   return p.name + 'を名簿から外しました';
+}
+
+/** 2重に入った記録（同じ子・種目・記録・大会名・区分）を、1つだけ残して消す（役員） */
+function removeDuplicateRecordsAction_(ctx) {
+  let n = 0;
+  withLock_(() => {
+    const seen = {};
+    readRows_(SHEETS.RESULTS).forEach((x) => {
+      if (!x['記録']) return;
+      const k = [String(x['子ども']).replace(/\s|　/g, ''), x['種目'], x['記録'], x['大会・練習'], x['区分'], x['メモ']].join('|');
+      if (seen[k]) { clearRow_(SHEETS.RESULTS, x); n++; } else seen[k] = true;
+    });
+  });
+  return n ? '2重になっていた記録を' + n + '件消しました' : '2重になっている記録はありません';
 }

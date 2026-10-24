@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '6c3fe34f11';
+const SERVER_VERSION = '490ffb7b15';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1841,6 +1841,7 @@ function buildState_(ctx) {
     },
     kids: children.map((c) => ({ name: c.name, grade: c.grade, sex: c.sex })),
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
+    scriptUrl: ctx.admin ? scriptEditorUrl_() : '',
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
     parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
@@ -2089,6 +2090,11 @@ function deleteNoticeAction_(ctx, p) {
     if (n) clearRow_(SHEETS.NOTICES, n);
   });
   return 'お知らせを消しました';
+}
+
+/** このApps Scriptのエディタを開くURL（役員の「サーバーの更新」から開く） */
+function scriptEditorUrl_() {
+  try { return 'https://script.google.com/home/projects/' + ScriptApp.getScriptId() + '/edit'; } catch (err) { return 'https://script.google.com/home'; }
 }
 
 // ===== PortalMore.gs =====

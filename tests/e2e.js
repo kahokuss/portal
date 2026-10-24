@@ -930,6 +930,11 @@ async function openPortal(browser, gas, userId, name) {
       await g.waitForSelector('#nav:not([hidden])');
       assert.ok((await g.textContent('#me')).includes('山田'));
       if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pc-home.png') });
+      await g.click('[data-nav="admin"]');
+      const href = await g.getAttribute('a:has-text("Apps Scriptを開く")', 'href');
+      assert.ok(href.includes('/home/projects/TESTSCRIPTID/edit'), 'Apps Scriptのエディタへのショートカット: ' + href);
+      assert.ok((await g.textContent('#view')).includes('サーバー（Apps Script）の更新'));
+      if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pc-admin.png'), fullPage: true });
       assert.deepStrictEqual(errs, []);
       await g.close();
     });

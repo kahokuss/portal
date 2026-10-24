@@ -443,9 +443,11 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "2151f7d61b";
+var BUILD = "95205edc88";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "6c3fe34f11";
+var EXPECT_SERVER = "490ffb7b15";
+// サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
+var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -543,7 +545,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function serverBanner() {
     if (!serverOld()) return '';
     return '<section class="card" style="box-shadow:inset 4px 0 0 var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
-      (ST.me.admin ? '<div class="sub">PCで dist/Code.gs を「コード.gs」に貼り替えて保存 →「setup」を実行 →「デプロイ」→「デプロイを管理」→ 鉛筆 →「新バージョン」→「デプロイ」をしてください。<b>保存だけでは変わりません。</b></div>' : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
+      (ST.me.admin ? '<div class="sub">PCで更新してください。<b>保存だけでは変わりません。</b></div>' + updateButtons() : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
   }
   // ---- やること・お知らせの既読・アンケート・集金 ----
   /** 自分の家でまだやっていないこと（エントリー・集金・アンケート・お知らせ・当番） */
@@ -677,6 +679,22 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(e.title) + '&dates=' + dates + '&ctz=Asia%2FTokyo' + (e.place ? '&location=' + encodeURIComponent(e.place) : '') + '&details=' + encodeURIComponent(details);
   }
 
+
+  /** サーバーの更新に使うボタン（コードを開く・Apps Scriptを開く） */
+  function updateButtons() {
+    return '<div class="row"><a class="btn small" href="' + CODE_URL + '" target="_blank" rel="noopener" style="text-decoration:none">① 新しいコードを開く</a>' +
+      '<a class="btn small ghost" href="' + esc(ST.scriptUrl || 'https://script.google.com/home') + '" target="_blank" rel="noopener" style="text-decoration:none">② Apps Scriptを開く</a></div>';
+  }
+  function updateCard() {
+    var ok = !serverOld();
+    return '<section class="card"><h2>サーバー（Apps Script）の更新<small>' + (ok ? '✅ 最新です' : '⚠ 古い版です') + '</small></h2>' + updateButtons() +
+      '<ol class="sub" style="margin:0;padding-left:1.4em;line-height:1.8">' +
+      '<li>「① 新しいコードを開く」で出た文字を、Ctrl+A → Ctrl+C でコピー</li>' +
+      '<li>「② Apps Scriptを開く」で「コード.gs」を開き、Ctrl+A → Ctrl+V で貼り替えて、Ctrl+S で保存<br><span class="hint">クラブの共用Googleアカウントで開いてください' + (ST.scriptUrl ? '' : '（一覧からポータルのプロジェクトを選びます）') + '</span></li>' +
+      '<li>上の欄で「setup」を選んで「▶ 実行」（新しいシートができるとき）</li>' +
+      '<li>「デプロイ」→「デプロイを管理」→ 鉛筆 → バージョン「新バージョン」→「デプロイ」<br><span class="hint">「新しいデプロイ」は押さない（URLが変わります）</span></li>' +
+      '<li>ポータルの「更新」を押して、ここが「✅ 最新です」になればOK</li></ol></section>';
+  }
   function home() {
     var h = serverBanner() + toastHtml();
     h += startCard() + todoCard();
@@ -1005,9 +1023,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員にする・外す']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
-    view.innerHTML = toastHtml() + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
+    view.innerHTML = toastHtml() + (API_URL && serverOld() ? updateCard() : '') + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
-      '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>';
+      '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() ? updateCard() : '');
     on('[data-go="dash"]', function (ev) { ev.stopImmediatePropagation(); S.dashFrom = 'admin'; go('dash'); });
     on('[data-go]', function () { if (this.dataset.go === 'dash') return; S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
   }

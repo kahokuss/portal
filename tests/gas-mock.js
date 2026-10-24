@@ -206,7 +206,7 @@ function createGas(options) {
       },
     },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => { const o = { text: t, setMimeType: () => o }; return o; } },
-    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }) },
+    ScriptApp: { getScriptId: () => 'TESTSCRIPTID', getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }) },
     Session: { getActiveUser: () => ({ getEmail: () => '' }), getEffectiveUser: () => ({ getEmail: () => 'club@example.com' }) },
     HtmlService: {
       createTemplateFromFile: (name) => {

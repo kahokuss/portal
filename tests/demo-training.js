@@ -21,6 +21,17 @@ const api = (a, p) => gas.ctx.api(key, a, p);
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const addDays = (s, n) => new Date(Date.parse(s + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+
+// 過去1年の練習（火・木 17:00〜18:30、土 9:00〜11:00）を予定の表に入れる（参加時間の積み上げ用）
+(() => {
+  const rows = [];
+  for (let i = 1; i <= 330; i++) {
+    const dt = new Date(Date.parse('2026-10-23T00:00:00Z') - i * 864e5), wd = dt.getUTCDay(), ds = dt.toISOString().slice(0, 10);
+    if (wd !== 2 && wd !== 4 && wd !== 6) continue;
+    rows.push({ eventKey: 'p' + ds.replace(/-/g, ''), '日付': ds, '開始': wd === 6 ? '09:00' : '17:00', '終了': wd === 6 ? '11:00' : '18:30', 'タイトル': '通常練習', '場所': '競技場', '種別': '練習', '状態': '予定' });
+  }
+  gas.run('(' + JSON.stringify(rows) + ').forEach((r) => appendRow_(SHEETS.EVENTS, r))');
+})();
 for (let i = 364; i >= 0; i--) {
   const date = addDays('2026-10-24', -i);
   const keen = 0.25 + 0.35 * (1 - i / 365); // だんだん増える

@@ -238,6 +238,7 @@ function buildState_(ctx) {
     training: trainingFor_(ctx, children),
     trainShare: trainShareFor_(ctx, children),
     trainComments: trainCommentsFor_(ctx, children),
+    participation: participationFor_(ctx, children),
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,

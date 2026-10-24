@@ -894,6 +894,7 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-dp="all"]');
       await a.click('[data-dk="練習"]');
       assert.ok((await a.textContent('#view')).includes('50m'), '練習で測った記録も入る');
+      assert.ok((await a.textContent('#view')).includes('練習に参加した時間'), '練習時間の積み上げ');
       await a.shot('25-dash');
       await a.click('#dBack');
       assert.ok((await a.textContent('#view')).includes('管理メニュー') || (await a.$('[data-go="dash"]')));

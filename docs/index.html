@@ -273,6 +273,7 @@ form.f, .f { display: grid; gap: 8px; }
 .hr .bar i.g { background: var(--field); }
 .hr .rec { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hr .gap { font-size: 12px; white-space: nowrap; }
+.hr.sm2 { grid-template-columns: 1.6em minmax(5em, 9em) minmax(30px, 1fr) 4.6em 3.6em; }
 .hr.sm { grid-template-columns: 1.6em minmax(5em, 8em) minmax(30px, 1fr) 3em; }
 .vtip { position: fixed; z-index: 30; background: var(--fg); color: var(--surface); font-size: 12px; padding: 6px 9px; border-radius: 8px; pointer-events: none; max-width: 320px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
 @media (max-width: 899px) { .hr { grid-template-columns: 1.6em minmax(4.5em, 7em) minmax(30px, 1fr) 3.8em; } .hr .gap { display: none; } }
@@ -423,9 +424,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "fc40436287";
+var BUILD = "ac2cfa7103";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "9bb99fcbc5";
+var EXPECT_SERVER = "027596d56f";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -495,6 +496,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!st.trainShare) st.trainShare = { mine: {}, kids: [] };
     if (Array.isArray(st.trainShare.mine)) { var m0 = {}; st.trainShare.mine.forEach(function (k) { m0[k] = 'coach'; }); st.trainShare.mine = m0; }
     if (!st.trainComments) st.trainComments = { list: [], read: {} };
+    if (!st.participation) st.participation = { kids: {} };
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
     if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
@@ -2312,13 +2314,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (ST.me.children.length > 1) h += '<div class="tabs" role="group" aria-label="だれの">' + ST.me.children.map(function (k) { return '<button type="button" data-trkid="' + esc(k.name) + '" aria-pressed="' + (k.name === child) + '">' + esc(k.name) + '</button>'; }).join('') + '</div>';
     var level = ST.trainShare.mine[child] || '';
     var LV = [['', '家族だけ', '家族だけが見られます'], ['coach', 'コーチに見せる', 'コーチが記録とレポートを見て、コメントできます'], ['all', 'みんなに見せる', 'クラブのみんなが記録とレポートを見られます（コメントはコーチと家族だけ）']];
-    h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + trCalendarCard(child) + trReportCard(child) +
+    h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + effortCard(child) + trCalendarCard(child) + trReportCard(child) +
       '<section class="card"><h2>だれに見せる<small>' + LV.filter(function (x) { return x[0] === level; })[0][1] + '</small></h2><div class="choice" role="group" aria-label="だれに見せる">' +
       LV.map(function (x) { return '<button type="button" data-trlv="' + x[0] + '" aria-pressed="' + (level === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="hint">' + esc(child) + 'の自主トレを、' + LV.filter(function (x) { return x[0] === level; })[0][2] + '。直せるのは家族だけです。</div></section>';
     view.innerHTML = modeTabs + h;
     bindCommon();
     bindTrain(child, F);
+    bindTips();
     bindTrComments(child);
     on('[data-trlv]', function () { if (this.dataset.trlv !== level) call('setTrainShare', { child: child, level: this.dataset.trlv }); });
     if (trUnread(child).length && !serverOld()) rpc('markTrainRead', { child: child }, function () { ST.trainComments.read[child] = '9999'; saveState(ST); }, function () {});
@@ -2330,7 +2333,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var sel = kids.find(function (k) { return k.name === S.trCoachKid; });
     if (sel) {
       h += '<button class="link" id="trcBack" type="button">‹ みんなの自主トレ</button>' + '<section class="card"><div class="big">' + esc(sel.name) + (sel.grade ? '（' + sel.grade + '年）' : '') + '</div><div class="sub">家族が「' + (sel.level === 'all' ? 'みんな' : 'コーチ') + 'に見せる」にしている記録です。見るだけで、直すことはできません。</div></section>' +
-        (ST.me.coach ? trCommentCard(sel.name) : '') + trCalendarCard(sel.name, true) + trReportCard(sel.name);
+        (ST.me.coach ? trCommentCard(sel.name) : '') + effortCard(sel.name) + trCalendarCard(sel.name, true) + trReportCard(sel.name);
     } else {
       var from = addDays(ST.today, -29);
       var rows = kids.map(function (k) { var st = trStats(trRows(k.name), from, ST.today); var last = trRows(k.name).map(function (t) { return t.date; }).sort().pop(); return { k: k, st: st, last: last }; })
@@ -2348,6 +2351,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#trcBack', function () { S.trCoachKid = ''; render(); });
     on('#toDash', function () { S.dashFrom = 'train'; go('dash'); });
     if (sel && ST.me.coach) bindTrComments(sel.name);
+    bindTips();
     on('[data-trm]', function () { var t = new Date(Date.UTC(+S.trMonth.slice(0, 4), +S.trMonth.slice(5, 7) - 1 + +this.dataset.trm, 1)); S.trMonth = t.toISOString().slice(0, 7); render(); });
     on('[data-trp]', function () { S.trPeriod = this.dataset.trp; S.trBar = undefined; render(); });
     on('[data-trmet]', function () { S.trMetric = this.dataset.trmet; render(); });
@@ -2678,6 +2682,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }).join('') + '</div><div class="hint">名前を押すと、推移のグラフにその子の線が出ます（もう一度押すと消えます）。棒は記録のちがいが見えるよう、いちばん下の子の少し下から測っています。▲はこの期間より前のベストからの伸び。</div></section>';
     h += '<section class="card c6"><h2>' + esc(rname) + ' の推移<small>月ごと</small></h2>' + dashTrendChart(rname, months, rAll.filter(function (r) { return r.date >= from; }), D.kid) +
       (D.kid ? recordChart(D.kid, race, rname).replace('<div class="rtip">記録の点をタップすると、日付と大会が出ます</div>', '<div class="rtip">' + esc(D.kid) + 'のすべての記録。点に合わせると日付と大会が出ます</div>') : '') + '</section>';
+    h += dashEffortCards(kids, months);
     // 伸びた子・最近のベスト更新・記録がない子
     var grow = {}; pbs.forEach(function (x) { (grow[x.r.child] = grow[x.r.child] || []).push(x.r); });
     var growList = Object.keys(grow).sort(function (a, b) { return grow[b].length - grow[a].length; }).slice(0, 8);
@@ -2706,7 +2711,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-dkid]', function () { D.kid = D.kid === this.dataset.dkid ? '' : this.dataset.dkid; render(); });
     var g = document.getElementById('dGrade'); if (g) g.addEventListener('change', function () { D.grade = +this.value; render(); });
     var x = document.getElementById('dSex'); if (x) x.addEventListener('change', function () { D.sex = this.value; render(); });
-    // グラフの上に乗せると、数字の吹き出し（スマホはタップ）
+    bindTips();
+  }
+  /** グラフの上に乗せると、数字の吹き出し（スマホはタップ） */
+  function bindTips() {
     var tip = document.getElementById('vtip');
     if (!tip) { tip = document.createElement('div'); tip.id = 'vtip'; tip.className = 'vtip'; tip.hidden = true; document.body.appendChild(tip); }
     var show = function (el, ev) {
@@ -2722,6 +2730,67 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     window.addEventListener('scroll', function () { tip.hidden = true; }, { passive: true, once: true });
   }
 
+
+
+  // ---- がんばった時間（練習に参加した時間＋自主トレの時間の積み上げ） ----
+  var MILESTONES = [10, 25, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
+  function last12Months() { return monthsBetween(addDays(ST.today, -334), ST.today); }
+  function hoursText(min) { var h = min / 60; return (h >= 10 ? Math.round(h) : Math.round(h * 10) / 10) + '時間'; }
+  function effortCard(child) {
+    var p = ST.participation.kids[child];
+    if (!p) return '';
+    var months = last12Months(), self = {};
+    trRows(child).forEach(function (t) { var m = t.date.slice(0, 7); self[m] = (self[m] || 0) + (t.min || 0); });
+    var cumC = 0, cumS = 0, pts = months.map(function (m) { cumC += p.m[m] || 0; cumS += self[m] || 0; return { m: m, c: cumC, s: cumS, mc: p.m[m] || 0, ms: self[m] || 0 }; });
+    var total = cumC + cumS, th = total / 60;
+    var next = MILESTONES.find(function (x) { return x > th; }), prevM = MILESTONES.filter(function (x) { return x <= th; }).pop() || 0;
+    var h = '<section class="card" id="effort"><h2>がんばった時間<small>この1年の積み上げ</small></h2>' +
+      '<div class="between"><div><span class="big" style="font-size:2rem">' + hoursText(total) + '</span>' + (prevM ? ' <span class="pill p-ok">🏅 ' + prevM + '時間たっせい</span>' : '') + '</div></div>' +
+      '<div class="row"><span class="pill p-gray">🏃 クラブの練習 ' + hoursText(cumC) + '（' + p.n + '回）</span><span class="pill p-gray">💪 自主トレ ' + hoursText(cumS) + '</span>' + (p.races ? '<span class="pill p-gray">🏅 大会 ' + p.races + '回</span>' : '') + '</div>';
+    if (next) h += '<div class="sub">あと <b>' + Math.ceil(next - th) + '時間</b>で ' + next + '時間！</div><div class="meter"><i style="width:' + Math.round((th - prevM) / (next - prevM) * 100) + '%"></i></div>';
+    if (total) {
+      var max = Math.max(1, total), W = 500, H = 190, L = 34, R = 8, T = 14, B = 22, bw = (W - L - R) / months.length;
+      var nice = Math.ceil(max / 60 / 10) * 10 || 10, Y = function (min) { return H - B - (H - B - T) * (min / 60) / nice; };
+      var svg = '<svg class="dviz" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="がんばった時間の積み上げ">';
+      [0, 0.5, 1].forEach(function (f) { var y = Y(nice * f * 60); svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text class="ax" x="' + (L - 5) + '" y="' + y + '" text-anchor="end" dominant-baseline="middle">' + Math.round(nice * f) + '</text>'; });
+      pts.forEach(function (q, i) {
+        var x = L + i * bw + 2, w = Math.max(3, bw - 4), y0 = H - B, yc = Y(q.c), ys = Y(q.c + q.s);
+        if (q.c) svg += '<rect class="b1" x="' + x + '" y="' + yc + '" width="' + w + '" height="' + (y0 - yc) + '"/>';
+        if (q.s) svg += '<rect class="b2" x="' + x + '" y="' + ys + '" width="' + w + '" height="' + Math.max(0, yc - ys - (q.c ? 2 : 0)) + '"/>';
+        if (i % 2 === 0 || i === pts.length - 1) svg += '<text class="ax" x="' + (x + w / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + (+q.m.slice(5, 7)) + '月</text>';
+        if (i === pts.length - 1) svg += '<text class="ax" x="' + (x + w / 2) + '" y="' + (ys - 5) + '" text-anchor="middle" style="fill:var(--fg);font-weight:700">' + Math.round((q.c + q.s) / 60) + '</text>';
+        svg += '<rect class="hit" x="' + (L + i * bw) + '" y="' + T + '" width="' + bw + '" height="' + (H - B - T) + '" data-tip="' + esc((+q.m.slice(5, 7)) + '月まで｜合計 ' + hoursText(q.c + q.s) + '（練習 ' + hoursText(q.c) + '・自主トレ ' + hoursText(q.s) + '）｜この月 +' + hoursText(q.mc + q.ms)) + '"/>';
+      });
+      h += '<div class="legend"><span><i class="sw b1"></i>クラブの練習</span><span><i class="sw b2"></i>自主トレ</span></div>' + svg + '</svg>';
+    }
+    return h + '<div class="hint">月ごとに足していった時間です。クラブの練習は休みの連絡がなかった練習の時間、自主トレは記録に入れた時間。</div></section>';
+  }
+  /** ダッシュボード：期間中の練習に参加した時間（多い順の横棒）と、チームの積み上げ */
+  function dashEffortCards(kids, months) {
+    var rows = kids.map(function (k) { var p = ST.participation.kids[k.name]; var min = 0; if (p) months.forEach(function (m) { min += p.m[m] || 0; }); return { k: k, min: min, all: p ? Object.keys(p.m).reduce(function (a, m) { return a + p.m[m]; }, 0) : 0 }; })
+      .filter(function (r) { return ST.participation.kids[r.k.name]; }).sort(function (a, b) { return b.min - a.min || byGrade(a.k, b.k); });
+    if (!rows.length) return '';
+    var max = Math.max(1, rows[0].min), team = 0;
+    rows.forEach(function (r) { team += r.min; });
+    var h = '<section class="card c6"><h2>練習に参加した時間<small>' + months.length + 'か月・みんなで ' + hoursText(team) + '</small></h2><div class="hrank">' + rows.map(function (r, i) {
+      var th = r.all / 60, badge = MILESTONES.filter(function (x) { return x <= th; }).pop();
+      return '<button type="button" class="hr sm2" data-tip="' + esc(r.k.name + '｜この期間 ' + hoursText(r.min) + '｜この1年 ' + hoursText(r.all)) + '"><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span><span class="bar"><i class="g" style="width:' + Math.max(2, Math.round(r.min / max * 100)) + '%"></i></span><span class="rec">' + hoursText(r.min) + '</span><span class="gap">' + (badge ? '🏅' + badge + 'h' : '') + '</span></button>';
+    }).join('') + '</div><div class="hint">休みの連絡がなかった練習の時間を足しています。🏅は、この1年で何時間をこえたか。</div></section>';
+    var by = months.map(function (m) { var v = 0; rows.forEach(function (r) { var p = ST.participation.kids[r.k.name]; v += (p && p.m[m]) || 0; }); return v; });
+    var cum = 0, cums = by.map(function (v) { return (cum += v); });
+    var W = 500, H = 200, L = 40, R = 8, T = 14, B = 22, bw = (W - L - R) / months.length, nice = Math.max(10, Math.ceil(cum / 60 / 50) * 50), Y = function (min) { return H - B - (H - B - T) * (min / 60) / nice; };
+    var svg = '<svg class="dviz" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="チームの練習時間の積み上げ">';
+    [0, 0.5, 1].forEach(function (f) { var y = Y(nice * f * 60); svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text class="ax" x="' + (L - 5) + '" y="' + y + '" text-anchor="end" dominant-baseline="middle">' + Math.round(nice * f) + '</text>'; });
+    cums.forEach(function (v, i) {
+      var x = L + i * bw + 2, w = Math.max(3, bw - 4), y = Y(v), every = Math.ceil(months.length / 12);
+      if (v) svg += '<path class="b1" d="M' + x + ' ' + (H - B) + 'V' + (y + 3) + 'Q' + x + ' ' + y + ' ' + (x + 3) + ' ' + y + 'H' + (x + w - 3) + 'Q' + (x + w) + ' ' + y + ' ' + (x + w) + ' ' + (y + 3) + 'V' + (H - B) + 'Z"/>';
+      if (i % every === 0) svg += '<text class="ax" x="' + (x + w / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + (+months[i].slice(5, 7)) + '月</text>';
+      if (i === cums.length - 1) svg += '<text class="ax" x="' + (x + w / 2) + '" y="' + (y - 5) + '" text-anchor="middle" style="fill:var(--fg);font-weight:700">' + Math.round(v / 60) + '</text>';
+      svg += '<rect class="hit" x="' + (L + i * bw) + '" y="' + T + '" width="' + bw + '" height="' + (H - B - T) + '" data-tip="' + esc((+months[i].slice(5, 7)) + '月まで｜みんなで ' + hoursText(v) + '（この月 +' + hoursText(by[i]) + '）') + '"/>';
+    });
+    h += '<section class="card c6"><h2>チームの練習時間の積み上げ<small>時間</small></h2>' + svg + '</svg><div class="hint">' + kids.length + '人の練習時間を、月ごとに足していったものです。</div></section>';
+    return h;
+  }
 
   // ---- 結果・記録 ----
   /** 種目が「大きいほどよい」（跳・投）か */
@@ -3516,6 +3585,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
     if (S.tab === 'dash' && !ST.me.admin && !ST.me.coach) S.tab = 'home';
     renderNav();
+    var vt = document.getElementById('vtip'); if (vt) vt.hidden = true;
     var app = document.querySelector('.app'); if (app) app.classList.toggle('wide', S.tab === 'dash');
     ({ home: home, events: events, album: album, family: family, admin: admin, train: train, dash: dash })[S.tab]();
     applyFolds();

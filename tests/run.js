@@ -963,6 +963,27 @@ test('自主トレ：家族が「コーチに見せる」にした子だけ、�
   assert.strictEqual(gas.ctx.api(k4, 'bootstrap').training.filter((t) => t.child === '鈴木けんた').length, 0, 'やめるとすぐ見えなくなる');
 });
 
+test('練習に参加した時間：休みの連絡がなかった練習の時間を足す（保護者はわが家だけ、コーチは全員）', () => {
+  // カレンダーとの同期の範囲（60日前まで）より前の練習で試す
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k4 = gas.login('U4').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.run("appendRow_(SHEETS.EVENTS, { eventKey: 'p1', '日付': '2026-07-07', '開始': '17:00', '終了': '18:30', 'タイトル': '通常練習', '種別': '練習', '状態': '予定' })");
+  gas.run("appendRow_(SHEETS.EVENTS, { eventKey: 'p2', '日付': '2026-07-09', '開始': '17:00', '終了': '19:00', 'タイトル': '通常練習', '種別': '練習', '状態': '予定' })");
+  gas.run("appendRow_(SHEETS.EVENTS, { eventKey: 'p3', '日付': '2026-07-10', '開始': '17:00', '終了': '18:00', 'タイトル': '通常練習', '種別': '練習', '状態': '中止' })");
+  gas.run("appendRow_(SHEETS.ABSENCES, { id: 'x1', '日付': '2026-07-09', '子ども': '鈴木けんた', '理由': '体調不良' })");
+  let p = gas.ctx.api(k2, 'bootstrap').participation.kids;
+  assert.deepStrictEqual(Object.keys(p), ['鈴木けんた'], '保護者にはわが家の子だけ');
+  assert.strictEqual(p['鈴木けんた'].m['2026-07'], 90, '休んだ日と中止の日は数えない');
+  assert.strictEqual(p['鈴木けんた'].n, 1);
+  p = gas.ctx.api(kA, 'bootstrap').participation.kids;
+  assert.strictEqual(p['山田たろう'].m['2026-07'], 210, '役員には全員');
+  gas.ctx.api(kA, 'setCoach', { userId: 'U4', on: true });
+  assert.ok(gas.ctx.api(k4, 'bootstrap').participation.kids['鈴木けんた'], 'コーチにも全員');
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

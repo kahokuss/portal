@@ -1119,3 +1119,40 @@ function deleteTrainingAction_(ctx, p) {
   });
   return '記録を消しました';
 }
+
+// ---- 練習に参加した時間の積み上げ（休みの連絡がなかった練習を、参加として数える） ----
+
+/**
+ * 子どもごとの、月ごとの練習時間（分）と、出た大会の数。1年分。
+ * 役員・コーチにはクラブ全員、ほかの人にはわが家の子だけ。
+ * @return {{kids: Object<string, {m: Object<string, number>, n: number, races: number}>}}
+ */
+function participationFor_(ctx, children) {
+  const today = today_(), from = addDays_(today, -365);
+  const names = (ctx.admin || ctx.coach ? children : children.filter((c) => c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
+  const out = {};
+  names.forEach((n) => (out[n] = { m: {}, n: 0, races: 0 }));
+  if (!names.length) return { kids: out };
+  const off = {};
+  readRows_(SHEETS.ABSENCES).forEach((a) => { if (a.id && a['日付'] >= from) off[a['日付'] + '|' + a['子ども']] = true; });
+  const raceKeys = {};
+  readRows_(SHEETS.RACES).forEach((r) => (raceKeys[r.eventKey] = true));
+  const events = readRows_(SHEETS.EVENTS).filter((e) => e['日付'] >= from && e['日付'] <= today && e['状態'] !== '中止');
+  events.forEach((e) => {
+    const type = e['種別'] || guessType_(e['タイトル']);
+    if (type !== '練習' || raceKeys[e.eventKey]) return;
+    if (e['日付'] === today && e['終了'] && toMin_(e['終了']) > toMin_(fmt_(new Date(), 'HH:mm'))) return; // 今日の練習は終わってから
+    const len = e['開始'] && e['開始'] !== '終日' && e['終了'] ? Math.max(0, toMin_(e['終了']) - toMin_(e['開始'])) : 90;
+    if (!len) return;
+    const mon = e['日付'].slice(0, 7);
+    names.forEach((n) => {
+      if (off[e['日付'] + '|' + n]) return;
+      out[n].m[mon] = (out[n].m[mon] || 0) + len;
+      out[n].n++;
+    });
+  });
+  const past = {};
+  events.forEach((e) => (past[e.eventKey] = true));
+  readRows_(SHEETS.ENTRIES).forEach((x) => { if (past[x.eventKey] && x['回答'] === '参加' && out[x['子ども']]) out[x['子ども']].races++; });
+  return { kids: out };
+}

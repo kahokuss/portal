@@ -50,6 +50,21 @@ SEI.forEach((s, i) => {
   if (g >= 3) recs.push({ child: name, race: '100m', record: (20.5 - g * 0.9 + rnd() * 0.5).toFixed(2), date: '2026-09-27', meet: '県小学生陸上', kind: '公式' });
 });
 api('addRecords', { rows: recs });
+// 過去1年の練習（火・木 17:00〜18:30、土 9:00〜11:00）を予定の表に入れる（参加時間の積み上げ用）
+(() => {
+  const rows = [];
+  for (let i = 1; i <= 330; i++) {
+    const dt = new Date(Date.parse('2026-10-13T00:00:00Z') - i * 864e5), wd = dt.getUTCDay(), ds = dt.toISOString().slice(0, 10);
+    if (wd !== 2 && wd !== 4 && wd !== 6) continue;
+    rows.push({ eventKey: 'p' + ds.replace(/-/g, ''), '日付': ds, '開始': wd === 6 ? '09:00' : '17:00', '終了': wd === 6 ? '11:00' : '18:30', 'タイトル': '通常練習', '場所': '競技場', '種別': '練習', '状態': '予定' });
+  }
+  gas.run('(' + JSON.stringify(rows) + ').forEach((r) => appendRow_(SHEETS.EVENTS, r))');
+  // 休みも少し（子どもによって休みがち・よく来る）
+  const abs = [];
+  rows.forEach((r) => SEI.forEach((s, i) => { if (rnd() < 0.05 + (i % 5) * 0.06) abs.push({ id: 'a' + r['日付'] + i, '日付': r['日付'], '子ども': s + MEI[i], '理由': '体調不良', '連絡者userId': 'U' + (i + 1) }); }));
+  gas.run('(' + JSON.stringify(abs) + ').forEach((r) => appendRow_(SHEETS.ABSENCES, r))');
+})();
+
 
 
 (async () => {

@@ -144,6 +144,18 @@ async function openPortal(browser, gas, userId, name) {
     await step('保護者: 管理メニューは出ない', async () => {
       assert.ok(!(await p.isVisible('[data-nav="admin"]')));
     });
+    await step('保護者: 大会の案内の漏れをだれでも直せる（履歴に残る）', async () => {
+      await p.click('[data-nav="events"]');
+      await p.click('.ev:has-text("秋季記録会")');
+      await p.click('#editRace');
+      await p.click('[data-tog="items|スパイク"]');
+      await p.click('#evForm button[type=submit]');
+      await p.waitForSelector('#editRace');
+      assert.ok(gas.rows('大会').some((r) => /スパイク/.test(r['持ち物'])));
+      assert.ok((await p.textContent('#view')).includes('持ち物 +スパイク'), '履歴に直したところが出る');
+      await p.shot('1-fix-race');
+      await p.click('[data-nav="home"]');
+    });
     await step('保護者: エントリーする（参加・種目）', async () => {
       await p.click('[data-entry]');
       await p.click('[data-kid="鈴木けんた"] [data-join="参加"]');

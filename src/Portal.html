@@ -974,12 +974,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '概要') {
       if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
       h += (e.date >= ST.today ? '<section class="card">' + raceHero(e) + raceTodoHtml(e, true) + '</section>' : '') + statusCard(e);
-      if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + (ST.me.admin ? '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button><button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button></div>' : '') + '</section>';
+      if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button>' + (ST.me.admin ? '<button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button>' : '') + '</div>' + (ST.me.admin ? '' : '<div class="hint">案内（LINEや要項）を見た人なら、だれでも入れられます。</div>') + '</section>';
       else {
         h += '<section class="card"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
           '<dt>参加費</dt><dd>' + (det.fee ? yen(det.fee) + '／人' : 'なし') + '</dd>' + 
           (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
-          (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl>' + (ST.me.admin ? '<button class="btn small ghost" id="editRace" type="button">案内を直す</button>' : '') + '</section>';
+          (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl><div class="between"><span class="hint">まちがい・漏れに気づいたら、だれでも直せます（直したところは下の「履歴」に残ります）</span><button class="btn small ghost" id="editRace" type="button" style="flex:none">案内を直す</button></div></section>';
       }
       h += (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1) ? '' : jinchiCard(e)) + docsCard(e) + dutyCard(e) + commentsCard(e) + historyCard(e);
     }
@@ -1165,7 +1165,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function adminRace() {
     var D = S.draft || (S.draft = newDraft());
     var cls = function (k) { return S.filled[k] ? ' class="filled"' : ''; };
-    var h = backBtn();
+    var h = D.from === 'edit' ? '<button class="link" id="raceBack" type="button">‹ 大会のページへ</button>' : backBtn();
     if (D.from !== 'edit') {
       h += '<section class="card"><h2>どこから作りますか？</h2><div class="choice">' + [['copy', '前回の大会をコピー'], ['paste', '案内文を貼り付け'], ['blank', '白紙から']].map(function (x) { return '<button type="button" data-from="' + x[0] + '" aria-pressed="' + (D.from === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
       if (D.from === 'copy') {
@@ -1203,6 +1203,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<button class="btn" type="submit">' + (D.from === 'edit' ? '保存する' : '保存してポータルに公開') + '</button><div class="hint">保存すると、クラブのGoogleカレンダーにも予定が入ります。</div></form></section>';
     view.innerHTML = h;
     bindBack();
+    on('#raceBack', function () { S.tab = 'events'; S.event = D.key; S.etab = '概要'; S.draft = null; S.filled = {}; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-from]', function () { D.from = this.dataset.from; render(); });
     on('[data-copy]', function () {
       var src = draftFrom(evByKey(this.dataset.copy));
@@ -1238,6 +1239,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         organizer: D.organizer, applyBy: D.applyBy, applyHow: D.applyHow, payBy: D.payBy, reception: D.reception, url: D.url };
       call('saveRace', payload, function (st) {
         if (!st.message) return;
+        if (!ST.me.admin && D.from === 'edit') { S.tab = 'events'; S.event = D.key; S.etab = '概要'; S.draft = null; S.filled = {}; window.scrollTo(0, 0); return; }
         var saved = st.events.filter(function (x) { return x.title === D.title.trim() && x.date === D.date; })[0];
         S.saved = saved ? saved.key : null; S.draft = null; S.filled = {}; S.admin = 'saved';
       });
@@ -4144,7 +4146,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('clubName').textContent = ST.club + ' ポータル';
     document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.owner ? '・管理者' : ST.me.admin ? '・役員' : '');
     document.getElementById('reload').hidden = false;
-    if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
+    if (S.tab === 'admin' && !ST.me.admin && !(S.admin === 'race' && S.draft && S.draft.from === 'edit')) S.tab = 'home';
     renderNav();
     var vt = document.getElementById('vtip'); if (vt) vt.hidden = true;
     var app = document.querySelector('.app'); if (app) app.classList.toggle('wide', S.tab === 'dash');

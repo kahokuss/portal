@@ -71,7 +71,7 @@ const API_ACTIONS = {
   reportAbsence: { run: reportAbsenceAction_ },
   cancelAbsence: { run: cancelAbsenceAction_ },
   ackAbsence: { admin: true, run: ackAbsenceAction_ },
-  saveRace: { admin: true, run: saveRaceAction_ },
+  saveRace: { run: saveRaceAction_ }, // 直すのはだれでも（漏れに気づいた保護者も）。新しく作るのは役員だけ
   setEventType: { admin: true, run: setEventTypeAction_ },
   saveNotice: { admin: true, run: saveNoticeAction_ },
   markRead: { raw: true, run: markReadAction_ },
@@ -447,6 +447,8 @@ function saveRaceAction_(ctx, p) {
   if (!title) throw new Error('大会名を入れてください。');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || '')) throw new Error('日付を入れてください。');
   const place = String(p.place || '').trim().slice(0, 80);
+  const prev = p.key ? readRows_(SHEETS.EVENTS).find((e) => e.eventKey === p.key) : null;
+  if (!ctx.admin && !prev) throw new Error('新しい大会を作るのは役員だけです。');
   const ev = upsertRaceEvent_(p.key || '', title, p.date, place);
   const deadline = /^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '') ? p.deadline : '';
   const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
@@ -470,14 +472,39 @@ function saveRaceAction_(ctx, p) {
     '受付': String(p.reception || '').trim().slice(0, 80),
     '要項URL': url,
   };
-  let created = false;
+  let created = false, changes = [];
   withLock_(() => {
     const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === ev.eventKey);
-    if (row) updateRow_(SHEETS.RACES, Object.assign(row, data));
+    if (row) { changes = raceChanges_(row, data); updateRow_(SHEETS.RACES, Object.assign(row, data)); }
     else { appendRow_(SHEETS.RACES, data); created = true; }
   });
-  logHistory_(ev.eventKey, ctx, created ? '大会の案内をつくりました' : '大会の案内を直しました');
+  if (prev) {
+    if (String(prev['タイトル']) !== title) changes.unshift('大会名');
+    if (String(prev['日付']) !== p.date) changes.unshift('日付 ' + String(prev['日付']).slice(5).replace('-', '/') + '→' + p.date.slice(5).replace('-', '/'));
+    if (String(prev['場所'] || '') !== place) changes.push('会場');
+  }
+  logHistory_(ev.eventKey, ctx, created ? '大会の案内をつくりました' : '大会の案内を直しました' + (changes.length ? '（' + changes.join('、') + '）' : ''));
   return '「' + title + '」を保存しました';
+}
+
+/** 大会の案内で変わったところ（履歴に残して、みんなで確かめられるように） */
+function raceChanges_(before, after) {
+  const out = [];
+  const short = { '集合時刻': 1, '参加費': 1, '締切': 1, '申込期限': 1, '支払期限': 1, '対象': 1, '種別': 1 };
+  const md = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v.slice(5).replace('-', '/') : v);
+  Object.keys(after).forEach((k) => {
+    if (k === 'eventKey' || k === '更新日時') return;
+    const a = String(before[k] == null ? '' : before[k]), b = String(after[k] == null ? '' : after[k]);
+    if (a === b) return;
+    if (k === '種目' || k === '持ち物') {
+      const A = a ? a.split(',') : [], B = b ? b.split(',') : [];
+      const add = B.filter((x) => A.indexOf(x) < 0), del = A.filter((x) => B.indexOf(x) < 0);
+      return out.push(k + ' ' + add.map((x) => '+' + x).concat(del.map((x) => '−' + x)).join(' '));
+    }
+    if (short[k]) return out.push(k + ' ' + (md(a) || 'なし') + '→' + (md(b) || 'なし'));
+    out.push(k);
+  });
+  return out;
 }
 
 /** カレンダーから取り込んだ予定の種別（練習／大会）を直す */

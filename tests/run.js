@@ -102,6 +102,11 @@ test('ポータル: 予定の取り込み・エントリー・締切・集金', 
   assert.throws(() => gas.ctx.api(kParent, 'saveRace', { title: 'x', date: '2026-11-01' }), /役員だけ/);
   st = gas.ctx.api(kAdmin, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', place: '市営陸上競技場', target: '4年生以上', fee: 500, deadline: '2026-10-22', races: ['100m', '走り幅跳び'], items: ['水筒'], meetTime: '7:50' });
   assert.strictEqual(st.events.find((e) => e.key === race.key).detail.target, '4年生以上');
+  // 案内を直すのはだれでも（漏れに気づいた保護者も）。直したところは履歴に残る
+  st = gas.ctx.api(kParent, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', place: '市営陸上競技場', target: '4年生以上', fee: 500, deadline: '2026-10-22', races: ['100m', '走り幅跳び'], items: ['水筒', 'スパイク'], meetTime: '7:30' });
+  assert.strictEqual(st.events.find((e) => e.key === race.key).detail.meetTime, '7:30');
+  const h = st.history.find((x) => x.key === race.key && /直しました/.test(x.text));
+  assert.ok(h && h.text.includes('集合時刻 7:50→7:30') && h.text.includes('持ち物 +スパイク') && h.by === '鈴木', JSON.stringify(h));
 
   assert.throws(() => gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '山田たろう', join: '参加', races: [] }), /登録されていません/);
   st = gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m', '砲丸投げ'] });

@@ -9,6 +9,24 @@ const { chromium } = require('playwright');
 const { createGas } = require('./gas-mock');
 
 const SHOTS = process.argv.includes('--shots');
+// 小さなPDF（1ページ・文字「TEST」）をつくる
+function tinyPdf() {
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    null, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  const stream = 'BT /F1 24 Tf 40 40 Td (TEST) Tj ET';
+  objs[3] = '<< /Length ' + stream.length + ' >>\nstream\n' + stream + '\nendstream';
+  let out = '%PDF-1.4\n';
+  const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + offs.map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('');
+  out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
+  return 'data:application/pdf;base64,' + Buffer.from(out, 'latin1').toString('base64');
+}
+// PDFを表示する部品（pdf.js 3.11.174）：CDNにつながらない環境では、手元のファイルを使う（PDFJS_DIR）
+const PDFJS_DIR = process.env.PDFJS_DIR || '';
+
 const shotDir = path.join(__dirname, 'screenshots');
 
 function setupClub() {
@@ -974,6 +992,22 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(await q.$('#toDash2'), 'わが家にもどる');
       a.errors.push(...q.errors);
       await q.close();
+    });
+    if (PDFJS_DIR && fs.existsSync(path.join(PDFJS_DIR, 'pdf.min.js'))) await step('資料のPDFは、ポータルの中でページの画像として見られる（LINEのブラウザ向け）', async () => {
+      await a.route('**/cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/*', (r) => r.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(path.join(PDFJS_DIR, path.basename(new URL(r.request().url()).pathname))) }));
+      const st = gas.ctx.api(gas.login('U1').key, 'bootstrap');
+      const race = st.events.find((e) => e.title === '秋季記録会');
+      gas.ctx.api(gas.login('U1').key, 'addDoc', { key: race.key, kind: '要項', name: 'テスト要項', data: tinyPdf() });
+      await a.click('[data-nav="home"]');
+      await a.click('#reload');
+      await a.idle();
+      await a.click('[data-nav="events"]');
+      await a.click('.ev:has-text("秋季記録会")');
+      await a.click('.between:has-text("テスト要項") [data-doc]');
+      await a.waitForSelector('.pdfv .pages img', { timeout: 20000 });
+      assert.ok((await a.getAttribute('.pdfv .pages img', 'src')).startsWith('data:image/jpeg'), 'ページが画像になる');
+      await a.shot('29-pdf');
+      await a.click('#vClose');
     });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');

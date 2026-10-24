@@ -176,6 +176,11 @@ form.f, .f { display: grid; gap: 8px; }
 .upl { display: inline-block; }
 .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 20; display: grid; place-items: center; padding: 12px; }
 .viewer img { max-width: 100%; max-height: calc(100vh - 80px); border-radius: 8px; }
+.viewer.pdfv { display: block; padding: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.viewer.pdfv .vcap { position: static; padding: 8px 0 16px; }
+.viewer.pdfv .vbar { position: sticky; top: 0; z-index: 1; display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: rgba(0,0,0,.75); }
+.viewer.pdfv .pages { display: grid; gap: 10px; padding: 10px; justify-items: center; }
+.viewer.pdfv .pages img { max-height: none; width: 100%; max-width: 1000px; background: #fff; border-radius: 4px; }
 .viewer .vbar { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; display: flex; gap: 8px; justify-content: flex-end; }
 .viewer .vbar a { text-decoration: none; }
 .viewer .vcap { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; color: #fff; font-size: 12px; text-align: center; }
@@ -444,7 +449,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "4d02e1d022";
+var BUILD = "18ae1dca4f";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "88bb74b466";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2305,12 +2310,52 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rpc('doc', { id: x.id }, function (r) {
         b.textContent = '開く';
         if (x.type === 'image') { PHOTO['f' + x.id] = r.data; showPhoto(x.id); return; }
-        var bin = atob(r.data.split(',')[1]), arr = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-        var url = URL.createObjectURL(new Blob([arr], { type: 'application/pdf' })), a = document.createElement('a');
-        a.href = url; a.target = '_blank'; a.download = (r.name || '資料') + '.pdf'; document.body.appendChild(a); a.click(); a.remove();
+        showPdf(r.name || x.name || '資料', r.data);
       }, function (err) { b.textContent = '開く'; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
     });
+  }
+
+
+  // ---- PDFをポータルの中で見る（LINEのブラウザはPDFのダウンロードができないので、ページを画像にして表示） ----
+  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  function loadPdfJs(done, fail) {
+    if (window.pdfjsLib) return done();
+    var sc = document.createElement('script');
+    sc.src = PDFJS + 'pdf.min.js';
+    sc.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; done(); };
+    sc.onerror = fail;
+    document.head.appendChild(sc);
+  }
+  function showPdf(name, dataUrl) {
+    var box = document.createElement('div');
+    box.className = 'viewer pdfv';
+    box.innerHTML = '<div class="vbar"><b style="color:#fff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(name) + '</b><a class="btn small ghost" id="pdfDl" download="' + esc(name) + '.pdf">PDF</a><button class="btn small ghost" type="button" id="vClose">閉じる</button></div>' +
+      '<div class="pages"><div class="vcap">読み込み中…</div></div>';
+    document.body.appendChild(box);
+    box.querySelector('#vClose').addEventListener('click', function () { box.remove(); });
+    var dl = box.querySelector('#pdfDl'); dl.href = dataUrl;
+    var pages = box.querySelector('.pages');
+    var bin = atob(dataUrl.split(',')[1]), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    loadPdfJs(function () {
+      window.pdfjsLib.getDocument({ data: arr }).promise.then(function (pdf) {
+        pages.innerHTML = '';
+        var n = 1, width = Math.min(1200, Math.max(320, pages.clientWidth || window.innerWidth)) * Math.min(2, window.devicePixelRatio || 1);
+        (function next() {
+          if (n > pdf.numPages) { pages.insertAdjacentHTML('beforeend', '<div class="vcap">全' + pdf.numPages + 'ページ。画像を長押しすると保存できます</div>'); return; }
+          pdf.getPage(n).then(function (page) {
+            var vp1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: width / vp1.width });
+            var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+            page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise.then(function () {
+              var img = document.createElement('img');
+              img.alt = name + ' ' + n + 'ページ'; img.src = c.toDataURL('image/jpeg', 0.85);
+              pages.appendChild(img);
+              n++; next();
+            });
+          });
+        })();
+      }, function () { pages.innerHTML = '<div class="vcap">PDFを開けませんでした。右上の「PDF」から保存してください</div>'; });
+    }, function () { pages.innerHTML = '<div class="vcap">PDFを表示する部品を読み込めませんでした。電波のよいところで開き直すか、右上の「PDF」から保存してください</div>'; });
   }
 
   // ---- コメント・ヒヤリハット ----

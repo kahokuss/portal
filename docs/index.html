@@ -443,7 +443,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "95205edc88";
+var BUILD = "8b3914c000";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "490ffb7b15";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -545,7 +545,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function serverBanner() {
     if (!serverOld()) return '';
     return '<section class="card" style="box-shadow:inset 4px 0 0 var(--track)"><div class="toast err">⚠ サーバー（Apps Script）が古い版のままです。コメントや写真などの新しい機能が保存されないことがあります。</div>' +
-      (ST.me.admin ? '<div class="sub">PCで更新してください。<b>保存だけでは変わりません。</b></div>' + updateButtons() : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
+      (ST.me.admin ? '<div class="sub">PCで更新してください。<b>保存だけでは変わりません。</b></div>' + updateButtons() + versionLine() : '<div class="sub">役員の方に、Apps Scriptの更新（新バージョンでデプロイ）をお願いしてください。</div>') + '</section>';
   }
   // ---- やること・お知らせの既読・アンケート・集金 ----
   /** 自分の家でまだやっていないこと（エントリー・集金・アンケート・お知らせ・当番） */
@@ -685,6 +685,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return '<div class="row"><a class="btn small" href="' + CODE_URL + '" target="_blank" rel="noopener" style="text-decoration:none">① 新しいコードを開く</a>' +
       '<a class="btn small ghost" href="' + esc(ST.scriptUrl || 'https://script.google.com/home') + '" target="_blank" rel="noopener" style="text-decoration:none">② Apps Scriptを開く</a></div>';
   }
+  /** 版の番号：サーバーで動いている版と、画面が待っている版（ちがえば更新が必要） */
+  function versionLine() {
+    return '<div class="hint">版：サーバー ' + esc(ST.server || '（とても古い）') + '／ 新しい版 ' + esc(EXPECT_SERVER) + (serverOld() ? '' : ' ✅') + '</div>';
+  }
   function updateCard() {
     var ok = !serverOld();
     return '<section class="card"><h2>サーバー（Apps Script）の更新<small>' + (ok ? '✅ 最新です' : '⚠ 古い版です') + '</small></h2>' + updateButtons() +
@@ -693,7 +697,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<li>「② Apps Scriptを開く」で「コード.gs」を開き、Ctrl+A → Ctrl+V で貼り替えて、Ctrl+S で保存<br><span class="hint">クラブの共用Googleアカウントで開いてください' + (ST.scriptUrl ? '' : '（一覧からポータルのプロジェクトを選びます）') + '</span></li>' +
       '<li>上の欄で「setup」を選んで「▶ 実行」（新しいシートができるとき）</li>' +
       '<li>「デプロイ」→「デプロイを管理」→ 鉛筆 → バージョン「新バージョン」→「デプロイ」<br><span class="hint">「新しいデプロイ」は押さない（URLが変わります）</span></li>' +
-      '<li>ポータルの「更新」を押して、ここが「✅ 最新です」になればOK</li></ol></section>';
+      '<li>ポータルの「更新」を押して、ここが「✅ 最新です」になればOK</li></ol>' + versionLine() + '</section>';
   }
   function home() {
     var h = serverBanner() + toastHtml();

@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '13a05e5e9c';
+const SERVER_VERSION = 'ffe4ad367a';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -776,6 +776,16 @@ const CONFIG = {
   RACE_KEYWORDS: /大会|記録会|競技会|選手権|マラソン|駅伝|ロードレース|リレー/,
   // 大会を作るとき、エントリー締切を何日前に自動で入れるか
   DEADLINE_DAYS_BEFORE: 10,
+  // 当番の仕事（練習のページの「当番」と、当番表の画面に出す）。体育館の使い方が変わったらここを直す
+  DUTY_GUIDE: [
+    '【当番】体育館のカギを、利用当日（火・木）に上井コミュニティセンターで借りる（土曜日の練習は、金曜日17時までに借りる）',
+    '【当番】使用日誌を書く',
+    '【当番】体育館を使わないときは、当日17時までに上井コミュニティセンターに連絡（土曜日の練習は金曜日17時まで）',
+    '【次回の当番】練習のあと体育館のカギをかけ、カギを翌日の午前中に返す（土曜日の練習のあとは月曜日の午前中）。むずかしいときは返せる人にお願いする',
+    '【次回の当番】最後に忘れ物などを確かめてから帰る',
+    'カギの借り受け・返却や、体育館を使わない連絡をしたら、LINEで報告する',
+    '上井コミュニティセンター：開館 9:00〜17:00',
+  ],
 
   // 練習の予定をポータルで作るときの時間の候補（夏・秋〜春）
   PRACTICE_TIMES: [['17:00', '18:30'], ['18:00', '19:30']],
@@ -1654,6 +1664,7 @@ const API_ACTIONS = {
   setNotify: { admin: true, run: setNotifyAction_ },
   setAdmin: { admin: true, run: setAdminAction_ },
   setDuty: { admin: true, run: setDutyAction_ },
+  importDuties: { admin: true, run: importDutiesAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
   saveTimetablePlan: { run: saveTimetablePlanAction_ },
@@ -1824,9 +1835,25 @@ function buildState_(ctx) {
   events.forEach((e) => (inRange[e.key] = true));
 
   // 当番は、前回からどれくらいたったかを見るために1年分を渡す
+  // 当番：取り込んだときに予定がなかった分はその日の予定に、保護者がまだだった子（kid:名前）は今の家族に結びつける
+  const famOfUser = {};
+  readRows_(SHEETS.FAMILIES).forEach((f) => (famOfUser[f.userId] = famIdOf_(f)));
+  const allKids = activeChildren_();
+  const kidFam = (v) => {
+    if (!/^kid:/.test(v)) return v;
+    const k = allKids.find((c) => c.name === v.slice(4));
+    const u = k && k.parents.find((x) => famOfUser[x]);
+    return u ? famOfUser[u] : v;
+  };
+  const evOn = {};
+  events.forEach((e) => { if (!e.cancelled) (evOn[e.date] = evOn[e.date] || []).push(e); });
   const duties = readRows_(SHEETS.DUTIES)
-    .filter((x) => x.eventKey && x['日付'] >= addDays_(today, -400))
-    .map((x) => ({ key: x.eventKey, date: x['日付'], type: x['種類'], fam: x['家族ID'] }));
+    .filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400))
+    .map((x) => {
+      let key = x.eventKey;
+      if (!key) { const e = (evOn[x['日付']] || []).find((y) => (y.type !== '練習') === (x['種類'] === '大会')); key = e ? e.key : ''; }
+      return { key: key, date: x['日付'], type: x['種類'], fam: kidFam(x['家族ID']) };
+    });
 
   const raceKeysAll = Object.keys(raceKeys);
   const timetable = readRows_(SHEETS.TIMETABLE)
@@ -1895,7 +1922,7 @@ function buildState_(ctx) {
     fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
   };
 }
 
@@ -3551,6 +3578,64 @@ function fixPracticeKindsAction_(ctx) {
   });
   const linked = linkResultsToEvents_();
   return n ? n + '件を「練習」の記録に直しました' + (linked ? '（' + linked + '件をその日の練習に結びつけました）' : '') : '直す記録はありませんでした';
+}
+
+// ---- 当番表の取り込み：「日付・種類・当番（名字）」の表から、まとめて当番を入れる ----
+
+/**
+ * 名字（と下の名前の頭）から家族をさがす。例：「川辺(り)」→ 川辺 りく の家族。
+ * 保護者がまだ登録していない子の家族は 'kid:子どもの名前' にしておき、登録されたら読むときに家族に結びつける。
+ * @return {{fam: string}|{error: string}}
+ */
+function dutyFamOf_(token, kids, famOfUser) {
+  const t = String(token || '').replace(/[（(]サブ(?:当番)?[)）]/g, '').trim();
+  const m = t.match(/^(.+?)\s*[（(]\s*(.+?)\s*[)）]$/);
+  const sur = (m ? m[1] : t).replace(/\s|　/g, ''), hint = m ? m[2] : '';
+  if (!sur) return { error: '' };
+  let hit = kids.filter((k) => k.name.replace(/\s|　/g, '').indexOf(sur) === 0);
+  if (hint) hit = hit.filter((k) => k.name.replace(/\s|　/g, '').slice(sur.length).indexOf(hint) === 0);
+  if (!hit.length) return { error: '「' + t + '」の子が名簿にいません' };
+  const fams = hit.map((k) => { const u = k.parents.find((p) => famOfUser[p]); return u ? famOfUser[u] : 'kid:' + k.name; });
+  const uniq = fams.filter((f, i) => fams.indexOf(f) === i);
+  // 同じ名字の子が2人いて、どちらも保護者がまだのときは、きょうだいとして1つの家族にする
+  if (uniq.length > 1 && !hint && uniq.every((f) => /^kid:/.test(f))) return { fam: uniq[0] };
+  if (uniq.length > 1) return { error: '「' + t + '」はだれか分かりません（「' + sur + '(下の名前の1文字)」と書いてください）' };
+  return { fam: uniq[0] };
+}
+
+/**
+ * 当番表を取り込む（役員）。rows：{date: 'yyyy-MM-dd', type: '練習'|'大会', names: '海野・川辺(り)'}
+ * その日の予定（練習・大会）があれば結びつけ、なければ日付だけで入れておく（あとで予定ができたら読むときに結びつく）。
+ */
+function importDutiesAction_(ctx, p) {
+  const kids = activeChildren_();
+  const famOfUser = {};
+  readRows_(SHEETS.FAMILIES).forEach((f) => (famOfUser[f.userId] = famIdOf_(f)));
+  const raceKeys = {};
+  readRows_(SHEETS.RACES).forEach((r) => (raceKeys[r.eventKey] = true));
+  const events = readRows_(SHEETS.EVENTS).filter((e) => e.eventKey && e['状態'] !== '中止');
+  const ng = [];
+  let added = 0, linked = 0, same = 0;
+  withLock_(() => {
+    const all = readRows_(SHEETS.DUTIES);
+    (p.rows || []).slice(0, 400).forEach((r, i) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date || '')) return ng.push((i + 1) + '行目：日付が読めません');
+      const type = r.type === '大会' ? '大会' : '練習';
+      const ev = events.find((e) => e['日付'] === r.date && ((raceKeys[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習') === (type === '大会')));
+      String(r.names || '').split(/[・、,，\/]/).map((x) => x.trim()).filter((x) => x && x !== 'なし').forEach((token) => {
+        const f = dutyFamOf_(token, kids, famOfUser);
+        if (f.error) return ng.push(r.date.slice(5).replace('-', '/') + ' ' + f.error);
+        if (!f.fam) return;
+        if (all.some((d) => d['日付'] === r.date && d['家族ID'] === f.fam && d['種類'] === type)) { same++; return; }
+        const row = { eventKey: ev ? ev.eventKey : '', '日付': r.date, '種類': type, '家族ID': f.fam, '更新者': ctx.name, '更新日時': now_() };
+        appendRow_(SHEETS.DUTIES, row);
+        all.push(row);
+        added++;
+        if (ev) linked++;
+      });
+    });
+  });
+  return added + '件の当番を入れました' + (linked < added ? '（予定がまだない日の ' + (added - linked) + '件は、予定ができたら結びつきます）' : '') + (same ? '（' + same + '件はもう入っていました）' : '') + (ng.length ? '。入れられなかったもの：' + ng.slice(0, 8).join('／') + (ng.length > 8 ? ' ほか' + (ng.length - 8) + '件' : '') : '');
 }
 
 // ===== Results.gs =====

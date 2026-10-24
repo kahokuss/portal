@@ -1084,6 +1084,39 @@ test('名簿：役員がまとめて入れた子に、保護者が同じ名前�
   assert.deepStrictEqual(plain(st.kids.map((k) => k.name)), ['海野 そら']);
 });
 
+test('当番表の取り込み：名字（と下の名前の頭）で家族をさがす・保護者がまだの子は登録後に結びつく', () => {
+  const gas = setupClub();
+  gas.line(dm('U2'), '登録 川辺りく 3年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kA, 'saveRoster', { rows: [{ name: '川辺 みお', grade: 5, sex: '女' }, { name: '海野 そら', grade: 4, sex: '女' }, { name: '海野 なぎ', grade: 2, sex: '男' }] });
+  let st = gas.ctx.api(kA, 'bootstrap');
+  const race = st.events.find((e) => e.title === '秋季記録会');
+  assert.throws(() => gas.ctx.api(k2, 'importDuties', { rows: [] }), /役員/);
+  const rows = [
+    { date: '2026-10-15', type: '練習', names: '川辺(り)' },
+    { date: race.date, type: '大会', names: '海野・川辺(み)(サブ)' },
+    { date: '2027-01-05', type: '練習', names: '海野' },
+    { date: '2027-01-07', type: '練習', names: '川辺・山本・なし' },
+  ];
+  const msg = gas.ctx.api(kA, 'importDuties', { rows }).message;
+  assert.ok(msg.startsWith('4件'), msg);
+  assert.ok(msg.includes('予定がまだない日の 1件'), msg);
+  assert.ok(msg.includes('「川辺」はだれか分かりません'), '同じ名字で家族がちがうときは下の名前の頭がいる');
+  assert.ok(msg.includes('「山本」の子が名簿にいません'), msg);
+  assert.ok(gas.ctx.api(kA, 'importDuties', { rows }).message.includes('4件はもう入っていました'), '2回貼っても2重にならない');
+  st = gas.ctx.api(kA, 'bootstrap');
+  const on = (d) => plain(st.duties.filter((x) => x.date === d).map((x) => [x.key ? 'ev' : '', x.type, x.fam]).sort());
+  assert.deepStrictEqual(on('2026-10-15'), [['ev', '練習', 'U2']]);
+  assert.deepStrictEqual(on(race.date), [['ev', '大会', 'kid:川辺 みお'], ['ev', '大会', 'kid:海野 そら']], 'きょうだい（海野）は1家族');
+  assert.deepStrictEqual(on('2027-01-05'), [['', '練習', 'kid:海野 そら']]);
+  // 海野家の保護者が登録すると、その家族の当番になる
+  gas.line(dm('U3'), '登録 海野そら 4年');
+  gas.login('U3');
+  st = gas.ctx.api(kA, 'bootstrap');
+  assert.deepStrictEqual(on(race.date), [['ev', '大会', 'U3'], ['ev', '大会', 'kid:川辺 みお']]);
+});
+
 test('記録の取り込み：同じ表を2回貼っても2重にならない・2重の分を消せる', () => {
   const gas = setupClub();
   gas.line(dm('U1'), '登録 山田たろう 3年');

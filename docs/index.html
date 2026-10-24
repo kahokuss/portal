@@ -468,9 +468,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "e5a651e0fd";
+var BUILD = "21d55111c9";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "13a05e5e9c";
+var EXPECT_SERVER = "ffe4ad367a";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -1410,7 +1410,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
 
   // ---- 当番・出欠・大会の日の共通 ----
-  function famName(id) { var f = ST.families.find(function (x) { return x.id === id; }); return f ? f.label : '（家族の登録なし）'; }
+  function famName(id) {
+    var f = ST.families.find(function (x) { return x.id === id; });
+    if (f) return f.label;
+    // 保護者がまだ登録していない子の家族（当番表から入れたとき）
+    if (/^kid:/.test(id)) return String(id).slice(4).split(/[\s　]/)[0] + '（保護者の登録まだ）';
+    return '（家族の登録なし）';
+  }
   function dutyOf(key) { return ST.duties.filter(function (x) { return x.key === key; }); }
   function dutyText(key) { return dutyOf(key).map(function (x) { return famName(x.fam); }).join('、'); }
   function absentOn(date) { return ST.absences.filter(function (a) { return a.date === date; }); }
@@ -1438,6 +1444,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var type = dutyType(e), list = dutyOf(e.key);
     var h = '<section class="card"><h2>' + type + '当番' + (list.length ? '' : '<small>まだ決まっていません</small>') + '</h2>';
     if (list.length) h += '<div class="row">' + list.map(function (x) { return '<span class="pill ' + (x.fam === ST.me.fam ? 'p-race' : 'p-gray') + '">🏠 ' + esc(famName(x.fam)) + (x.fam === ST.me.fam ? '（わが家）' : '') + '</span>'; }).join(' ') + '</div>';
+    if (type === '練習') {
+      // 次の練習の当番（カギをかけて返す人）
+      var nx = ST.events.filter(function (x) { return !x.cancelled && x.date > e.date && dutyType(x) === '練習' && dutyOf(x.key).length; })[0];
+      if (nx) h += '<div class="sub">🔑 次回の当番（施錠・カギの返却）：<b>' + esc(dutyText(nx.key)) + '</b>（' + md(nx.date) + '）</div>';
+      if (ST.choices.dutyGuide && ST.choices.dutyGuide.length) h += '<details class="hint"><summary>当番の仕事</summary><ul style="margin:4px 0 0;padding-left:1.2em;line-height:1.7">' + ST.choices.dutyGuide.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></details>';
+    }
     if (ST.me.admin && !e.cancelled) {
       var fams = ST.families.map(function (f) { var r = dutyHistory(f.id, type, e.key); r.f = f; r.on = list.some(function (x) { return x.fam === f.id; }); return r; })
         .sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : a.count - b.count; });
@@ -3625,6 +3637,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<section class="card"><h2>まだ当番のいない' + type + 'に、順番に入れる</h2><div class="lbl">どこまで</div><div class="choice">' + [14, 30, 60, 90].map(function (n) { return '<button type="button" data-adays="' + n + '" aria-pressed="' + (A.days === n) + '">' + n + '日先まで</button>'; }).join('') + '</div>' +
       '<div class="lbl">1回に</div><div class="choice">' + [1, 2, 3].map(function (n) { return '<button type="button" data-aper="' + n + '" aria-pressed="' + (A.per === n) + '">' + n + '家族</button>'; }).join('') + '</div>' +
       '<button class="btn" type="button" id="autoDuty">自動で入れる</button><div class="hint">入れたあとも、予定を開いて家族をタップすれば入れかえられます。</div></section>';
+    var I = S.dutyImp || (S.dutyImp = { text: '', preview: null });
+    h += '<section class="card"><h2>当番表を貼り付けて入れる</h2><div class="sub">1行に1日、<b>日付・種類（練習／大会）・当番の名字</b>を書いて貼り付けてください。2家族以上は「・」でつなぎます。同じ名字が2家族あるときは「川辺(り)」のように下の名前の1文字を付けます。</div>' +
+      '<form class="f" id="diForm"><textarea id="diIn" rows="6" placeholder="日付,種類,当番&#10;2026-10-25,大会,海野・川辺(り)&#10;2026-10-27,練習,森">' + esc(I.text) + '</textarea><button class="btn ghost" type="submit">読み取って確認する</button></form>';
+    if (I.preview) {
+      h += '<div class="tbl-wrap"><table><thead><tr><th>日付</th><th>種類</th><th>当番</th><th>予定</th></tr></thead><tbody>' + I.preview.map(function (r) {
+        var ev = ST.events.find(function (x) { return x.date === r.date && !x.cancelled && (dutyType(x) === '大会') === (r.type === '大会'); });
+        return '<tr><td class="nw">' + (r.date ? md(r.date) : '<span class="pill p-warn">日付？</span>') + '</td><td>' + r.type + '</td><td class="wrap">' + esc(r.names) + '</td><td class="wrap sub">' + (ev ? esc(ev.title) : 'まだなし') + '</td></tr>';
+      }).join('') + '</tbody></table></div><div class="row"><button class="btn" id="diSave" type="button">' + I.preview.length + '日分を入れる</button><button class="btn ghost" id="diX" type="button">やめる</button></div>' +
+        '<div class="hint">予定（カレンダー）がまだない日は日付だけで入れておき、予定ができたら結びつきます。保護者がまだ登録していない家族も、登録すると結びつきます。同じ当番は2重に入りません。</div>';
+    }
+    h += '</section>';
     var list = upcoming(function (e) { return dutyType(e) === type; }).slice(0, 30);
     h += '<section class="card"><h2>これからの' + type + '</h2>' + (list.length ? '<div class="list">' + list.map(function (e) {
       return '<button class="ev" type="button" data-ev="' + e.key + '"><div class="date' + (isRace(e) ? ' race' : '') + '"><b>' + d(e.date).getUTCDate() + '</b><span>' + WD[d(e.date).getUTCDay()] + '</span></div><div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + (dutyOf(e.key).length ? '🏠 ' + esc(dutyText(e.key)) : '<span class="pill p-warn">当番なし</span>') + '</div></div>›</button>';
@@ -3635,8 +3658,30 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-adays]', function () { A.days = +this.dataset.adays; render(); });
     on('[data-aper]', function () { A.per = +this.dataset.aper; render(); });
     on('#autoDuty', function () { call('autoDuty', { type: type, days: A.days, per: A.per }); });
+    var di = document.getElementById('diForm');
+    if (di) di.addEventListener('submit', function (x) { x.preventDefault(); I.text = document.getElementById('diIn').value; I.preview = parseDutyTable(I.text); render(); });
+    on('#diX', function () { I.preview = null; render(); });
+    on('#diSave', function () { call('importDuties', { rows: I.preview.filter(function (r) { return r.date; }) }, function (st) { if (st.message) { I.preview = null; I.text = ''; } }); });
   }
 
+  /** 当番表の文を読む：「2026-10-25,大会,海野・川辺(り)」「10/25 大会 海野・川辺(り)」など */
+  function parseDutyTable(text) {
+    var y = +ST.today.slice(0, 4), mo = +ST.today.slice(5, 7);
+    return String(text || '').split(/\r?\n/).map(function (line) {
+      var t = toHalf(line).trim();
+      if (!t || /^日付/.test(t)) return null;
+      var parts = t.split(/[,\t]|\s+/).filter(Boolean), date = '', type = '練習', names = [];
+      parts.forEach(function (x) {
+        var m;
+        if (!date && (m = x.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/))) { date = m[1] + '-' + pad(m[2]) + '-' + pad(m[3]); return; }
+        if (!date && (m = x.match(/^(\d{1,2})[\/月](\d{1,2})日?$/))) { var yy = +m[1] < mo - 6 ? y + 1 : +m[1] > mo + 6 ? y - 1 : y; date = yy + '-' + pad(m[1]) + '-' + pad(m[2]); return; }
+        if (/^(大会|練習)$/.test(x)) { type = x; return; }
+        if (/^\(?[月火水木金土日](\(?[祝振]\)?)?\)?$/.test(x)) return;
+        names.push(x);
+      });
+      return names.length || date ? { date: date, type: type, names: names.join('・') } : null;
+    }).filter(Boolean);
+  }
   function adminNotify() {
     var h = backBtn() + toastHtml() + '<section class="card"><h2>休みの連絡をLINEで受け取る人</h2><div class="list">' + ST.parents.map(function (p) {
       return '<div class="between"><span>' + esc(p.name) + (p.admin ? ' <span class="pill p-gray">役員</span>' : '') + '</span><button class="btn small ' + (p.notify ? 'ok' : 'ghost') + '" type="button" data-notify="' + esc(p.id) + '" data-on="' + (p.notify ? '' : '1') + '">' + (p.notify ? '受け取る' : '受け取らない') + '</button></div>';

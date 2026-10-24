@@ -34,6 +34,7 @@ const API_ACTIONS = {
   setNotify: { admin: true, run: setNotifyAction_ },
   setAdmin: { admin: true, run: setAdminAction_ },
   setDuty: { admin: true, run: setDutyAction_ },
+  importDuties: { admin: true, run: importDutiesAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
   saveTimetablePlan: { run: saveTimetablePlanAction_ },
@@ -204,9 +205,25 @@ function buildState_(ctx) {
   events.forEach((e) => (inRange[e.key] = true));
 
   // 当番は、前回からどれくらいたったかを見るために1年分を渡す
+  // 当番：取り込んだときに予定がなかった分はその日の予定に、保護者がまだだった子（kid:名前）は今の家族に結びつける
+  const famOfUser = {};
+  readRows_(SHEETS.FAMILIES).forEach((f) => (famOfUser[f.userId] = famIdOf_(f)));
+  const allKids = activeChildren_();
+  const kidFam = (v) => {
+    if (!/^kid:/.test(v)) return v;
+    const k = allKids.find((c) => c.name === v.slice(4));
+    const u = k && k.parents.find((x) => famOfUser[x]);
+    return u ? famOfUser[u] : v;
+  };
+  const evOn = {};
+  events.forEach((e) => { if (!e.cancelled) (evOn[e.date] = evOn[e.date] || []).push(e); });
   const duties = readRows_(SHEETS.DUTIES)
-    .filter((x) => x.eventKey && x['日付'] >= addDays_(today, -400))
-    .map((x) => ({ key: x.eventKey, date: x['日付'], type: x['種類'], fam: x['家族ID'] }));
+    .filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400))
+    .map((x) => {
+      let key = x.eventKey;
+      if (!key) { const e = (evOn[x['日付']] || []).find((y) => (y.type !== '練習') === (x['種類'] === '大会')); key = e ? e.key : ''; }
+      return { key: key, date: x['日付'], type: x['種類'], fam: kidFam(x['家族ID']) };
+    });
 
   const raceKeysAll = Object.keys(raceKeys);
   const timetable = readRows_(SHEETS.TIMETABLE)
@@ -275,7 +292,7 @@ function buildState_(ctx) {
     fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
   };
 }
 

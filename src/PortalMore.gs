@@ -1422,3 +1422,61 @@ function fixPracticeKindsAction_(ctx) {
   const linked = linkResultsToEvents_();
   return n ? n + '件を「練習」の記録に直しました' + (linked ? '（' + linked + '件をその日の練習に結びつけました）' : '') : '直す記録はありませんでした';
 }
+
+// ---- 当番表の取り込み：「日付・種類・当番（名字）」の表から、まとめて当番を入れる ----
+
+/**
+ * 名字（と下の名前の頭）から家族をさがす。例：「川辺(り)」→ 川辺 りく の家族。
+ * 保護者がまだ登録していない子の家族は 'kid:子どもの名前' にしておき、登録されたら読むときに家族に結びつける。
+ * @return {{fam: string}|{error: string}}
+ */
+function dutyFamOf_(token, kids, famOfUser) {
+  const t = String(token || '').replace(/[（(]サブ(?:当番)?[)）]/g, '').trim();
+  const m = t.match(/^(.+?)\s*[（(]\s*(.+?)\s*[)）]$/);
+  const sur = (m ? m[1] : t).replace(/\s|　/g, ''), hint = m ? m[2] : '';
+  if (!sur) return { error: '' };
+  let hit = kids.filter((k) => k.name.replace(/\s|　/g, '').indexOf(sur) === 0);
+  if (hint) hit = hit.filter((k) => k.name.replace(/\s|　/g, '').slice(sur.length).indexOf(hint) === 0);
+  if (!hit.length) return { error: '「' + t + '」の子が名簿にいません' };
+  const fams = hit.map((k) => { const u = k.parents.find((p) => famOfUser[p]); return u ? famOfUser[u] : 'kid:' + k.name; });
+  const uniq = fams.filter((f, i) => fams.indexOf(f) === i);
+  // 同じ名字の子が2人いて、どちらも保護者がまだのときは、きょうだいとして1つの家族にする
+  if (uniq.length > 1 && !hint && uniq.every((f) => /^kid:/.test(f))) return { fam: uniq[0] };
+  if (uniq.length > 1) return { error: '「' + t + '」はだれか分かりません（「' + sur + '(下の名前の1文字)」と書いてください）' };
+  return { fam: uniq[0] };
+}
+
+/**
+ * 当番表を取り込む（役員）。rows：{date: 'yyyy-MM-dd', type: '練習'|'大会', names: '海野・川辺(り)'}
+ * その日の予定（練習・大会）があれば結びつけ、なければ日付だけで入れておく（あとで予定ができたら読むときに結びつく）。
+ */
+function importDutiesAction_(ctx, p) {
+  const kids = activeChildren_();
+  const famOfUser = {};
+  readRows_(SHEETS.FAMILIES).forEach((f) => (famOfUser[f.userId] = famIdOf_(f)));
+  const raceKeys = {};
+  readRows_(SHEETS.RACES).forEach((r) => (raceKeys[r.eventKey] = true));
+  const events = readRows_(SHEETS.EVENTS).filter((e) => e.eventKey && e['状態'] !== '中止');
+  const ng = [];
+  let added = 0, linked = 0, same = 0;
+  withLock_(() => {
+    const all = readRows_(SHEETS.DUTIES);
+    (p.rows || []).slice(0, 400).forEach((r, i) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date || '')) return ng.push((i + 1) + '行目：日付が読めません');
+      const type = r.type === '大会' ? '大会' : '練習';
+      const ev = events.find((e) => e['日付'] === r.date && ((raceKeys[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習') === (type === '大会')));
+      String(r.names || '').split(/[・、,，\/]/).map((x) => x.trim()).filter((x) => x && x !== 'なし').forEach((token) => {
+        const f = dutyFamOf_(token, kids, famOfUser);
+        if (f.error) return ng.push(r.date.slice(5).replace('-', '/') + ' ' + f.error);
+        if (!f.fam) return;
+        if (all.some((d) => d['日付'] === r.date && d['家族ID'] === f.fam && d['種類'] === type)) { same++; return; }
+        const row = { eventKey: ev ? ev.eventKey : '', '日付': r.date, '種類': type, '家族ID': f.fam, '更新者': ctx.name, '更新日時': now_() };
+        appendRow_(SHEETS.DUTIES, row);
+        all.push(row);
+        added++;
+        if (ev) linked++;
+      });
+    });
+  });
+  return added + '件の当番を入れました' + (linked < added ? '（予定がまだない日の ' + (added - linked) + '件は、予定ができたら結びつきます）' : '') + (same ? '（' + same + '件はもう入っていました）' : '') + (ng.length ? '。入れられなかったもの：' + ng.slice(0, 8).join('／') + (ng.length > 8 ? ' ほか' + (ng.length - 8) + '件' : '') : '');
+}

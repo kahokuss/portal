@@ -959,3 +959,54 @@ function saveTimesAction_(ctx, p) {
   if (!saved && !removed) return '変わったところはありません';
   return memo + 'のタイムを' + saved + '人分保存しました' + (removed ? '（' + removed + '人分を消しました）' : '');
 }
+
+// ---- 自主トレ（ふだんの日の個人トレーニングの記録）。見られるのは、その子の家族だけ ----
+
+function myKidNames_(ctx) {
+  return childrenOf_(ctx.userId).map((c) => c.name);
+}
+
+function trainingFor_(ctx, children) {
+  const mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  if (!mine.length) return [];
+  const from = addDays_(today_(), -400);
+  return readRows_(SHEETS.TRAINING)
+    .filter((x) => x.id && mine.indexOf(x['子ども']) >= 0 && x['日付'] >= from)
+    .map((x) => ({ id: x.id, date: x['日付'], child: x['子ども'], kind: x['種類'], km: Number(x['距離km']) || 0, min: Number(x['時間分']) || 0, count: Number(x['回数']) || 0, feel: x['調子'], memo: x['メモ'] }));
+}
+
+/** 自主トレを入れる・直す（id があれば直す） */
+function saveTrainingAction_(ctx, p) {
+  if (myKidNames_(ctx).indexOf(p.child) < 0) throw new Error('わが家のお子さんを選んでください。');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || '')) throw new Error('日にちを選んでください。');
+  if (p.date > today_()) throw new Error('先の日の記録は入れられません。');
+  const kind = String(p.kind || '').trim().slice(0, 20);
+  if (!kind) throw new Error('何をしたかを選んでください。');
+  const num = (v, max) => { const n = Number(toHalfWidth_(String(v || '')).replace(/[^0-9.]/g, '')); return n > 0 ? Math.min(n, max) : 0; };
+  const row = {
+    '日付': p.date, '子ども': p.child, '種類': kind, '距離km': num(p.km, 100) ? String(Math.round(num(p.km, 100) * 100) / 100) : '',
+    '時間分': num(p.min, 600) ? String(Math.round(num(p.min, 600))) : '', '回数': num(p.count, 10000) ? String(Math.round(num(p.count, 10000))) : '',
+    '調子': ['◎', '○', '△'].indexOf(p.feel) >= 0 ? p.feel : '', 'メモ': String(p.memo || '').slice(0, 200), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
+  };
+  if (!row['距離km'] && !row['時間分'] && !row['回数'] && !row['メモ']) throw new Error('距離・時間・回数のどれかを入れてください。');
+  withLock_(() => {
+    const old = p.id ? readRows_(SHEETS.TRAINING).find((x) => x.id && x.id === p.id) : null;
+    if (old) {
+      if (myKidNames_(ctx).indexOf(old['子ども']) < 0) throw new Error('直せる記録が見つかりません。');
+      Object.assign(old, row);
+      updateRow_(SHEETS.TRAINING, old);
+    } else {
+      appendRow_(SHEETS.TRAINING, Object.assign({ id: randomKey_().slice(0, 10) }, row));
+    }
+  });
+  return p.child + '：' + kind + 'を記録しました';
+}
+
+function deleteTrainingAction_(ctx, p) {
+  withLock_(() => {
+    const old = readRows_(SHEETS.TRAINING).find((x) => x.id && x.id === p.id);
+    if (!old || myKidNames_(ctx).indexOf(old['子ども']) < 0) throw new Error('消せる記録が見つかりません。');
+    clearRow_(SHEETS.TRAINING, old);
+  });
+  return '記録を消しました';
+}

@@ -79,6 +79,8 @@ const API_ACTIONS = {
   closeFee: { admin: true, run: closeFeeAction_ },
   setFeePaid: { admin: true, run: setFeePaidAction_ },
   setAttend: { run: setAttendAction_ },
+  saveTraining: { run: saveTrainingAction_ },
+  deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
 };
@@ -227,6 +229,7 @@ function buildState_(ctx) {
     events: events,
     entries: entries,
     absences: absences,
+    training: trainingFor_(ctx, children),
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,

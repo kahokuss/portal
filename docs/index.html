@@ -37,8 +37,8 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
 .top .me { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .reload { margin-left: auto; flex: none; white-space: nowrap; }
 .view { flex: 1; padding: 12px; display: grid; gap: 12px; align-content: start; }
-.nav { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: sticky; bottom: 0; }
-.nav.admin { grid-template-columns: repeat(5, 1fr); }
+.nav { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line); position: sticky; bottom: 0; }
+.nav.admin { grid-template-columns: repeat(6, 1fr); }
 .nav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 8px 0 7px; cursor: pointer; display: grid; justify-items: center; gap: 2px; }
 .nav button svg { width: 22px; height: 22px; }
 .nav button[aria-current="page"] { color: var(--track); font-weight: 700; }
@@ -210,6 +210,41 @@ form.f, .f { display: grid; gap: 8px; }
 .kid .yn button:not([aria-pressed="true"]), .kid .choice button:not([aria-pressed="true"]) { background: var(--surface); }
 .tally .who { font-size: 11.5px; color: var(--fg); line-height: 1.4; min-height: 16px; text-align: center; overflow-wrap: anywhere; }
 .tally .who .me { color: var(--sky); font-weight: 700; }
+.trnum input::placeholder, .tmin::placeholder { color: var(--muted); opacity: .55; font-weight: 400; }
+.nowrap { flex-wrap: nowrap; }
+.trk { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.trk button { border: 0; background: var(--surface-2); color: var(--fg); border-radius: 12px; padding: 8px 2px 6px; font: inherit; font-size: 12px; cursor: pointer; display: grid; justify-items: center; gap: 2px; min-width: 0; }
+.trk button .i { font-size: 20px; line-height: 1.1; }
+.trk button[aria-pressed="true"] { background: var(--field); color: #fff; font-weight: 700; }
+.trnum { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.trnum label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.trnum input { font: inherit; font-size: 18px; font-weight: 700; padding: 8px 10px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--fg); width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+.tcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.tcal .wd { font-size: 11px; color: var(--muted); text-align: center; }
+.tcal .wd.sun { color: var(--track); } .tcal .wd.sat { color: var(--sky); }
+.tcal button { border: 0; background: var(--surface-2); color: var(--fg); border-radius: 8px; min-height: 50px; padding: 3px 2px; font: inherit; cursor: pointer; display: grid; align-content: start; justify-items: center; gap: 1px; min-width: 0; }
+.tcal button.empty { background: transparent; cursor: default; }
+.tcal button.done { background: var(--field-soft); }
+.tcal button.today { box-shadow: inset 0 0 0 2px var(--track); }
+.tcal button.sel { box-shadow: inset 0 0 0 2px var(--fg); }
+.tcal button.future { opacity: .45; }
+.tcal .n { font-size: 12px; font-weight: 700; }
+.tcal .v { font-size: 10px; color: var(--field); font-weight: 700; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.tcal .club { width: 70%; height: 3px; border-radius: 2px; background: var(--sky); }
+.tcal .club.race { background: var(--track); }
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.kpi { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; }
+.kpi .lb { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+.kpi .v { font-family: var(--font-display); font-size: 1.5rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 2px; }
+.kpi .d { font-size: 11.5px; color: var(--muted); }
+.tbars { width: 100%; height: auto; display: block; }
+.tbars text { font-size: 10px; fill: var(--muted); }
+.tbars .bar { fill: var(--viz-line); }
+.tbars .bar.on { fill: var(--fg); }
+.tbars .hit { fill: transparent; cursor: pointer; }
+.tbars .grid { stroke: var(--line); stroke-width: 1; }
+@media (min-width: 900px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tmt td, .tmt th { padding: 5px 6px; }
 .tmt th.on { color: var(--track); }
 .tmin { font: inherit; font-size: 16px; width: 5.2em; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -340,9 +375,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "abff1441ad";
+var BUILD = "8c4d21abe8";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "fa34bf35d2";
+var EXPECT_SERVER = "0b4ab2f5cf";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -407,7 +442,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
   function fillDefaults(st) {
-    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
@@ -2183,6 +2218,191 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     bindBack(); bindCommon(); bindCommentActions();
   }
 
+
+  // ---- 自主トレ（ふだんの日の個人トレーニング）・レポート ----
+  // f：入れる項目（km 距離、min 時間、count 回数）、u：回数の単位
+  var TR_KINDS = [
+    { n: 'ランニング', i: '🏃', f: ['km', 'min'] }, { n: 'ダッシュ', i: '💨', f: ['count', 'min'], u: '本' }, { n: '坂道・階段', i: '⛰', f: ['count', 'min'], u: '本' }, { n: '縄跳び', i: '🪢', f: ['count', 'min'], u: '回' },
+    { n: '腹筋', i: '💪', f: ['count'], u: '回' }, { n: '背筋', i: '🧍', f: ['count'], u: '回' }, { n: '腕立て', i: '🙌', f: ['count'], u: '回' }, { n: 'スクワット', i: '🦵', f: ['count'], u: '回' },
+    { n: '体幹', i: '🧘', f: ['min'] }, { n: 'ストレッチ', i: '🤸', f: ['min'] }, { n: '自転車', i: '🚲', f: ['km', 'min'] }, { n: 'その他', i: '✏️', f: ['min', 'count'], u: '回' }];
+  var TR_STRENGTH = ['腹筋', '背筋', '腕立て', 'スクワット'];
+  function trKind(n) { return TR_KINDS.find(function (k) { return k.n === n; }) || TR_KINDS[TR_KINDS.length - 1]; }
+  function trKid() {
+    var kids = ST.me.children;
+    if (!kids.length) return '';
+    if (!S.trKid || !kids.some(function (k) { return k.name === S.trKid; })) S.trKid = kids[0].name;
+    return S.trKid;
+  }
+  function trRows(child) { return ST.training.filter(function (t) { return t.child === child; }); }
+  function trSummary(t) {
+    var k = trKind(t.kind), a = [];
+    if (t.km) a.push(t.km + 'km');
+    if (t.count) a.push(t.count + (k.u || '回'));
+    if (t.min) a.push(t.min + '分');
+    return a.join('・');
+  }
+  function hmText(min) { return min >= 600 ? Math.round(min / 60) + '時間' : min >= 60 ? Math.floor(min / 60) + '時間' + (min % 60 ? (min % 60) + '分' : '') : min + '分'; }
+  function round1(n) { return Math.round(n * 10) / 10; }
+  function train() {
+    var child = trKid();
+    if (!child) { view.innerHTML = '<section class="card"><h2>自主トレ</h2><div class="sub">先に「わが家」でお子さんを登録してください。</div><button class="btn" data-tab="family" type="button">お子さんを登録する</button></section>'; bindCommon(); return; }
+    var F = S.trForm || (S.trForm = { date: ST.today, kind: 'ランニング', km: '', min: '', count: '', feel: '', memo: '', other: '', id: '' });
+    var h = toastHtml();
+    if (ST.me.children.length > 1) h += '<div class="tabs" role="group" aria-label="だれの">' + ST.me.children.map(function (k) { return '<button type="button" data-trkid="' + esc(k.name) + '" aria-pressed="' + (k.name === child) + '">' + esc(k.name) + '</button>'; }).join('') + '</div>';
+    h += trFormCard(child, F) + trCalendarCard(child) + trReportCard(child);
+    view.innerHTML = h;
+    bindCommon();
+    bindTrain(child, F);
+  }
+  function trFormCard(child, F) {
+    var k = trKind(F.kind), rows = trRows(child);
+    var last = rows.filter(function (t) { return t.kind === (F.kind === 'その他' ? F.other : F.kind); }).sort(function (a, b) { return a.date < b.date ? 1 : -1; })[0];
+    var dayRows = rows.filter(function (t) { return t.date === F.date; });
+    var h = '<section class="card" id="trForm"><h2>' + (F.id ? '記録を直す' : '今日のトレーニング') + '<small>' + esc(child) + '</small></h2>' +
+      '<div class="row"><div class="choice">' + [[ST.today, '今日'], [addDays(ST.today, -1), '昨日']].map(function (d) { return '<button type="button" data-trd="' + d[0] + '" aria-pressed="' + (F.date === d[0]) + '">' + d[1] + '</button>'; }).join('') + '</div>' +
+      '<input type="date" id="tr-date" class="tmsel" value="' + F.date + '" max="' + ST.today + '"><span class="sub">' + md(F.date) + '</span></div>' +
+      '<div class="trk" role="group" aria-label="何をした">' + TR_KINDS.map(function (x) { return '<button type="button" data-trk="' + x.n + '" aria-pressed="' + (F.kind === x.n) + '"><span class="i" aria-hidden="true">' + x.i + '</span>' + x.n + '</button>'; }).join('') + '</div>';
+    if (F.kind === 'その他') h += '<div class="f"><label>何をした？<input id="tr-other" value="' + esc(F.other) + '" placeholder="例：水泳、サッカー、ボール投げ"></label></div>';
+    var lab = { km: '距離（km）', min: '時間（分）', count: '回数（' + (k.u || '回') + '）' }, ph = { km: '3.5', min: '30', count: k.u === '本' ? '10' : '30' };
+    h += '<div class="trnum">' + k.f.map(function (f) { return '<label>' + lab[f] + '<input id="tr-' + f + '" inputmode="decimal" value="' + esc(F[f]) + '" placeholder="' + ph[f] + '"></label>'; }).join('') + '</div>';
+    h += '<div class="row"><span class="sub">調子</span><div class="choice">' + [['◎', 'よい'], ['○', 'ふつう'], ['△', 'いまいち']].map(function (x) { return '<button type="button" data-trf="' + x[0] + '" aria-pressed="' + (F.feel === x[0]) + '">' + x[0] + ' ' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="f"><label>メモ（なくてもOK）<input id="tr-memo" value="' + esc(F.memo) + '" placeholder="例：川沿いコース、最後の1kmペースアップ"></label></div>' +
+      '<div class="row"><button class="btn" id="trSave" type="button">' + (F.id ? '直す' : '記録する') + '</button>' + (last && !F.id ? '<button class="btn ghost" id="trLast" type="button">前回と同じ（' + esc(trSummary(last)) + '）</button>' : '') + (F.id ? '<button class="btn ghost" id="trCancel" type="button">やめる</button>' : '') + '</div>';
+    if (dayRows.length) h += '<div class="list">' + dayRows.map(function (t) {
+      return '<div class="between"><span>' + trKind(t.kind).i + ' <b>' + esc(t.kind) + '</b> ' + esc(trSummary(t)) + (t.feel ? ' ' + esc(t.feel) : '') + (t.memo ? '<br><span class="sub">' + esc(t.memo) + '</span>' : '') + '</span><span class="row nowrap"><button class="btn small ghost" data-tredit="' + t.id + '" type="button">直す</button><button class="btn small ghost" data-trdel="' + t.id + '" type="button">消す</button></span></div>';
+    }).join('') + '</div>';
+    return h + '<div class="hint">' + md(F.date) + 'の記録' + (dayRows.length ? ' ' + dayRows.length + '件' : 'はまだありません') + '。記録は家族だけが見られます。</div></section>';
+  }
+  function trCalendarCard(child) {
+    var mon = S.trMonth || (S.trMonth = ST.today.slice(0, 7)), y = +mon.slice(0, 4), m = +mon.slice(5, 7);
+    var days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = d(mon + '-01').getUTCDay(), byDay = {}, club = {};
+    trRows(child).forEach(function (t) { if (t.date.slice(0, 7) === mon) (byDay[t.date] = byDay[t.date] || []).push(t); });
+    ST.events.forEach(function (e) { if (!e.cancelled && e.date.slice(0, 7) === mon) club[e.date] = club[e.date] === 'race' || isRace(e) ? 'race' : 'prac'; });
+    var done = Object.keys(byDay).length, kmSum = 0;
+    Object.keys(byDay).forEach(function (k) { byDay[k].forEach(function (t) { kmSum += t.km; }); });
+    // 今日まで何日続いているか
+    var streak = 0, dd = ST.today, has = {};
+    trRows(child).forEach(function (t) { has[t.date] = 1; });
+    if (!has[dd]) dd = addDays(dd, -1);
+    while (has[dd]) { streak++; dd = addDays(dd, -1); }
+    var h = '<section class="card"><h2>カレンダー<small>' + m + '月 ' + done + '日' + (kmSum ? '・' + round1(kmSum) + 'km' : '') + (streak > 1 ? '・🔥' + streak + '日連続' : '') + '</small></h2>' +
+      '<div class="between"><button class="btn small ghost" type="button" data-trm="-1" aria-label="前の月">‹</button><b>' + y + '年' + m + '月</b><button class="btn small ghost" type="button" data-trm="1" aria-label="次の月">›</button></div><div class="tcal">' +
+      WD.map(function (w, i) { return '<div class="wd' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</div>'; }).join('');
+    for (var i = 0; i < lead; i++) h += '<button type="button" class="empty" tabindex="-1" aria-hidden="true"></button>';
+    for (var n = 1; n <= days; n++) {
+      var ds = mon + '-' + pad(n), list = byDay[ds] || [], km = 0;
+      list.forEach(function (t) { km += t.km; });
+      var mark = list.length ? (km ? round1(km) + 'km' : list.length > 1 ? '✓' + list.length : trKind(list[0].kind).i) : '';
+      h += '<button type="button" class="' + (list.length ? 'done' : '') + (ds === ST.today ? ' today' : '') + (S.trForm && S.trForm.date === ds ? ' sel' : '') + (ds > ST.today ? ' future' : '') + '" data-trday="' + ds + '"' + (ds > ST.today ? ' disabled' : '') + ' aria-label="' + md(ds) + (list.length ? ' ' + list.length + '件' : '') + '">' +
+        '<span class="n">' + n + '</span><span class="v">' + esc(mark) + '</span>' + (club[ds] ? '<span class="club' + (club[ds] === 'race' ? ' race' : '') + '" title="クラブの' + (club[ds] === 'race' ? '大会' : '練習') + '"></span>' : '') + '</button>';
+    }
+    return h + '</div><div class="hint">緑の日が記録した日。下の青い線はクラブの練習、赤は大会の日です。日にちを押すと、その日の記録を入れたり直したりできます。</div></section>';
+  }
+  var TR_PERIODS = [['1m', '1か月', 30, 'week'], ['3m', '3か月', 91, 'week'], ['6m', '半年', 182, 'month'], ['1y', '1年', 365, 'month']];
+  function trStats(rows, from, to) {
+    var r = rows.filter(function (t) { return t.date >= from && t.date <= to; }), st = { rows: r, days: {}, km: 0, min: 0, strength: 0, kinds: {} };
+    r.forEach(function (t) {
+      st.days[t.date] = 1; st.km += t.km; st.min += t.min;
+      if (TR_STRENGTH.indexOf(t.kind) >= 0) st.strength += t.count;
+      var k = st.kinds[t.kind] || (st.kinds[t.kind] = { n: 0, km: 0, min: 0, count: 0, days: {} });
+      k.n++; k.km += t.km; k.min += t.min; k.count += t.count; k.days[t.date] = 1;
+    });
+    st.nDays = Object.keys(st.days).length;
+    return st;
+  }
+  function trReportCard(child) {
+    var P = TR_PERIODS.find(function (x) { return x[0] === S.trPeriod; }) || TR_PERIODS[0];
+    var to = ST.today, from = addDays(to, -(P[2] - 1)), pFrom = addDays(from, -P[2]), pTo = addDays(from, -1);
+    var rows = trRows(child), cur = trStats(rows, from, to), prev = trStats(rows, pFrom, pTo);
+    var metric = S.trMetric || 'km';
+    if (!cur.km && metric === 'km') metric = cur.min ? 'min' : 'days';
+    var delta = function (a, b, unit) { if (!b) return '前の' + P[1] + 'は記録なし'; var dlt = round1(a - b); return '前の' + P[1] + 'より ' + (dlt >= 0 ? '+' : '') + dlt + unit; };
+    var h = '<section class="card" id="trReport"><h2>レポート<small>' + md(from) + '〜' + md(to) + '</small></h2>' +
+      '<div class="tabs" role="group" aria-label="期間">' + TR_PERIODS.map(function (x) { return '<button type="button" data-trp="' + x[0] + '" aria-pressed="' + (x[0] === P[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (!cur.rows.length) return h + '<div class="sub">この期間の記録はまだありません。上の「今日のトレーニング」から入れてください。</div></section>';
+    h += '<div class="kpis">' +
+      '<div class="kpi"><span class="lb">トレーニングした日</span><span class="v">' + cur.nDays + '<small>日 / ' + P[2] + '日</small></span><span class="d">' + delta(cur.nDays, prev.nDays, '日') + '</span></div>' +
+      '<div class="kpi"><span class="lb">走った距離</span><span class="v">' + round1(cur.km) + '<small>km</small></span><span class="d">' + delta(cur.km, prev.km, 'km') + '</span></div>' +
+      '<div class="kpi"><span class="lb">合計時間</span><span class="v">' + (cur.min >= 60 ? round1(cur.min / 60) + '<small>時間</small>' : cur.min + '<small>分</small>') + '</span><span class="d">1日平均 ' + Math.round(cur.min / Math.max(1, cur.nDays)) + '分</span></div>' +
+      '<div class="kpi"><span class="lb">筋トレ（腹筋・背筋・腕立て・スクワット）</span><span class="v">' + cur.strength.toLocaleString('ja-JP') + '<small>回</small></span><span class="d">' + delta(cur.strength, prev.strength, '回') + '</span></div></div>';
+    // 週ごと（1か月・3か月）／月ごと（半年・1年）の棒グラフ。1系列なので凡例なし（見出しが名前）
+    var buckets = [];
+    if (P[3] === 'week') {
+      var start = addDays(to, -((d(to).getUTCDay() + 6) % 7)); // 今週の月曜
+      while (start > from || !buckets.length) { buckets.unshift({ from: start, to: addDays(start, 6), label: md(start).replace(/\(.\)/, '') + '〜' }); start = addDays(start, -7); if (buckets.length > 14) break; }
+      if (buckets[0].from > from && P[2] <= 31) buckets.unshift({ from: addDays(buckets[0].from, -7), to: addDays(buckets[0].from, -1), label: md(addDays(buckets[0].from, -7)).replace(/\(.\)/, '') + '〜' });
+    } else {
+      var mm = to.slice(0, 7), cnt = P[2] > 200 ? 12 : 6;
+      for (var i = 0; i < cnt; i++) { var y0 = +mm.slice(0, 4), m0 = +mm.slice(5, 7); buckets.unshift({ from: mm + '-01', to: mm + '-31', label: m0 + '月' }); var pm = new Date(Date.UTC(y0, m0 - 2, 1)); mm = pm.toISOString().slice(0, 7); }
+    }
+    buckets.forEach(function (b) { var s2 = trStats(rows, b.from, b.to); b.v = metric === 'km' ? round1(s2.km) : metric === 'min' ? s2.min : s2.nDays; });
+    var unit = { km: 'km', min: '分', days: '日' }[metric], max = Math.max.apply(null, buckets.map(function (b) { return b.v; }).concat([1]));
+    var W = 320, H = 150, pl = 4, pb = 18, pt = 16, bw = (W - pl * 2) / buckets.length, sel = S.trBar !== undefined && S.trBar < buckets.length ? S.trBar : -1;
+    var svg = '<svg class="tbars" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + ({ km: '距離', min: '時間', days: '日数' }[metric]) + 'の移り変わり">' +
+      '<line class="grid" x1="0" x2="' + W + '" y1="' + (H - pb) + '" y2="' + (H - pb) + '"/>';
+    buckets.forEach(function (b, i) {
+      var bh = b.v ? Math.max(4, (H - pb - pt) * b.v / max) : 0, x = pl + i * bw + 1, w = Math.max(2, bw - 2), y0 = H - pb - bh;
+      if (bh) svg += '<path class="bar' + (i === sel ? ' on' : '') + '" d="M' + x + ' ' + (H - pb) + 'V' + (y0 + 4) + 'Q' + x + ' ' + y0 + ' ' + (x + 4 > x + w / 2 ? x + w / 2 : x + 4) + ' ' + y0 + 'H' + (x + w - Math.min(4, w / 2)) + 'Q' + (x + w) + ' ' + y0 + ' ' + (x + w) + ' ' + (y0 + 4) + 'V' + (H - pb) + 'Z"/>';
+      if (b.v === max && b.v) svg += '<text x="' + (x + w / 2) + '" y="' + (y0 - 4) + '" text-anchor="middle">' + b.v + '</text>';
+      var every = Math.ceil(buckets.length / 6);
+      if (i % every === 0 || i === buckets.length - 1) svg += '<text x="' + (x + w / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + esc(b.label) + '</text>';
+      svg += '<rect class="hit" data-trbar="' + i + '" x="' + (pl + i * bw) + '" y="0" width="' + bw + '" height="' + H + '"><title>' + esc(b.label) + ' ' + b.v + unit + '</title></rect>';
+    });
+    svg += '</svg>';
+    h += '<div class="between"><b style="font-size:13px">' + (P[3] === 'week' ? '週ごと' : '月ごと') + 'の' + ({ km: '距離', min: '時間', days: '日数' }[metric]) + '</b><div class="tabs" role="group" aria-label="グラフ">' + [['km', '距離'], ['min', '時間'], ['days', '日数']].map(function (x) { return '<button type="button" data-trmet="' + x[0] + '" aria-pressed="' + (x[0] === metric) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' + svg +
+      '<div class="sub" style="min-height:1.4em">' + (sel >= 0 ? esc(buckets[sel].label.replace('〜', '') + (P[3] === 'week' ? 'からの1週間' : '')) + '：<b>' + buckets[sel].v + unit + '</b>' : '棒を押すと数字が出ます') + '</div>';
+    var kinds = Object.keys(cur.kinds).sort(function (a, b) { return cur.kinds[b].n - cur.kinds[a].n; });
+    h += '<div class="tbl-wrap"><table><thead><tr><th>種類</th><th>日数</th><th>距離</th><th>時間</th><th>回数</th></tr></thead><tbody>' + kinds.map(function (n) {
+      var k = cur.kinds[n], u = trKind(n).u || '回';
+      return '<tr><td>' + trKind(n).i + ' ' + esc(n) + '</td><td>' + Object.keys(k.days).length + '日</td><td>' + (k.km ? round1(k.km) + 'km' : '') + '</td><td>' + (k.min ? hmText(k.min) : '') + '</td><td>' + (k.count ? k.count.toLocaleString('ja-JP') + u : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+    var feels = cur.rows.filter(function (t) { return t.feel; }), good = feels.filter(function (t) { return t.feel === '◎'; }).length;
+    if (feels.length) h += '<div class="sub">調子：◎ ' + good + '回・○ ' + feels.filter(function (t) { return t.feel === '○'; }).length + '回・△ ' + feels.filter(function (t) { return t.feel === '△'; }).length + '回</div>';
+    h += '<button class="btn small ghost" id="trCopy" type="button" style="justify-self:start">レポートをコピー（LINEで送れます）</button>';
+    S.trReportText = '🏃 ' + child + 'の自主トレ（' + P[1] + '：' + md(from) + '〜' + md(to) + '）\n' + 'トレーニングした日 ' + cur.nDays + '日\n' + (cur.km ? '走った距離 ' + round1(cur.km) + 'km\n' : '') + (cur.min ? '合計時間 ' + hmText(cur.min) + '\n' : '') + (cur.strength ? '筋トレ ' + cur.strength + '回\n' : '') +
+      kinds.map(function (n) { var k = cur.kinds[n]; return '・' + n + ' ' + [k.km ? round1(k.km) + 'km' : '', k.count ? k.count + (trKind(n).u || '回') : '', k.min ? hmText(k.min) : ''].filter(Boolean).join(' '); }).join('\n');
+    return h + '</section>';
+  }
+  function bindTrain(child, F) {
+    var keep = function () {
+      ['km', 'min', 'count', 'memo', 'other'].forEach(function (f) { var el = document.getElementById('tr-' + f); if (el) F[f] = el.value; });
+      var dt = document.getElementById('tr-date'); if (dt && dt.value) F.date = dt.value;
+    };
+    on('[data-trkid]', function () { S.trKid = this.dataset.trkid; S.trForm = null; render(); });
+    on('[data-trd]', function () { keep(); F.date = this.dataset.trd; render(); });
+    var dt = document.getElementById('tr-date'); if (dt) dt.addEventListener('change', function () { keep(); render(); });
+    on('[data-trk]', function () { keep(); if (F.kind !== this.dataset.trk) { F.kind = this.dataset.trk; F.km = F.min = F.count = ''; } render(); });
+    on('[data-trf]', function () { keep(); F.feel = F.feel === this.dataset.trf ? '' : this.dataset.trf; render(); });
+    on('[data-trday]', function () { keep(); F.date = this.dataset.trday; F.id = ''; render(); document.getElementById('trForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    on('[data-trm]', function () { keep(); var t = new Date(Date.UTC(+S.trMonth.slice(0, 4), +S.trMonth.slice(5, 7) - 1 + +this.dataset.trm, 1)); S.trMonth = t.toISOString().slice(0, 7); render(); });
+    on('[data-trp]', function () { keep(); S.trPeriod = this.dataset.trp; S.trBar = undefined; render(); });
+    on('[data-trmet]', function () { keep(); S.trMetric = this.dataset.trmet; render(); });
+    view.querySelectorAll('[data-trbar]').forEach(function (b) { b.addEventListener('click', function () { keep(); S.trBar = +this.dataset.trbar; render(); }); });
+    on('#trLast', function () {
+      keep();
+      var kind = F.kind === 'その他' ? F.other : F.kind;
+      var last = trRows(child).filter(function (t) { return t.kind === kind; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; })[0];
+      if (last) { F.km = last.km || ''; F.min = last.min || ''; F.count = last.count || ''; F.memo = last.memo || ''; render(); }
+    });
+    on('#trCancel', function () { S.trForm = null; render(); });
+    on('[data-tredit]', function () {
+      var t = ST.training.find(function (x) { return x.id === this.dataset.tredit; }, this); if (!t) return;
+      var known = TR_KINDS.some(function (k) { return k.n === t.kind; });
+      S.trForm = { id: t.id, date: t.date, kind: known ? t.kind : 'その他', other: known ? '' : t.kind, km: t.km || '', min: t.min || '', count: t.count || '', feel: t.feel || '', memo: t.memo || '' };
+      render();
+    });
+    on('[data-trdel]', function () { if (confirm('この記録を消しますか？')) call('deleteTraining', { id: this.dataset.trdel }); });
+    on('#trSave', function () {
+      keep();
+      var kind = F.kind === 'その他' ? F.other.trim() : F.kind;
+      if (!kind) { S.toast = '何をしたかを入れてください。'; S.toastErr = true; render(); return; }
+      call('saveTraining', { id: F.id, date: F.date, child: child, kind: kind, km: F.km, min: F.min, count: F.count, feel: F.feel, memo: F.memo }, function (st) {
+        if (st.message) { var keepDate = F.date, keepKind = F.kind; S.trForm = { date: keepDate, kind: keepKind, km: '', min: '', count: '', feel: '', memo: '', other: '', id: '' }; }
+      });
+    });
+    on('#trCopy', function () { copyText(S.trReportText || ''); });
+  }
+
   // ---- 結果・記録 ----
   /** 種目が「大きいほどよい」（跳・投）か */
   function higherBetter(race) { return /跳|投|ボール/.test(race); }
@@ -2946,9 +3166,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     events: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     family: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
     admin: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
-    album: '<rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>'
+    album: '<rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
+    train: '<path d="M3 12h4l3-7 4 14 3-7h4"/>'
   };
-  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['album', '写真'], ['family', 'わが家'], ['admin', '管理']];
+  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['train', '自主トレ'], ['album', '写真'], ['family', 'わが家'], ['admin', '管理']];
   function renderNav() {
     var nav = document.getElementById('nav');
     nav.hidden = false;
@@ -2968,7 +3189,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('reload').hidden = false;
     if (S.tab === 'admin' && !ST.me.admin) S.tab = 'home';
     renderNav();
-    ({ home: home, events: events, album: album, family: family, admin: admin })[S.tab]();
+    ({ home: home, events: events, album: album, family: family, admin: admin, train: train })[S.tab]();
     applyFolds();
   }
   // ---- 折りたたみ：カードの見出しを押すと閉じる・開く（このスマホに覚える） ----

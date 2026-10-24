@@ -817,6 +817,30 @@ async function openPortal(browser, gas, userId, name) {
       assert.strictEqual(await a.inputValue('[data-tmk="山田たろう"]'), '48回');
       await a.shot('21-times-other');
     });
+    await step('自主トレ：ランニングと腹筋を記録 → カレンダーに印、レポートに合計', async () => {
+      await a.click('[data-nav="train"]');
+      if (await a.$('[data-trkid="山田たろう"]')) await a.click('[data-trkid="山田たろう"]');
+      await a.click('[data-trk="ランニング"]');
+      await a.fill('#tr-km', '3.5');
+      await a.fill('#tr-min', '25');
+      await a.click('[data-trf="◎"]');
+      await a.click('#trSave');
+      await a.idle();
+      await a.click('[data-trk="腹筋"]');
+      await a.fill('#tr-count', '30');
+      await a.click('#trSave');
+      await a.idle();
+      assert.strictEqual(gas.rows('自主トレ').length, 2);
+      const text = await a.textContent('#view');
+      assert.ok(text.includes('3.5km') && text.includes('30回'), text);
+      assert.ok((await a.textContent('#trReport')).includes('3.5km'));
+      await a.click('[data-trp="1y"]');
+      await a.click('[data-trbar="11"]');
+      assert.ok((await a.textContent('#trReport')).includes('3.5km'), '月ごとの棒を押すと数字');
+      await a.click('#trLast');
+      assert.strictEqual(await a.inputValue('#tr-count'), '30', '前回と同じ');
+      await a.shot('22-training');
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

@@ -887,6 +887,32 @@ test('練習の出席（✓）と休みは入れかわる・練習のタイム�
   assert.deepStrictEqual(plain(res.map((r) => [r.child, r.race, r.record, r.memo, r.kind])).sort(), [['鈴木けんた', '50m', '9.38', '加速走 1本目', '練習'], ['鈴木けんた', '50m', '9.48', '加速走 2本目', '練習']]);
 });
 
+test('自主トレ：家族だけが見られる・直す・消す・先の日は入れられない', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const st0 = gas.ctx.api(k2, 'bootstrap');
+  assert.throws(() => gas.ctx.api(k2, 'saveTraining', { date: st0.today, child: '山田たろう', kind: 'ランニング', km: 3 }), /わが家/);
+  assert.throws(() => gas.ctx.api(k2, 'saveTraining', { date: '2099-01-01', child: '鈴木けんた', kind: 'ランニング', km: 3 }), /先の日/);
+  assert.throws(() => gas.ctx.api(k2, 'saveTraining', { date: st0.today, child: '鈴木けんた', kind: '腹筋' }), /どれか/);
+  gas.ctx.api(k2, 'saveTraining', { date: st0.today, child: '鈴木けんた', kind: 'ランニング', km: '３．５', min: 25, feel: '◎' });
+  gas.ctx.api(k2, 'saveTraining', { date: st0.today, child: '鈴木けんた', kind: '腹筋', count: 30 });
+  let t = gas.ctx.api(k2, 'bootstrap').training;
+  assert.strictEqual(t.length, 2);
+  assert.ok(t.some((x) => x.kind === 'ランニング' && x.km === 3.5 && x.min === 25 && x.feel === '◎'));
+  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').training.length, 0, '役員でもほかの家の記録は見えない');
+  const run = t.find((x) => x.kind === 'ランニング');
+  assert.throws(() => gas.ctx.api(kA, 'deleteTraining', { id: run.id }), /見つかりません/);
+  gas.ctx.api(k2, 'saveTraining', { id: run.id, date: st0.today, child: '鈴木けんた', kind: 'ランニング', km: 4 });
+  t = gas.ctx.api(k2, 'bootstrap').training;
+  assert.strictEqual(t.length, 2, '直すと増えない');
+  assert.strictEqual(t.find((x) => x.id === run.id).km, 4);
+  gas.ctx.api(k2, 'deleteTraining', { id: run.id });
+  assert.strictEqual(gas.ctx.api(k2, 'bootstrap').training.length, 1);
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

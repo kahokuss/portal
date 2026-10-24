@@ -15,6 +15,7 @@ const SHEETS = {
   ANSWERS: { name: '回答', headers: ['アンケートid', '家族ID', '回答', 'コメント', '更新者', '日時'] },
   FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
   FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
+  TRAINING: { name: '自主トレ', headers: ['id', '日付', '子ども', '種類', '距離km', '時間分', '回数', '調子', 'メモ', 'userId', '表示名', '日時'] },
   ATTEND: { name: '出席', headers: ['日付', 'eventKey', '子ども', 'userId', '表示名', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },

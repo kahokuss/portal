@@ -263,6 +263,8 @@ form.f, .f { display: grid; gap: 8px; }
 .rchart .ln.avg { fill: none; stroke: var(--muted); stroke-dasharray: 2 4; stroke-width: 2; }
 .rchart .ln.avg2 { fill: none; stroke: var(--fg); stroke-dasharray: 7 4; stroke-width: 1.5; opacity: .6; }
 .fam { display: grid; gap: 6px; }
+.svnote { background: var(--warn-soft); color: var(--fg); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+.svnote ul { margin: 4px 0 0; padding-left: 1.2em; line-height: 1.6; }
 .cmpbox { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--surface); }
 .kid .cmpbox { background: var(--surface); }
 .cmprow { display: grid; grid-template-columns: minmax(3.5em, auto) minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
@@ -2495,15 +2497,20 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<button class="btn small" id="svKeys" type="button" style="justify-self:start">保存する</button></section>';
     }
     var ex = (ST.me.children[0] || { name: 'たろう' }).name.replace(/^.*[\s　]/, '');
+    var notes = '<div class="svnote"><b>ご注意</b><ul>' +
+      '<li>Strava は13歳以上しか使えないので、<b>保護者の Strava アカウント</b>で子どもの分を記録してください。</li>' +
+      '<li>子どもの分は、活動のタイトルに<b>子どもの名前</b>を入れてください（例：「' + esc(ex) + ' 朝ラン」）。名前のない活動（保護者のジョギングなど）は取り込みません。</li>' +
+      '<li>取り込んだ記録（距離・時間）は、Strava の決まりにより<b>わが家だけ</b>に見えます。「みんなに見せる」「コーチに見せる」にしていても、Strava の分は見せません。</li>' +
+      '<li>コーチやみんなに見せたい記録は、「今日のトレーニング」から入れてください。</li></ul></div>';
     if (!V.connected) {
       return h + '<div class="sub">保護者の Strava とつなぐと、<b>タイトルに子どもの名前が入った活動</b>（ランニング・自転車など）を自主トレに取り込みます。例：「' + esc(ex) + ' 朝ラン」</div>' +
-        '<button class="btn small" id="svConnect" type="button" style="justify-self:start">Strava とつなぐ</button><div class="hint">取り込んだ記録はわが家だけに見えます（Strava の決まりのため、コーチやみんなには見せません）。</div></section>';
+        '<button class="btn small" id="svConnect" type="button" style="justify-self:start">Strava とつなぐ</button>' + notes + '</section>';
     }
     h += '<div class="sub">' + esc(V.name || 'Strava') + ' さんの Strava とつながっています。取り込んだ記録 ' + V.count + '件' + (V.last ? '・最後に確かめた ' + esc(String(V.last).slice(5, 16).replace('-', '/')) : '') + '</div>' +
       '<div class="lbl" style="font-size:12px;color:var(--muted)">見分ける言葉（タイトルにこの言葉か名前が入った活動を取り込みます）</div>' +
       ST.me.children.map(function (k) { return '<div class="row"><span style="min-width:6em">' + esc(k.name) + '</span><input class="tmin" style="width:12em" data-svkw="' + esc(k.name) + '" value="' + esc(V.kw[k.name] || '') + '" placeholder="例：' + esc(k.name.replace(/^.*[\s　]/, '')) + '、あだ名"></div>'; }).join('') +
       '<div class="row"><button class="btn small" id="svSync" type="button">今すぐ取り込む</button><button class="btn small ghost" id="svKw" type="button">言葉を保存</button><button class="btn small ghost" id="svOff" type="button">つながりを切る</button></div>' +
-      '<div class="hint">1時間ごとに自動で取り込みます。ランニング→「ランニング」、自転車→「自転車」、ウォーキング・水泳も入ります。取り込んだ記録はわが家だけに見えます。</div></section>';
+      '<div class="hint">1時間ごとに自動で取り込みます。ランニング→「ランニング」、自転車→「自転車」、ウォーキング・水泳も入ります。</div>' + notes + '</section>';
     return h;
   }
   function bindStrava() {

@@ -3,7 +3,7 @@
  * どのシートも1行目が見出しで、2行目以降がデータ。値はすべて文字列で保存する。
  */
 const SHEETS = {
-  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認'] },
+  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
@@ -16,6 +16,7 @@ const SHEETS = {
   FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
   FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
   TRAINING: { name: '自主トレ', headers: ['id', '日付', '子ども', '種類', '距離km', '時間分', '回数', '調子', 'メモ', 'userId', '表示名', '日時'] },
+  TRAIN_SHARE: { name: '自主トレ公開', headers: ['子ども', '公開', '更新者', '日時'] },
   ATTEND: { name: '出席', headers: ['日付', 'eventKey', '子ども', 'userId', '表示名', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
@@ -195,6 +196,10 @@ function findFamily_(userId) {
 function findFamilyByKey_(key) {
   if (!key || !/^[A-Za-z0-9]{16,64}$/.test(key)) return null;
   return readRows_(SHEETS.FAMILIES).find((f) => f['ポータルキー'] === key) || null;
+}
+
+function isCoach_(family) {
+  return !!family && /^(○|◯|〇|o|yes|true|1|コーチ)$/i.test(String(family['コーチ'] || '').trim());
 }
 
 function isAdmin_(family) {

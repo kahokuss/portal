@@ -375,9 +375,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "8c4d21abe8";
+var BUILD = "d0429be552";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "0b4ab2f5cf";
+var EXPECT_SERVER = "df4690ccf6";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -444,6 +444,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function fillDefaults(st) {
     ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
+    if (!st.trainShare) st.trainShare = { mine: [], kids: [] };
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
     if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
@@ -2244,15 +2245,51 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function hmText(min) { return min >= 600 ? Math.round(min / 60) + '時間' : min >= 60 ? Math.floor(min / 60) + '時間' + (min % 60 ? (min % 60) + '分' : '') : min + '分'; }
   function round1(n) { return Math.round(n * 10) / 10; }
   function train() {
+    var coachKids = ST.me.coach ? ST.trainShare.kids : [];
+    var mode = !ST.me.children.length && ST.me.coach ? 'coach' : S.trMode || 'mine';
+    var modeTabs = ST.me.coach && ST.me.children.length ? '<div class="tabs" role="group" aria-label="表示">' + [['mine', 'わが家'], ['coach', 'コーチ用（' + coachKids.length + '人）']].map(function (x) { return '<button type="button" data-trmode="' + x[0] + '" aria-pressed="' + (mode === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' : '';
+    if (mode === 'coach') { trainCoach(coachKids, modeTabs); return; }
     var child = trKid();
     if (!child) { view.innerHTML = '<section class="card"><h2>自主トレ</h2><div class="sub">先に「わが家」でお子さんを登録してください。</div><button class="btn" data-tab="family" type="button">お子さんを登録する</button></section>'; bindCommon(); return; }
     var F = S.trForm || (S.trForm = { date: ST.today, kind: 'ランニング', km: '', min: '', count: '', feel: '', memo: '', other: '', id: '' });
     var h = toastHtml();
     if (ST.me.children.length > 1) h += '<div class="tabs" role="group" aria-label="だれの">' + ST.me.children.map(function (k) { return '<button type="button" data-trkid="' + esc(k.name) + '" aria-pressed="' + (k.name === child) + '">' + esc(k.name) + '</button>'; }).join('') + '</div>';
-    h += trFormCard(child, F) + trCalendarCard(child) + trReportCard(child);
-    view.innerHTML = h;
+    var shared = ST.trainShare.mine.indexOf(child) >= 0;
+    h += trFormCard(child, F) + trCalendarCard(child) + trReportCard(child) +
+      '<section class="card"><h2>コーチに見せる<small>' + (shared ? '見せています' : '見せていません') + '</small></h2><div class="between"><span class="sub">' + esc(child) + 'の自主トレの記録とレポートを、クラブのコーチが見られるようにします（直すことはできません）。</span>' +
+      '<button class="btn small ' + (shared ? 'ok' : 'ghost') + '" id="trShare" type="button" aria-pressed="' + shared + '">' + (shared ? '✓ 見せている' : '見せる') + '</button></div></section>';
+    view.innerHTML = modeTabs + h;
     bindCommon();
     bindTrain(child, F);
+    on('#trShare', function () { call('setTrainShare', { child: child, on: !shared }); });
+    on('[data-trmode]', function () { S.trMode = this.dataset.trmode; render(); });
+  }
+  /** コーチ用：見せてもらっている子の一覧（この30日）と、1人ずつのカレンダー・レポート（見るだけ） */
+  function trainCoach(kids, modeTabs) {
+    var h = modeTabs + toastHtml();
+    var sel = kids.find(function (k) { return k.name === S.trCoachKid; });
+    if (sel) {
+      h += '<button class="link" id="trcBack" type="button">‹ みんなの自主トレ</button>' + '<section class="card"><div class="big">' + esc(sel.name) + (sel.grade ? '（' + sel.grade + '年）' : '') + '</div><div class="sub">家族が「コーチに見せる」にしている記録です。見るだけで、直すことはできません。</div></section>' +
+        trCalendarCard(sel.name, true) + trReportCard(sel.name);
+    } else {
+      var from = addDays(ST.today, -29);
+      var rows = kids.map(function (k) { var st = trStats(trRows(k.name), from, ST.today); var last = trRows(k.name).map(function (t) { return t.date; }).sort().pop(); return { k: k, st: st, last: last }; })
+        .sort(function (a, b) { return b.st.nDays - a.st.nDays || b.k.grade - a.k.grade; });
+      h += '<section class="card"><h2>みんなの自主トレ<small>この30日・' + kids.length + '人</small></h2>' + (rows.length ? '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>学年</th><th>日数</th><th>距離</th><th>筋トレ</th><th>最後</th></tr></thead><tbody>' + rows.map(function (r) {
+        return '<tr data-trc="' + esc(r.k.name) + '" style="cursor:pointer"><td><button class="link" type="button" data-trc="' + esc(r.k.name) + '">' + esc(r.k.name) + '</button></td><td>' + (r.k.grade || '') + '</td><td><b>' + r.st.nDays + '</b>日</td><td>' + (r.st.km ? round1(r.st.km) + 'km' : '') + '</td><td>' + (r.st.strength ? r.st.strength + '回' : '') + '</td><td class="sub">' + (r.last ? md(r.last) : 'なし') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="sub">まだ「コーチに見せる」にしている家族はいません。保護者が「自主トレ」の下で切り替えられます。</div>') +
+        '<div class="hint">名前を押すと、その子のカレンダーとレポートが見られます。</div></section>';
+    }
+    view.innerHTML = h;
+    bindCommon();
+    on('[data-trmode]', function () { S.trMode = this.dataset.trmode; render(); });
+    on('button[data-trc]', function () { S.trCoachKid = this.dataset.trc; S.trBar = undefined; render(); window.scrollTo(0, 0); });
+    on('#trcBack', function () { S.trCoachKid = ''; render(); });
+    on('[data-trm]', function () { var t = new Date(Date.UTC(+S.trMonth.slice(0, 4), +S.trMonth.slice(5, 7) - 1 + +this.dataset.trm, 1)); S.trMonth = t.toISOString().slice(0, 7); render(); });
+    on('[data-trp]', function () { S.trPeriod = this.dataset.trp; S.trBar = undefined; render(); });
+    on('[data-trmet]', function () { S.trMetric = this.dataset.trmet; render(); });
+    view.querySelectorAll('[data-trbar]').forEach(function (b) { b.addEventListener('click', function () { S.trBar = +this.dataset.trbar; render(); }); });
+    on('#trCopy', function () { copyText(S.trReportText || ''); });
   }
   function trFormCard(child, F) {
     var k = trKind(F.kind), rows = trRows(child);
@@ -2273,7 +2310,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }).join('') + '</div>';
     return h + '<div class="hint">' + md(F.date) + 'の記録' + (dayRows.length ? ' ' + dayRows.length + '件' : 'はまだありません') + '。記録は家族だけが見られます。</div></section>';
   }
-  function trCalendarCard(child) {
+  function trCalendarCard(child, readOnly) {
     var mon = S.trMonth || (S.trMonth = ST.today.slice(0, 7)), y = +mon.slice(0, 4), m = +mon.slice(5, 7);
     var days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = d(mon + '-01').getUTCDay(), byDay = {}, club = {};
     trRows(child).forEach(function (t) { if (t.date.slice(0, 7) === mon) (byDay[t.date] = byDay[t.date] || []).push(t); });
@@ -2293,10 +2330,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var ds = mon + '-' + pad(n), list = byDay[ds] || [], km = 0;
       list.forEach(function (t) { km += t.km; });
       var mark = list.length ? (km ? round1(km) + 'km' : list.length > 1 ? '✓' + list.length : trKind(list[0].kind).i) : '';
-      h += '<button type="button" class="' + (list.length ? 'done' : '') + (ds === ST.today ? ' today' : '') + (S.trForm && S.trForm.date === ds ? ' sel' : '') + (ds > ST.today ? ' future' : '') + '" data-trday="' + ds + '"' + (ds > ST.today ? ' disabled' : '') + ' aria-label="' + md(ds) + (list.length ? ' ' + list.length + '件' : '') + '">' +
+      h += '<button type="button" class="' + (list.length ? 'done' : '') + (ds === ST.today ? ' today' : '') + (!readOnly && S.trForm && S.trForm.date === ds ? ' sel' : '') + (ds > ST.today ? ' future' : '') + '"' + (readOnly ? ' tabindex="-1"' : ' data-trday="' + ds + '"') + (ds > ST.today ? ' disabled' : '') + ' aria-label="' + md(ds) + (list.length ? ' ' + list.length + '件' : '') + '">' +
         '<span class="n">' + n + '</span><span class="v">' + esc(mark) + '</span>' + (club[ds] ? '<span class="club' + (club[ds] === 'race' ? ' race' : '') + '" title="クラブの' + (club[ds] === 'race' ? '大会' : '練習') + '"></span>' : '') + '</button>';
     }
-    return h + '</div><div class="hint">緑の日が記録した日。下の青い線はクラブの練習、赤は大会の日です。日にちを押すと、その日の記録を入れたり直したりできます。</div></section>';
+    return h + '</div><div class="hint">緑の日が記録した日。下の青い線はクラブの練習、赤は大会の日です。' + (readOnly ? '' : '日にちを押すと、その日の記録を入れたり直したりできます。') + '</div></section>';
   }
   var TR_PERIODS = [['1m', '1か月', 30, 'week'], ['3m', '3か月', 91, 'week'], ['6m', '半年', 182, 'month'], ['1y', '1年', 365, 'month']];
   function trStats(rows, from, to) {
@@ -3017,15 +3054,21 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function adminMembers() {
     var list = ST.parents.slice().sort(function (a, b) { return (b.admin - a.admin) || (a.name < b.name ? -1 : 1); });
     var h = backBtn() + toastHtml() + '<section class="card"><h2>メンバーと役員<small>' + list.length + '人・役員 ' + list.filter(function (p) { return p.admin; }).length + '人</small></h2><div class="list">' + list.map(function (p) {
-      return '<div class="between"><span>' + esc(p.name) + (p.me ? '（自分）' : '') + (p.admin ? ' <span class="pill p-race">役員</span>' : '') + '<br><span class="sub">' + (p.kids.length ? esc(p.kids.join('・')) : 'お子さん未登録') + '</span></span>' +
-        '<button class="btn small ' + (p.admin ? 'ghost' : 'ok') + '" type="button" data-admin="' + esc(p.id) + '" data-on="' + (p.admin ? '' : '1') + '" data-name="' + esc(p.name) + '" data-me="' + (p.me ? '1' : '') + '">' + (p.admin ? '役員から外す' : '役員にする') + '</button></div>';
-    }).join('') + '</div><div class="hint">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。ここに出るのは、一度でもポータルにログインした人です。役員が1人もいなくなる操作はできません。</div></section>';
+      return '<div class="between"><span>' + esc(p.name) + (p.me ? '（自分）' : '') + (p.admin ? ' <span class="pill p-race">役員</span>' : '') + (p.coach ? ' <span class="pill p-prac">コーチ</span>' : '') + '<br><span class="sub">' + (p.kids.length ? esc(p.kids.join('・')) : 'お子さん未登録') + '</span></span><span class="row" style="justify-content:flex-end">' +
+        '<button class="btn small ' + (p.admin ? 'ghost' : 'ok') + '" type="button" data-admin="' + esc(p.id) + '" data-on="' + (p.admin ? '' : '1') + '" data-name="' + esc(p.name) + '" data-me="' + (p.me ? '1' : '') + '">' + (p.admin ? '役員から外す' : '役員にする') + '</button>' +
+        '<button class="btn small ghost" type="button" data-coach="' + esc(p.id) + '" data-on="' + (p.coach ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.coach ? 'コーチから外す' : 'コーチにする') + '</button></span></div>';
+    }).join('') + '</div><div class="hint">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。コーチにすると、家族が「コーチに見せる」にしている子の自主トレを見られます（役員でなくてもOK）。ここに出るのは、一度でもポータルにログインした人です。役員が1人もいなくなる操作はできません。</div></section>';
     view.innerHTML = h;
     bindBack();
     on('[data-admin]', function () {
       var d = this.dataset;
       if (!confirm(d.name + 'さんを' + (d.on ? '役員にしますか？' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
       call('setAdmin', { userId: d.admin, on: !!d.on }, function () { if (d.me && !d.on) S.tab = 'home'; });
+    });
+    on('[data-coach]', function () {
+      var d = this.dataset;
+      if (!confirm(d.name + 'さんを' + (d.on ? 'コーチにしますか？' : 'コーチから外しますか？'))) return;
+      call('setCoach', { userId: d.coach, on: !!d.on });
     });
   }
 

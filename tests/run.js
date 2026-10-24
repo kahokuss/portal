@@ -512,7 +512,7 @@ test('前の版のシートに、新しい列の見出しが足される', () =>
   gas.run("Object.keys(headersChecked__).forEach((k) => delete headersChecked__[k]); resetMemo_();");
   Object.keys(gas.cache).filter((k) => k.startsWith('hdr:')).forEach((k) => delete gas.cache[k]);
   gas.run('readRows_(SHEETS.FAMILIES)');
-  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認']);
+  assert.deepStrictEqual(sh.data[0].slice(6), ['家族ID', '休み通知', '新着確認', 'コーチ']);
   assert.strictEqual(gas.rows('家族')[0].userId, 'U9');
 });
 
@@ -911,6 +911,33 @@ test('自主トレ：家族だけが見られる・直す・消す・先の日�
   assert.strictEqual(t.find((x) => x.id === run.id).km, 4);
   gas.ctx.api(k2, 'deleteTraining', { id: run.id });
   assert.strictEqual(gas.ctx.api(k2, 'bootstrap').training.length, 1);
+});
+
+test('自主トレ：家族が「コーチに見せる」にした子だけ、コーチが見られる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 4年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key, k4 = gas.login('U4').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const today = gas.ctx.api(k2, 'bootstrap').today;
+  gas.ctx.api(k2, 'saveTraining', { date: today, child: '鈴木けんた', kind: 'ランニング', km: 3 });
+  gas.ctx.api(k3, 'saveTraining', { date: today, child: '佐藤さくら', kind: '腹筋', count: 20 });
+  assert.throws(() => gas.ctx.api(k4, 'setCoach', { userId: 'U4', on: true }), /役員/);
+  gas.ctx.api(kA, 'setCoach', { userId: 'U4', on: true });
+  let st = gas.ctx.api(k4, 'bootstrap');
+  assert.ok(st.me.coach);
+  assert.strictEqual(st.training.length, 0, 'まだだれも見せていない');
+  assert.throws(() => gas.ctx.api(k2, 'setTrainShare', { child: '佐藤さくら', on: true }), /わが家/);
+  gas.ctx.api(k2, 'setTrainShare', { child: '鈴木けんた', on: true });
+  assert.deepStrictEqual(plain(gas.ctx.api(k2, 'bootstrap').trainShare.mine), ['鈴木けんた']);
+  st = gas.ctx.api(k4, 'bootstrap');
+  assert.deepStrictEqual(plain(st.trainShare.kids), [{ name: '鈴木けんた', grade: 5 }]);
+  assert.deepStrictEqual(plain(st.training.map((t) => t.child)), ['鈴木けんた'], '見せていない子は見えない');
+  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').training.length, 0, 'コーチでない役員には見えない');
+  assert.throws(() => gas.ctx.api(k4, 'deleteTraining', { id: st.training[0].id }), /見つかりません/, 'コーチは消せない');
+  gas.ctx.api(k2, 'setTrainShare', { child: '鈴木けんた', on: false });
+  assert.strictEqual(gas.ctx.api(k4, 'bootstrap').training.length, 0, 'やめるとすぐ見えなくなる');
 });
 
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {

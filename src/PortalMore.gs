@@ -966,8 +966,47 @@ function myKidNames_(ctx) {
   return childrenOf_(ctx.userId).map((c) => c.name);
 }
 
+/** 自主トレを「コーチに見せる」にしている子の名前 */
+function sharedTrainKids_() {
+  const on = {};
+  readRows_(SHEETS.TRAIN_SHARE).forEach((x) => { if (x['子ども']) on[x['子ども']] = x['公開'] === '○'; });
+  return Object.keys(on).filter((k) => on[k]);
+}
+
+/** わが家の子で「コーチに見せる」にしている子／コーチには、見せてもらっている子（学年つき） */
+function trainShareFor_(ctx, children) {
+  const shared = sharedTrainKids_();
+  return {
+    mine: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0 && shared.indexOf(c.name) >= 0).map((c) => c.name),
+    kids: ctx.coach ? children.filter((c) => shared.indexOf(c.name) >= 0).map((c) => ({ name: c.name, grade: c.grade })) : [],
+  };
+}
+
+function setTrainShareAction_(ctx, p) {
+  if (myKidNames_(ctx).indexOf(p.child) < 0) throw new Error('わが家のお子さんを選んでください。');
+  withLock_(() => {
+    const row = readRows_(SHEETS.TRAIN_SHARE).find((x) => x['子ども'] === p.child);
+    const data = { '子ども': p.child, '公開': p.on ? '○' : '', '更新者': ctx.name, '日時': now_() };
+    if (row) { Object.assign(row, data); updateRow_(SHEETS.TRAIN_SHARE, row); } else appendRow_(SHEETS.TRAIN_SHARE, data);
+  });
+  return p.child + 'の自主トレを' + (p.on ? 'コーチに見せるようにしました' : 'コーチに見せないようにしました');
+}
+
+/** コーチにする・外す（役員だけ）。コーチは、見せてもらっている子の自主トレを見られる */
+function setCoachAction_(ctx, p) {
+  withLock_(() => {
+    const f = findFamily_(p.userId);
+    if (!f) throw new Error('見つかりません。');
+    f['コーチ'] = p.on ? '○' : '';
+    f['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+  });
+  return p.on ? 'コーチにしました' : 'コーチから外しました';
+}
+
 function trainingFor_(ctx, children) {
-  const mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  let mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  if (ctx.coach) mine = mine.concat(sharedTrainKids_());
   if (!mine.length) return [];
   const from = addDays_(today_(), -400);
   return readRows_(SHEETS.TRAINING)

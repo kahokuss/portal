@@ -11,13 +11,13 @@ function api(key, action, payload) {
   const handler = API_ACTIONS[action];
   if (!handler) throw new Error('不明な操作です: ' + action);
   if (handler.admin && !isAdmin_(family)) throw new Error('この操作は役員だけができます。');
-  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family) };
+  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family), coach: isCoach_(family) };
   const message = handler.run(ctx, payload || {});
   // 写真などは、画面の状態ではなく結果だけを返す
   if (handler.raw) return message;
-  // 家族をまとめた・外れたときは、家族IDが変わっている
+  // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
-  if (fresh) ctx.famId = famIdOf_(fresh);
+  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); }
   const state = buildState_(ctx);
   if (message) state.message = message;
   return state;
@@ -80,6 +80,8 @@ const API_ACTIONS = {
   setFeePaid: { admin: true, run: setFeePaidAction_ },
   setAttend: { run: setAttendAction_ },
   saveTraining: { run: saveTrainingAction_ },
+  setTrainShare: { run: setTrainShareAction_ },
+  setCoach: { admin: true, run: setCoachAction_ },
   deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
@@ -215,6 +217,7 @@ function buildState_(ctx) {
     me: {
       name: ctx.name,
       admin: ctx.admin,
+      coach: !!ctx.coach,
       fam: ctx.famId,
       canManage: manageKeys,
       notify: wantsAbsenceNotice_(me),
@@ -225,11 +228,12 @@ function buildState_(ctx) {
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
-    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
     entries: entries,
     absences: absences,
     training: trainingFor_(ctx, children),
+    trainShare: trainShareFor_(ctx, children),
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,

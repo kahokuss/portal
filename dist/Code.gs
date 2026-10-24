@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '0b4ab2f5cf';
+const SERVER_VERSION = 'df4690ccf6';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1623,13 +1623,13 @@ function api(key, action, payload) {
   const handler = API_ACTIONS[action];
   if (!handler) throw new Error('不明な操作です: ' + action);
   if (handler.admin && !isAdmin_(family)) throw new Error('この操作は役員だけができます。');
-  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family) };
+  const ctx = { family: family, userId: family.userId, famId: famIdOf_(family), name: family['表示名'] || '保護者', admin: isAdmin_(family), coach: isCoach_(family) };
   const message = handler.run(ctx, payload || {});
   // 写真などは、画面の状態ではなく結果だけを返す
   if (handler.raw) return message;
-  // 家族をまとめた・外れたときは、家族IDが変わっている
+  // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
-  if (fresh) ctx.famId = famIdOf_(fresh);
+  if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); }
   const state = buildState_(ctx);
   if (message) state.message = message;
   return state;
@@ -1692,6 +1692,8 @@ const API_ACTIONS = {
   setFeePaid: { admin: true, run: setFeePaidAction_ },
   setAttend: { run: setAttendAction_ },
   saveTraining: { run: saveTrainingAction_ },
+  setTrainShare: { run: setTrainShareAction_ },
+  setCoach: { admin: true, run: setCoachAction_ },
   deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
   deleteNotice: { admin: true, run: deleteNoticeAction_ },
@@ -1827,6 +1829,7 @@ function buildState_(ctx) {
     me: {
       name: ctx.name,
       admin: ctx.admin,
+      coach: !!ctx.coach,
       fam: ctx.famId,
       canManage: manageKeys,
       notify: wantsAbsenceNotice_(me),
@@ -1837,11 +1840,12 @@ function buildState_(ctx) {
     families: families.map((f) => ({ id: f.id, label: f.label, parents: f.parents })),
     sheetUrl: ctx.admin ? 'https://docs.google.com/spreadsheets/d/' + requireProp_('SPREADSHEET_ID') + '/edit' : '',
     photoFolderUrl: ctx.admin ? photoFolderUrl_() : '',
-    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
+    parents: ctx.admin ? familyRows.map((f) => ({ id: f.userId, name: f['表示名'] || '（名前なし）', admin: isAdmin_(f), coach: isCoach_(f), notify: wantsAbsenceNotice_(f), me: f.userId === ctx.userId, kids: children.filter((c) => c.parents.indexOf(f.userId) >= 0).map((c) => c.name), seen: f['グループ確認'] || f['更新日時'] || '' })) : [],
     events: events,
     entries: entries,
     absences: absences,
     training: trainingFor_(ctx, children),
+    trainShare: trainShareFor_(ctx, children),
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,
@@ -3051,8 +3055,47 @@ function myKidNames_(ctx) {
   return childrenOf_(ctx.userId).map((c) => c.name);
 }
 
+/** 自主トレを「コーチに見せる」にしている子の名前 */
+function sharedTrainKids_() {
+  const on = {};
+  readRows_(SHEETS.TRAIN_SHARE).forEach((x) => { if (x['子ども']) on[x['子ども']] = x['公開'] === '○'; });
+  return Object.keys(on).filter((k) => on[k]);
+}
+
+/** わが家の子で「コーチに見せる」にしている子／コーチには、見せてもらっている子（学年つき） */
+function trainShareFor_(ctx, children) {
+  const shared = sharedTrainKids_();
+  return {
+    mine: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0 && shared.indexOf(c.name) >= 0).map((c) => c.name),
+    kids: ctx.coach ? children.filter((c) => shared.indexOf(c.name) >= 0).map((c) => ({ name: c.name, grade: c.grade })) : [],
+  };
+}
+
+function setTrainShareAction_(ctx, p) {
+  if (myKidNames_(ctx).indexOf(p.child) < 0) throw new Error('わが家のお子さんを選んでください。');
+  withLock_(() => {
+    const row = readRows_(SHEETS.TRAIN_SHARE).find((x) => x['子ども'] === p.child);
+    const data = { '子ども': p.child, '公開': p.on ? '○' : '', '更新者': ctx.name, '日時': now_() };
+    if (row) { Object.assign(row, data); updateRow_(SHEETS.TRAIN_SHARE, row); } else appendRow_(SHEETS.TRAIN_SHARE, data);
+  });
+  return p.child + 'の自主トレを' + (p.on ? 'コーチに見せるようにしました' : 'コーチに見せないようにしました');
+}
+
+/** コーチにする・外す（役員だけ）。コーチは、見せてもらっている子の自主トレを見られる */
+function setCoachAction_(ctx, p) {
+  withLock_(() => {
+    const f = findFamily_(p.userId);
+    if (!f) throw new Error('見つかりません。');
+    f['コーチ'] = p.on ? '○' : '';
+    f['更新日時'] = now_();
+    updateRow_(SHEETS.FAMILIES, f);
+  });
+  return p.on ? 'コーチにしました' : 'コーチから外しました';
+}
+
 function trainingFor_(ctx, children) {
-  const mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  let mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  if (ctx.coach) mine = mine.concat(sharedTrainKids_());
   if (!mine.length) return [];
   const from = addDays_(today_(), -400);
   return readRows_(SHEETS.TRAINING)
@@ -3314,7 +3357,7 @@ function onScheduleSheetEdit(e) {
  * どのシートも1行目が見出しで、2行目以降がデータ。値はすべて文字列で保存する。
  */
 const SHEETS = {
-  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認'] },
+  FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
   RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き'] },
@@ -3327,6 +3370,7 @@ const SHEETS = {
   FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
   FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
   TRAINING: { name: '自主トレ', headers: ['id', '日付', '子ども', '種類', '距離km', '時間分', '回数', '調子', 'メモ', 'userId', '表示名', '日時'] },
+  TRAIN_SHARE: { name: '自主トレ公開', headers: ['子ども', '公開', '更新者', '日時'] },
   ATTEND: { name: '出席', headers: ['日付', 'eventKey', '子ども', 'userId', '表示名', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
@@ -3506,6 +3550,10 @@ function findFamily_(userId) {
 function findFamilyByKey_(key) {
   if (!key || !/^[A-Za-z0-9]{16,64}$/.test(key)) return null;
   return readRows_(SHEETS.FAMILIES).find((f) => f['ポータルキー'] === key) || null;
+}
+
+function isCoach_(family) {
+  return !!family && /^(○|◯|〇|o|yes|true|1|コーチ)$/i.test(String(family['コーチ'] || '').trim());
 }
 
 function isAdmin_(family) {

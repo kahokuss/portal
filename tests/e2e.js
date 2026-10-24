@@ -841,6 +841,29 @@ async function openPortal(browser, gas, userId, name) {
       assert.strictEqual(await a.inputValue('#tr-count'), '30', '前回と同じ');
       await a.shot('22-training');
     });
+    await step('自主トレ：「コーチに見せる」→ コーチにした人の「コーチ用」に出て、カレンダーとレポートが見られる', async () => {
+      await a.click('[data-nav="train"]');
+      if (await a.$('[data-trkid="山田たろう"]')) await a.click('[data-trkid="山田たろう"]');
+      await a.click('#trShare');
+      await a.idle();
+      assert.ok(gas.rows('自主トレ公開').some((r) => r['子ども'] === '山田たろう' && r['公開'] === '○'));
+      await a.click('[data-nav="admin"]');
+      await a.click('[data-go="members"]');
+      a.once('dialog', (d) => d.accept());
+      await a.click('[data-coach="U1"]');
+      await a.idle();
+      assert.ok((await a.textContent('#view')).includes('コーチ'));
+      await a.click('[data-nav="train"]');
+      await a.click('[data-trmode="coach"]');
+      const list = await a.textContent('#view');
+      assert.ok(list.includes('みんなの自主トレ') && list.includes('山田たろう'), list);
+      await a.shot('23-coach-list');
+      await a.click('button[data-trc="山田たろう"]');
+      assert.ok((await a.textContent('#view')).includes('レポート'));
+      assert.ok(!(await a.$('[data-trday]')), 'コーチは見るだけ');
+      await a.shot('24-coach-kid');
+      await a.click('[data-trmode="mine"]');
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

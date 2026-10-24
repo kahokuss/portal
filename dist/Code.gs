@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '027596d56f';
+const SERVER_VERSION = '6c3fe34f11';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -3223,10 +3223,12 @@ function deleteTrainingAction_(ctx, p) {
  */
 function participationFor_(ctx, children) {
   const today = today_(), from = addDays_(today, -365);
-  const names = (ctx.admin || ctx.coach ? children : children.filter((c) => c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
+  const full = ctx.admin || ctx.coach;
+  const visible = (full ? children : children.filter((c) => c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
+  const names = children.map((c) => c.name); // 平均を出すため、計算は全員分
   const out = {};
   names.forEach((n) => (out[n] = { m: {}, n: 0, races: 0 }));
-  if (!names.length) return { kids: out };
+  if (!visible.length) return { kids: {}, avg: {} };
   const off = {};
   readRows_(SHEETS.ABSENCES).forEach((a) => { if (a.id && a['日付'] >= from) off[a['日付'] + '|' + a['子ども']] = true; });
   const raceKeys = {};
@@ -3248,7 +3250,20 @@ function participationFor_(ctx, children) {
   const past = {};
   events.forEach((e) => (past[e.eventKey] = true));
   readRows_(SHEETS.ENTRIES).forEach((x) => { if (past[x.eventKey] && x['回答'] === '参加' && out[x['子ども']]) out[x['子ども']].races++; });
-  return { kids: out };
+  // 1年の合計時間の平均：チーム・学年・学年と男女。保護者には3人以上の組だけ（だれの時間か分からないように）
+  const groups = {};
+  const add = (k, v) => { const g = groups[k] || (groups[k] = { sum: 0, n: 0 }); g.sum += v; g.n++; };
+  children.forEach((c) => {
+    const total = Object.keys(out[c.name].m).reduce((a, m) => a + out[c.name].m[m], 0);
+    add('team', total);
+    if (c.grade) add('g' + c.grade, total);
+    if (c.grade && c.sex) add('g' + c.grade + c.sex, total);
+  });
+  const avg = {};
+  Object.keys(groups).forEach((k) => { if (full || groups[k].n >= 3) avg[k] = { min: Math.round(groups[k].sum / groups[k].n), n: groups[k].n }; });
+  const kids = {};
+  visible.forEach((n) => (kids[n] = out[n]));
+  return { kids: kids, avg: avg };
 }
 
 // ===== Results.gs =====

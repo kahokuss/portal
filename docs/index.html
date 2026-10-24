@@ -12,6 +12,8 @@
   --bg: #e9eef0; --surface: #ffffff; --surface-2: #f3f6f7; --fg: #182328; --muted: #5f7079; --line: #d6dfe3;
   --track: #c4512f; --track-soft: #f6e1d9; --field: #237a55; --field-soft: #dcefe5; --sky: #2f6fae; --sky-soft: #dde9f5;
   --warn: #a8660b; --warn-soft: #f8ead2; --viz-line: #2f6fae; --viz-pb: #c4512f;
+  /* 学年の色（1年〜6年。色は学年に付いて、並びで変わらない） */
+  --g1: #2a78d6; --g2: #eb6834; --g3: #1baf7a; --g4: #eda100; --g5: #e87ba4; --g6: #008300;
   --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
   --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
 }
@@ -20,6 +22,7 @@
     --bg: #0f1518; --surface: #182126; --surface-2: #1f2a30; --fg: #e4ebee; --muted: #94a5ad; --line: #2d3a40;
     --track: #ec8566; --track-soft: #3f2219; --field: #4cc28c; --field-soft: #163527; --sky: #6aa7e3; --sky-soft: #172b3f;
     --warn: #e5a54a; --warn-soft: #3a2a12; --viz-line: #4f8fd1; --viz-pb: #e07050; color-scheme: dark;
+    --g1: #3987e5; --g2: #d95926; --g3: #199e70; --g4: #c98500; --g5: #d55181; --g6: #008300;
   }
 }
 * { box-sizing: border-box; }
@@ -245,6 +248,22 @@ form.f, .f { display: grid; gap: 8px; }
 .tbars .hit { fill: transparent; cursor: pointer; }
 .tbars .grid { stroke: var(--line); stroke-width: 1; }
 .app.wide { max-width: 1440px; }
+.dviz .ln.avg { stroke: var(--muted); stroke-dasharray: 2 4; stroke-width: 2; }
+.dviz .ln.avg2 { stroke: var(--fg); stroke-dasharray: 7 4; stroke-width: 1.5; opacity: .7; }
+.dviz .ln.kd { stroke: var(--fg); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.dviz .pt.kd { fill: var(--fg); }
+.dviz .dl { font-size: 12px; font-weight: 700; }
+.legend .k.avg { border-top: 2px dotted var(--muted); } .legend .k.avg2 { border-top: 2px dashed var(--fg); opacity: .7; } .legend .k.kd { border-top: 2px dashed var(--fg); }
+.rchart .ln.avg { fill: none; stroke: var(--muted); stroke-dasharray: 2 4; stroke-width: 2; }
+.rchart .ln.avg2 { fill: none; stroke: var(--fg); stroke-dasharray: 7 4; stroke-width: 1.5; opacity: .6; }
+.cmpbars { display: grid; gap: 6px; }
+.cmpbars .r { display: grid; grid-template-columns: 9.5em minmax(40px, 1fr) 4.6em; gap: 8px; align-items: center; font-size: 12.5px; }
+.cmpbars .bar { height: 10px; background: var(--surface-2); border-radius: 0 5px 5px 0; overflow: hidden; }
+.cmpbars .bar i { display: block; height: 100%; background: var(--muted); opacity: .55; border-radius: 0 5px 5px 0; }
+.cmpbars .r.me .bar i { background: var(--field); opacity: 1; }
+.cmpbars .v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.avgtbl td.num, .avgtbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.avgtbl .n { color: var(--muted); font-size: 11px; margin-left: 2px; }
 .view > .kpis .kpi { background: var(--surface); padding: 12px 14px; }
 .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .dgrid { display: grid; gap: 12px; }
@@ -279,7 +298,7 @@ form.f, .f { display: grid; gap: 8px; }
 @media (max-width: 899px) { .hr { grid-template-columns: 1.6em minmax(4.5em, 7em) minmax(30px, 1fr) 3.8em; } .hr .gap { display: none; } }
 @media (min-width: 900px) {
   .dgrid { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; }
-  .dgrid .c7 { grid-column: span 7; } .dgrid .c5 { grid-column: span 5; } .dgrid .c6 { grid-column: span 6; } .dgrid .c4 { grid-column: span 4; }
+  .dgrid .c12 { grid-column: span 12; } .dgrid .c7 { grid-column: span 7; } .dgrid .c5 { grid-column: span 5; } .dgrid .c6 { grid-column: span 6; } .dgrid .c4 { grid-column: span 4; }
 }
 .dfil { display: grid; gap: 8px; }
 .dfil .row select { font: inherit; font-size: 14px; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); }
@@ -424,9 +443,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "ac2cfa7103";
+var BUILD = "2151f7d61b";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "027596d56f";
+var EXPECT_SERVER = "6c3fe34f11";
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
@@ -2581,39 +2600,48 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     return '<div class="legend"><span><i class="sw b1"></i>記録</span><span><i class="sw b2"></i>うちベスト更新</span></div>' + svg + '</svg>';
   }
-  /** 種目の推移：月ごとのチームの中央値（その月に記録した子の、その月のベスト）と、選んだ子 */
-  function dashTrendChart(race, months, all, kidName) {
-    var hb = higherBetter(race), team = [], kid = [];
-    months.forEach(function (m) {
-      var per = {};
-      all.forEach(function (r) { if (r.date.slice(0, 7) !== m) return; var v = markValue(r.record); if (per[r.child] === undefined || (hb ? v > per[r.child] : v < per[r.child])) per[r.child] = v; });
-      var vals = Object.keys(per).map(function (c) { return per[c]; });
-      team.push(vals.length ? { m: m, v: median(vals), n: vals.length } : null);
-      kid.push(kidName && per[kidName] !== undefined ? { m: m, v: per[kidName] } : null);
-    });
-    var pts = team.concat(kid).filter(Boolean);
+  /** 種目の推移：平均の線（チーム全体／学年ごと／男女ごと）と、選んだ子の線 */
+  function dashTrendChart(race, months, all, kidName, cmp) {
+    var hb = higherBetter(race), series = [];
+    if (cmp === 'grade') [1, 2, 3, 4, 5, 6].forEach(function (g) { var a = monthlyAvg(all, race, months, function (k) { return k.grade === g; }); if (a.some(Boolean)) series.push({ label: g + '年', color: 'var(--g' + g + ')', pts: a }); });
+    else if (cmp === 'sex') [['男', '男子', 'var(--g1)'], ['女', '女子', 'var(--g2)']].forEach(function (x) { var a = monthlyAvg(all, race, months, function (k) { return k.sex === x[0]; }); if (a.some(Boolean)) series.push({ label: x[1], color: x[2], pts: a }); });
+    else series.push({ label: 'チーム平均', color: 'var(--viz-line)', pts: monthlyAvg(all, race, months, function () { return true; }) });
+    var kidPts = null;
+    if (kidName) {
+      kidPts = monthlyAvg(all, race, months, function (k) { return k.name === kidName; });
+      var me = kidByName(kidName);
+      if (cmp !== 'grade' && me.grade) series.push({ label: me.grade + '年平均', cls: 'avg', pts: monthlyAvg(all, race, months, function (k) { return k.grade === me.grade; }) });
+      if (me.grade && me.sex) series.push({ label: me.grade + '年' + me.sex + '子平均', cls: 'avg2', pts: monthlyAvg(all, race, months, function (k) { return k.grade === me.grade && k.sex === me.sex; }) });
+    }
+    var pts = []; series.forEach(function (x) { x.pts.forEach(function (p) { if (p) pts.push(p); }); }); if (kidPts) kidPts.forEach(function (p) { if (p) pts.push(p); });
     if (pts.length < 2) return '<div class="sub">記録が2か月分以上になると、推移のグラフが出ます。</div>';
     var vs = pts.map(function (p) { return p.v; }), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs), pd = (hi - lo) * 0.12 || hi * 0.03;
     lo -= pd; hi += pd;
-    var W = 500, H = 220, L = 46, R = 12, T = 14, B = 24, step = (W - L - R) / Math.max(1, months.length - 1);
+    var W = 500, H = 230, L = 46, R = 40, T = 14, B = 24, step = (W - L - R) / Math.max(1, months.length - 1);
     var X = function (i) { return L + i * step; }, Y = function (v) { var f = (v - lo) / (hi - lo); return T + (hb ? 1 - f : f) * (H - T - B); };
-    var svg = '<svg class="dviz" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(race) + 'の月ごとの推移">';
+    var svg = '<svg class="dviz" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(race) + 'の月ごとの平均の推移">';
     [0, 0.5, 1].forEach(function (f) { var v = lo + f * (hi - lo), y = Y(v); svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '"/><text class="ax" x="' + (L - 6) + '" y="' + y + '" text-anchor="end" dominant-baseline="middle">' + fmtMark(race, v) + '</text>'; });
     var every = Math.ceil(months.length / 12);
     months.forEach(function (m, i) { if (i % every === 0) svg += '<text class="ax" x="' + X(i) + '" y="' + (H - 7) + '" text-anchor="middle">' + (+m.slice(5, 7)) + '月</text>'; });
-    var line = function (arr, cls, label) {
-      var d0 = '', h0 = '';
-      arr.forEach(function (p, i) { if (!p) return; d0 += (d0 && arr[i - 1] ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.v).toFixed(1); });
+    var line = function (arr, x) {
+      var d0 = '', h0 = '', last = null;
+      arr.forEach(function (p, i) { if (!p) return; d0 += (d0 && arr[i - 1] ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.v).toFixed(1); last = { i: i, p: p }; });
+      var st = x.color ? ' style="stroke:' + x.color + '"' : '';
       arr.forEach(function (p, i) {
         if (!p) return;
-        var tip = (+p.m.slice(5, 7)) + '月｜' + label + '：' + fmtMark(race, p.v) + (p.n ? '（' + p.n + '人）' : '');
-        h0 += '<circle class="pt ' + cls + '" cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="4.5"/><circle class="hit" cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="14" data-tip="' + esc(tip) + '"/>';
+        var tip = (+p.m.slice(5, 7)) + '月｜' + x.label + '：' + fmtMark(race, p.v) + (p.n && x.cls !== 'kd' ? '（' + p.n + '人の平均）' : '');
+        if (!x.cls || x.cls === 'kd') h0 += '<circle class="pt' + (x.cls ? ' ' + x.cls : '') + '" cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="' + (x.cls ? 4.5 : 3.5) + '"' + (x.color ? ' style="fill:' + x.color + '"' : '') + '/>';
+        h0 += '<circle class="hit" cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="12" data-tip="' + esc(tip) + '"/>';
       });
-      return '<path class="ln ' + cls + '" d="' + d0 + '"/>' + h0;
+      // 線の右はしに名前（色だけにたよらない）
+      if (last && x.color) h0 += '<text class="dl" x="' + (X(last.i) + 6) + '" y="' + Y(last.p.v) + '" dominant-baseline="middle"' + (x.color ? ' style="fill:' + x.color + '"' : ' style="fill:var(--fg)"') + '>' + esc(x.label.replace('平均', '')) + '</text>';
+      return '<path class="ln' + (x.cls ? ' ' + x.cls : '') + '" d="' + d0 + '"' + st + '/>' + h0;
     };
-    svg += line(team, 's1', 'チームの中央値') + (kidName ? line(kid, 's2', kidName) : '') + '</svg>';
-    return '<div class="legend"><span><i class="k"></i>チームの中央値</span>' + (kidName ? '<span><i class="k pr"></i>' + esc(kidName) + '</span>' : '<span class="sub">ランキングの名前を押すと、その子の線が重なります</span>') + '</div>' + svg +
-      '<div class="hint">' + (hb ? '上ほど遠く・高い' : '上ほど速い') + '。その月に記録した子の、その月のベストの中央値です。</div>';
+    series.forEach(function (x) { svg += line(x.pts, x); });
+    if (kidPts) svg += line(kidPts, { label: kidName, cls: 'kd' });
+    svg += '</svg>';
+    var legend = series.map(function (x) { return '<span>' + (x.color ? '<i class="sw" style="background:' + x.color + '"></i>' : '<i class="k ' + x.cls + '"></i>') + esc(x.label) + '</span>'; }).join('') + (kidPts ? '<span><i class="k kd"></i>' + esc(kidName) + '</span>' : '');
+    return '<div class="legend" style="flex-wrap:wrap">' + legend + '</div>' + svg + '<div class="hint">' + (hb ? '上ほど遠く・高い' : '上ほど速い') + '。その月に記録した子の、その月のベストの平均です。' + (kidName ? '' : 'ランキングの名前を押すと、その子と同じ学年・男女の平均が重なります。') + '</div>';
   }
   function dash() {
     var D = S.dash || (S.dash = { period: '6m', kind: '', grade: 0, sex: '', race: '', kid: '' });
@@ -2680,8 +2708,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       return '<button type="button" class="hr' + (D.kid === x.k.name ? ' on' : '') + '" data-dkid="' + esc(x.k.name) + '" data-tip="' + esc(tip) + '"><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc(x.k.name) + ' <span class="sub">' + (x.k.grade ? x.k.grade + '年' : '') + '</span></span>' +
         '<span class="bar"><i style="width:' + w + '%"></i></span><span class="rec">' + esc(x.cur.record) + '</span><span class="gap">' + (x.prev && P[2] ? gapText(rname, x.cur.record, x.prev.record) : x.cur.kind === '練習' && !D.kind ? '<span class="pill p-prac">練習</span>' : '') + '</span></button>';
     }).join('') + '</div><div class="hint">名前を押すと、推移のグラフにその子の線が出ます（もう一度押すと消えます）。棒は記録のちがいが見えるよう、いちばん下の子の少し下から測っています。▲はこの期間より前のベストからの伸び。</div></section>';
-    h += '<section class="card c6"><h2>' + esc(rname) + ' の推移<small>月ごと</small></h2>' + dashTrendChart(rname, months, rAll.filter(function (r) { return r.date >= from; }), D.kid) +
-      (D.kid ? recordChart(D.kid, race, rname).replace('<div class="rtip">記録の点をタップすると、日付と大会が出ます</div>', '<div class="rtip">' + esc(D.kid) + 'のすべての記録。点に合わせると日付と大会が出ます</div>') : '') + '</section>';
+    var cmp = D.cmp || 'grade';
+    h += '<section class="card c6"><h2>' + esc(rname) + ' の推移<small>月ごとの平均</small></h2><div class="tabs" role="group" aria-label="比べる">' + [['team', 'チーム全体'], ['grade', '学年ごと'], ['sex', '男女ごと']].map(function (x) { return '<button type="button" data-dcmp="' + x[0] + '" aria-pressed="' + (cmp === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      dashTrendChart(rname, months, rAll.filter(function (r) { return r.date >= from; }), D.kid, cmp) +
+      (D.kid ? recordChart(D.kid, race, rname, true).replace('<div class="rtip">記録の点をタップすると、日付と大会が出ます</div>', '<div class="rtip">' + esc(D.kid) + 'のすべての記録。点に合わせると日付と大会が出ます</div>') : '') + '</section>';
+    h += '<section class="card c12"><h2>' + esc(rname) + ' 学年・男女ごとの平均<small>この期間の一人ひとりのベストの平均</small></h2>' + avgTable(rname, rAll, from, D.kid) + '</section>';
     h += dashEffortCards(kids, months);
     // 伸びた子・最近のベスト更新・記録がない子
     var grow = {}; pbs.forEach(function (x) { (grow[x.r.child] = grow[x.r.child] || []).push(x.r); });
@@ -2708,6 +2739,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-dp]', function () { D.period = this.dataset.dp; render(); });
     on('[data-dk]', function () { D.kind = this.dataset.dk; render(); });
     on('[data-dr]', function (ev) { ev.stopPropagation(); D.race = this.dataset.dr; D.kid = ''; render(); });
+    on('[data-dcmp]', function () { D.cmp = this.dataset.dcmp; render(); });
     on('[data-dkid]', function () { D.kid = D.kid === this.dataset.dkid ? '' : this.dataset.dkid; render(); });
     var g = document.getElementById('dGrade'); if (g) g.addEventListener('change', function () { D.grade = +this.value; render(); });
     var x = document.getElementById('dSex'); if (x) x.addEventListener('change', function () { D.sex = this.value; render(); });
@@ -2732,6 +2764,38 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
 
 
+
+  // ---- 平均（チーム・学年・男女）と比べる ----
+  function kidByName(n) { return ST.kids.find(function (k) { return k.name === n; }) || { name: n, grade: 0, sex: '' }; }
+  function mean(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; }
+  /** 月ごとの平均：その月に記録した子の、その月のベストの平均。filter で子どもをしぼる */
+  function monthlyAvg(rows, race, months, filter) {
+    var hb = higherBetter(race);
+    return months.map(function (m) {
+      var per = {};
+      rows.forEach(function (r) {
+        if (r.date.slice(0, 7) !== m || !filter(kidByName(r.child))) return;
+        var v = markValue(r.record); if (v === null) return;
+        if (per[r.child] === undefined || (hb ? v > per[r.child] : v < per[r.child])) per[r.child] = v;
+      });
+      var vals = Object.keys(per).map(function (c) { return per[c]; });
+      return vals.length ? { m: m, v: mean(vals), n: vals.length } : null;
+    });
+  }
+  /** 子どもごとのベスト（期間中）を、学年・男女でまとめた平均の表 */
+  function avgTable(race, rows, from, kidName) {
+    var best = {};
+    rows.forEach(function (r) { if (r.date < from) return; var v = markValue(r.record); if (v === null) return; if (best[r.child] === undefined || (higherBetter(race) ? v > best[r.child] : v < best[r.child])) best[r.child] = v; });
+    var cell = function (filter) { var vals = Object.keys(best).filter(function (n) { return filter(kidByName(n)); }).map(function (n) { return best[n]; }); return vals.length ? '<b>' + fmtMark(race, mean(vals)) + '</b><span class="n">' + vals.length + '人</span>' : '<span class="sub">—</span>'; };
+    var me = kidName ? kidByName(kidName) : null;
+    var grades = [1, 2, 3, 4, 5, 6].filter(function (g) { return Object.keys(best).some(function (n) { return kidByName(n).grade === g; }); });
+    var h = '<div class="tbl-wrap"><table class="avgtbl"><thead><tr><th>学年</th><th class="num">男子</th><th class="num">女子</th><th class="num">男女あわせて</th></tr></thead><tbody>' + grades.map(function (g) {
+      return '<tr' + (me && me.grade === g ? ' class="sel"' : '') + '><td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--g' + g + ');margin-right:4px"></span>' + g + '年</td><td class="num">' + cell(function (k) { return k.grade === g && k.sex === '男'; }) + '</td><td class="num">' + cell(function (k) { return k.grade === g && k.sex === '女'; }) + '</td><td class="num">' + cell(function (k) { return k.grade === g; }) + '</td></tr>';
+    }).join('') + '<tr><td><b>チーム</b></td><td class="num">' + cell(function (k) { return k.sex === '男'; }) + '</td><td class="num">' + cell(function (k) { return k.sex === '女'; }) + '</td><td class="num">' + cell(function () { return true; }) + '</td></tr></tbody></table></div>';
+    if (me && best[me.name] !== undefined) h += '<div class="sub">' + esc(me.name) + '：<b>' + fmtMark(race, best[me.name]) + '</b>（' + me.grade + '年' + (me.sex ? me.sex + '子' : '') + 'の行と比べてください）</div>';
+    return h;
+  }
+
   // ---- がんばった時間（練習に参加した時間＋自主トレの時間の積み上げ） ----
   var MILESTONES = [10, 25, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
   function last12Months() { return monthsBetween(addDays(ST.today, -334), ST.today); }
@@ -2748,6 +2812,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="between"><div><span class="big" style="font-size:2rem">' + hoursText(total) + '</span>' + (prevM ? ' <span class="pill p-ok">🏅 ' + prevM + '時間たっせい</span>' : '') + '</div></div>' +
       '<div class="row"><span class="pill p-gray">🏃 クラブの練習 ' + hoursText(cumC) + '（' + p.n + '回）</span><span class="pill p-gray">💪 自主トレ ' + hoursText(cumS) + '</span>' + (p.races ? '<span class="pill p-gray">🏅 大会 ' + p.races + '回</span>' : '') + '</div>';
     if (next) h += '<div class="sub">あと <b>' + Math.ceil(next - th) + '時間</b>で ' + next + '時間！</div><div class="meter"><i style="width:' + Math.round((th - prevM) / (next - prevM) * 100) + '%"></i></div>';
+    // クラブの練習の時間を、同じ学年・男女の平均と比べる（3人以上の組だけ）
+    var me = kidByName(child), avg = ST.participation.avg || {}, cmpRows = [[child, cumC, true]];
+    if (me.grade && me.sex && avg['g' + me.grade + me.sex]) cmpRows.push([me.grade + '年' + me.sex + '子の平均', avg['g' + me.grade + me.sex].min]);
+    if (me.grade && avg['g' + me.grade]) cmpRows.push([me.grade + '年の平均', avg['g' + me.grade].min]);
+    if (avg.team) cmpRows.push(['チームの平均', avg.team.min]);
+    if (cmpRows.length > 1) {
+      var cmax = Math.max.apply(null, cmpRows.map(function (r) { return r[1]; }).concat([1]));
+      h += '<div class="lbl" style="font-size:12px;color:var(--muted)">クラブの練習の時間（この1年）</div><div class="cmpbars">' + cmpRows.map(function (r) { return '<div class="r' + (r[2] ? ' me' : '') + '"><span>' + esc(r[0]) + '</span><span class="bar"><i style="width:' + Math.max(2, Math.round(r[1] / cmax * 100)) + '%"></i></span><span class="v">' + hoursText(r[1]) + '</span></div>'; }).join('') + '</div>';
+    }
     if (total) {
       var max = Math.max(1, total), W = 500, H = 190, L = 34, R = 8, T = 14, B = 22, bw = (W - L - R) / months.length;
       var nice = Math.ceil(max / 60 / 10) * 10 || 10, Y = function (min) { return H - B - (H - B - T) * (min / 60) / nice; };
@@ -2772,9 +2845,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!rows.length) return '';
     var max = Math.max(1, rows[0].min), team = 0;
     rows.forEach(function (r) { team += r.min; });
-    var h = '<section class="card c6"><h2>練習に参加した時間<small>' + months.length + 'か月・みんなで ' + hoursText(team) + '</small></h2><div class="hrank">' + rows.map(function (r, i) {
+    var avg = ST.participation.avg || {};
+    var avgLine = [1, 2, 3, 4, 5, 6].filter(function (g) { return avg['g' + g]; }).map(function (g) { return '<span class="pill p-gray">' + g + '年 ' + hoursText(avg['g' + g].min) + '</span>'; }).join('');
+    var h = '<section class="card c6"><h2>練習に参加した時間<small>' + months.length + 'か月・みんなで ' + hoursText(team) + '</small></h2>' + (avgLine ? '<div class="row"><span class="sub">この1年の学年の平均</span>' + avgLine + (avg.team ? '<span class="pill p-gray">チーム ' + hoursText(avg.team.min) + '</span>' : '') + '</div>' : '') + '<div class="hrank">' + rows.map(function (r, i) {
       var th = r.all / 60, badge = MILESTONES.filter(function (x) { return x <= th; }).pop();
-      return '<button type="button" class="hr sm2" data-tip="' + esc(r.k.name + '｜この期間 ' + hoursText(r.min) + '｜この1年 ' + hoursText(r.all)) + '"><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span><span class="bar"><i class="g" style="width:' + Math.max(2, Math.round(r.min / max * 100)) + '%"></i></span><span class="rec">' + hoursText(r.min) + '</span><span class="gap">' + (badge ? '🏅' + badge + 'h' : '') + '</span></button>';
+      var ga = (ST.participation.avg || {})['g' + r.k.grade];
+      return '<button type="button" class="hr sm2" data-tip="' + esc(r.k.name + '｜この期間 ' + hoursText(r.min) + '｜この1年 ' + hoursText(r.all) + (ga ? '（' + r.k.grade + '年の平均 ' + hoursText(ga.min) + '）' : '')) + '"><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span><span class="bar"><i class="g" style="width:' + Math.max(2, Math.round(r.min / max * 100)) + '%"></i></span><span class="rec">' + hoursText(r.min) + '</span><span class="gap">' + (badge ? '🏅' + badge + 'h' : '') + '</span></button>';
     }).join('') + '</div><div class="hint">休みの連絡がなかった練習の時間を足しています。🏅は、この1年で何時間をこえたか。</div></section>';
     var by = months.map(function (m) { var v = 0; rows.forEach(function (r) { var p = ST.participation.kids[r.k.name]; v += (p && p.m[m]) || 0; }); return v; });
     var cum = 0, cums = by.map(function (v) { return (cum += v); });
@@ -2911,11 +2987,20 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     bindPhotos(e);
   }
   /** 記録の折れ線グラフ（1種目・1人）。上ほどよい記録。公式は青い実線、練習はオレンジの点線。★がそれぞれのベスト */
-  function recordChart(child, key, race) {
+  function recordChart(child, key, race, cmp) {
     var all = ST.results.filter(function (r) { return r.child === child && canon(r.race) === key && markValue(r.record) !== null; })
       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
     if (all.length < 2) return '';
     var hb = higherBetter(race), vals = all.map(function (r) { return markValue(r.record); });
+    // 同じ学年・同じ学年と男女の、月ごとの平均（自分はふくめない）
+    var refs = [];
+    if (cmp) {
+      var me = kidByName(child), months = monthsBetween(all[0].date, all[all.length - 1].date), others = ST.results.filter(function (r) { return r.child !== child && canon(r.race) === key; });
+      if (me.grade) refs.push({ cls: 'avg', label: me.grade + '年の平均', pts: monthlyAvg(others, race, months, function (k) { return k.grade === me.grade; }) });
+      if (me.grade && me.sex) refs.push({ cls: 'avg2', label: me.grade + '年' + me.sex + '子の平均', pts: monthlyAvg(others, race, months, function (k) { return k.grade === me.grade && k.sex === me.sex; }) });
+      refs = refs.filter(function (x) { return x.pts.filter(Boolean).length >= 2; });
+      refs.forEach(function (x) { x.pts.forEach(function (p) { if (p) vals.push(p.v); }); });
+    }
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad0 = (hi - lo) * 0.15 || Math.max(0.1, hi * 0.02);
     lo -= pad0; hi += pad0;
     var W = 320, H = 156, L = 40, R = 14, T = 18, B = 26;
@@ -2935,8 +3020,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           (isB ? '<text class="lb" x="' + x + '" y="' + (+y - 10) + '" text-anchor="' + (+x > W - 60 ? 'end' : +x < L + 30 ? 'start' : 'middle') + '">★' + esc(r.record) + '</text>' : '');
       }).join('');
     }).join('');
+    var refSvg = refs.map(function (x) {
+      var d0 = '', prev = false;
+      x.pts.forEach(function (p) {
+        if (!p) { prev = false; return; }
+        var t = d(p.m + '-15').getTime(); if (t < t0) t = t0; if (t > t1) t = t1;
+        var xx = L + (t1 > t0 ? (t - t0) / (t1 - t0) : 0) * (W - L - R);
+        d0 += (prev ? 'L' : 'M') + xx.toFixed(1) + ' ' + Y(p.v).toFixed(1); prev = true;
+      });
+      return '<path class="ln ' + x.cls + '" d="' + d0 + '"><title>' + esc(x.label) + '</title></path>';
+    }).join('');
+    body = refSvg + body;
     var xl = '<text class="ax" x="' + L + '" y="' + (H - 6) + '">' + md(all[0].date) + '</text><text class="ax" x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + md(all[all.length - 1].date) + '</text>';
-    var legend = series.length > 1 ? '<div class="legend"><span><i class="k"></i>公式（大会）</span><span><i class="k pr"></i>練習</span></div>' : '';
+    var legend = series.length > 1 || refs.length ? '<div class="legend" style="flex-wrap:wrap">' + (series.length > 1 ? '<span><i class="k"></i>公式（大会）</span><span><i class="k pr"></i>練習</span>' : '') + refs.map(function (x) { return '<span><i class="k ' + x.cls + '"></i>' + esc(x.label) + '</span>'; }).join('') + '</div>' : '';
     return '<div class="lbl">' + esc(race) + '<span class="sub">（' + (hb ? '上ほど遠く・高く' : '上ほど速い') + (series.length === 1 ? '・' + series[0].kind : '') + '・★がベスト）</span></div>' + legend +
       '<svg class="rchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(child + 'の' + race + 'の記録の移り変わり') + '">' + g + body + xl + '</svg><div class="rtip">記録の点をタップすると、日付と大会が出ます</div>';
   }
@@ -2954,7 +3050,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += '<div class="kid"><b>' + esc(k.name) + '</b>' + (keys.length ? '<div class="tbl-wrap"><table><thead><tr><th>種目</th><th>自己ベスト（公式）</th><th>練習ベスト</th></tr></thead><tbody>' + keys.map(function (c) {
         var o = bo[c], p = bp[c], name = (o || p).race;
         return '<tr><td>' + esc(name) + '</td><td>' + (o ? '<b>' + esc(o.record) + '</b> <span class="sub">' + esc(o.meet.replace(/^\d{4}-\d{2}-\d{2}\s*/, '')) + '</span>' : '—') + '</td><td>' + (p ? esc(p.record) + ' <span class="sub">' + md(p.date) + '</span>' : '—') + '</td></tr>';
-      }).join('') + '</tbody></table></div>' + keys.map(function (c) { return recordChart(k.name, c, (bo[c] || bp[c]).race); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
+      }).join('') + '</tbody></table></div>' + keys.map(function (c) { return recordChart(k.name, c, (bo[c] || bp[c]).race, true); }).join('') : '<div class="sub">まだ記録がありません。大会のページの「結果」から入れられます。</div>') + '</div>';
     });
     return h + '</section>';
   }

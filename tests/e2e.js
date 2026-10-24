@@ -767,13 +767,12 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors, ...r.errors);
       await q.close(); await r.close();
     });
-    await step('練習：✓ で出席、役員は練習中のタイムを表に入れて保存（紙の記録表のように）', async () => {
+    await step('練習：何もしなければ出席（休みだけ数える）、役員は練習中のタイムを表に入れて保存（紙の記録表のように）', async () => {
       await a.click('[data-nav="events"]');
       await a.click('.ev:has-text("通常練習") >> nth=0');
-      await a.click('[data-rc="山田たろう"][data-yn="y"]');
-      await a.idle();
-      assert.ok(gas.rows('出席').some((r) => r['子ども'] === '山田たろう'));
-      assert.ok((await a.textContent('.tally')).includes('出席1'), await a.textContent('.tally'));
+      assert.strictEqual(await a.getAttribute('[data-rc="山田たろう"][data-yn="y"]', 'aria-pressed'), 'true', 'はじめから出席');
+      const tl = await a.textContent('.tally');
+      assert.ok(tl.includes('出席予定') && tl.includes('お休み') && !tl.includes('未回答'), tl);
       await a.click('[data-tmn="加速走"]');
       await a.fill('[data-tmk="山田はなこ"]', '943');
       await a.press('[data-tmk="山田はなこ"]', 'Enter');

@@ -567,12 +567,6 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var left = p.deadline ? diff(ST.today, p.deadline) : 99;
       out.push({ ic: '🗳', hot: left <= 1, t: 'アンケート：' + esc(p.title), s: p.deadline ? '締切 ' + md(p.deadline) : 'ボタンで答えられます', a: 'data-todo="poll-' + p.id + '"', order: left });
     });
-    var np = upcoming(function (e) { return !isRace(e) && diff(ST.today, e.date) <= 3; })[0];
-    if (np) {
-      var off = absentOn(np.date).map(function (a) { return a.child; }), on = attendedOn(np.date);
-      var q = ST.me.children.filter(function (k) { return off.indexOf(k.name) < 0 && on.indexOf(k.name) < 0; });
-      if (q.length) out.push({ ic: '✋', hot: diff(ST.today, np.date) <= 1, t: md(np.date) + ' 練習の出欠', s: q.map(function (k) { return esc(k.name); }).join('・') + '　✓ か ✕ を押してください', a: 'data-todo="nextprac"', order: diff(ST.today, np.date) + 0.5 });
-    }
     ST.me.children.forEach(function (k) {
       var u = trUnread(k.name);
       if (u.length) out.push({ ic: '💬', hot: true, t: 'コーチからコメント（' + esc(k.name) + '）', s: esc(u[u.length - 1].text.slice(0, 30)), a: 'data-tab="train"', order: 1 });
@@ -1305,7 +1299,6 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function dutyOf(key) { return ST.duties.filter(function (x) { return x.key === key; }); }
   function dutyText(key) { return dutyOf(key).map(function (x) { return famName(x.fam); }).join('、'); }
   function absentOn(date) { return ST.absences.filter(function (a) { return a.date === date; }); }
-  function attendedOn(date) { return ST.attends.filter(function (a) { return a.date === date; }).map(function (a) { return a.child; }); }
   function byGrade(a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); }
   function canManage(key) { return ST.me.canManage.indexOf(key) >= 0; }
   function dutyType(e) { return isRace(e) ? '大会' : '練習'; }
@@ -1365,9 +1358,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var all = eligible(e);
       return [['参加', all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; }), 't-y'], ['不参加', all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join !== '参加'; }), 't-n'], ['未回答', all.filter(function (k) { return !entryOf(e.key, k.name); }), 't-q']];
     }
-    var off = absentOn(e.date).map(function (a) { return a.child; }), on = attendedOn(e.date);
-    return [['出席', ST.kids.filter(function (k) { return on.indexOf(k.name) >= 0 && off.indexOf(k.name) < 0; }), 't-y'], ['お休み', ST.kids.filter(function (k) { return off.indexOf(k.name) >= 0; }), 't-n'],
-      ['未回答', ST.kids.filter(function (k) { return on.indexOf(k.name) < 0 && off.indexOf(k.name) < 0; }), 't-q']];
+    // 練習は「出る」が基本。休みの連絡があった子だけ「お休み」に数える
+    var off = absentOn(e.date).map(function (a) { return a.child; });
+    return [['出席予定', ST.kids.filter(function (k) { return off.indexOf(k.name) < 0; }), 't-y'], ['お休み', ST.kids.filter(function (k) { return off.indexOf(k.name) >= 0; }), 't-n']];
   }
   function tallyHtml(e) {
     var cols = rsvpCols(e), open = S.tally && S.tally.split('|')[0] === e.key ? +S.tally.split('|')[1] : -1;
@@ -1395,9 +1388,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         return '<div class="rsvp-kid"><span class="nm"><b>' + esc(k.name) + '</b><span class="sub">' + (x ? (x.join === '参加' ? (x.races.length ? esc(x.races.join('・')) : '') : '不参加') : '<span style="color:var(--warn);font-weight:700">未回答</span>') +
           (needRace ? '<button class="link" type="button" data-entry="' + e.key + '">種目を選ぶ ›</button>' : '') + (locked ? '（締切済み）' : '') + '</span></span>' + ynHtml(x && x.join === '参加', x && x.join !== '参加', attr, locked, ['参加', '不参加']) + '</div>';
       }
-      var a = absentOn(e.date).find(function (z) { return z.child === k.name; }), here = !a && attendedOn(e.date).indexOf(k.name) >= 0;
+      var a = absentOn(e.date).find(function (z) { return z.child === k.name; });
       var pick = S.absPick === e.key + '|' + k.name;
-      return '<div class="rsvp-kid"><span class="nm"><b>' + esc(k.name) + '</b><span class="sub">' + (a ? 'お休み' + (a.reason ? '（' + esc(a.reason) + '）' : '') : here ? '出席' : '<span style="color:var(--warn);font-weight:700">未回答</span>') + '</span></span>' + ynHtml(here && !pick, a || pick, attr, false, ['出席', '休み']) + '</div>' +
+      return '<div class="rsvp-kid"><span class="nm"><b>' + esc(k.name) + '</b><span class="sub">' + (a ? 'お休み' + (a.reason ? '（' + esc(a.reason) + '）' : '') : '出席予定') + '</span></span>' + ynHtml(!a && !pick, a || pick, attr, false, ['出席', '休み']) + '</div>' +
         (pick ? '<div class="reasons"><span class="sub" style="width:100%">理由を押すと、休みを連絡します（グループには流れません）</span>' + ST.choices.reasons.map(function (r) { return '<div class="choice"><button type="button" data-absr="' + esc(r) + '" ' + attr + '>' + esc(r) + '</button></div>'; }).join('') + '<button class="link" type="button" data-absx>やめる</button></div>' : '');
     }).join('');
   }
@@ -1416,8 +1409,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var a = absentOn(e.date).find(function (z) { return z.child === child; });
       if (yes) {
         S.absPick = null;
-        if (!a && attendedOn(e.date).indexOf(child) >= 0) { render(); return; }
-        call('setAttend', { key: e.key, child: child, on: true });
+        if (!a) { render(); return; } // もともと出席
+        call('setAttend', { key: e.key, child: child, on: true }); // 休みの連絡を取り消す
         return;
       }
       if (a) return;
@@ -1537,7 +1530,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
   }
   function attendCard(e) {
-    return '<section class="card"><h2>出欠<small>押すと名前が出ます</small></h2>' + rsvpRows(e) + tallyHtml(e) + '<div class="hint">✓ か ✕ で答えてください。休みの理由は本人と役員だけに見えます。</div></section>' + timesCard(e);
+    return '<section class="card"><h2>出欠<small>押すと名前が出ます</small></h2>' + rsvpRows(e) + tallyHtml(e) + '<div class="hint">出るときは何もしなくてOK。休むときだけ ✕ を押して理由を選んでください。理由は本人と役員だけに見えます。</div></section>' + timesCard(e);
   }
   function eventEditCard(e) {
     var st = e.start === '終日' ? '' : e.start.replace(/^0/, ''), en = (e.end || '').replace(/^0/, '');

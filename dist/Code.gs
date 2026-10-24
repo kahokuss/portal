@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'd7c8436c05';
+const SERVER_VERSION = '20e60de4b5';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2216,7 +2216,7 @@ function scriptEditorUrl_() {
 
 // ---- 家族 ----
 
-/** 夫婦などを同じ家族にまとめるための招待番号（6けた）を作る */
+/** 父母・祖父母・兄姉などを同じ家族にまとめるための招待番号（6けた）を作る */
 function inviteFamilyAction_(ctx) {
   const cache = CacheService.getScriptCache();
   let code = '';
@@ -2250,7 +2250,7 @@ function setAdminAction_(ctx, p) {
     if (!f) throw new Error('見つかりません。');
     const id = famIdOf_(f);
     if (!p.on && !rows.some((x) => famIdOf_(x) !== id && isAdminRow_(x))) throw new Error('役員が1家族もいなくなるので、外せません。先にほかの家族を役員にしてください。');
-    // 役員は家族ごと：父・母どちらの行もそろえる
+    // 役員は家族ごと：家族のみんなの行もそろえる
     familyRowsOf_(rows, id).forEach((x) => { x['役員'] = p.on ? '○' : ''; x['役員申請'] = ''; x['更新日時'] = now_(); updateRow_(SHEETS.FAMILIES, x); });
   });
   return (p.on ? '役員にしました（家族の全員）' : '役員から外しました（家族の全員）');
@@ -3415,7 +3415,7 @@ function adminCodeAction_(ctx, p) {
   return { code: adminCode_(!!p.renew) };
 }
 
-/** 家族ごと役員にする（父・母どちらの行も） */
+/** 家族ごと役員にする（家族のみんなの行も） */
 function makeAdmin_(f) {
   familyRowsOf_(readRows_(SHEETS.FAMILIES), famIdOf_(f)).forEach((x) => {
     x['役員'] = '○';
@@ -3460,7 +3460,7 @@ function answerAdminAction_(ctx, p) {
   });
 }
 
-/** 家族の係（会計・記録係など）を決める（役員だけ）。父・母どちらの行もそろえる */
+/** 家族の係（会計・記録係など）を決める（役員だけ）。家族のみんなの行もそろえる */
 function setRoleAction_(ctx, p) {
   const role = String(p.role || '').replace(/\s+/g, ' ').trim().slice(0, 40);
   withLock_(() => {
@@ -4120,7 +4120,7 @@ function isOwner_(family) {
   return !!family && /^(○|◯|〇|o|yes|true|1|管理者)$/i.test(String(family['管理者'] || '').trim());
 }
 
-/** 役員は家族ごと：父・母のどちらかに ○ があれば、同じ家族の人はみな役員 */
+/** 役員は家族ごと：家族のだれかに ○ があれば、同じ家族の人はみな役員 */
 function isAdmin_(family) {
   if (!family) return false;
   if (isAdminRow_(family) || isOwner_(family)) return true;
@@ -4133,7 +4133,7 @@ function familyRowsOf_(rows, famId) {
   return rows.filter((f) => famIdOf_(f) === famId);
 }
 
-/** 家族のまとまり（夫婦など）。まとめていない人は userId がそのまま家族ID */
+/** 家族のまとまり（父母・祖父母・兄姉など）。まとめていない人は userId がそのまま家族ID */
 function famIdOf_(family) {
   return family['家族ID'] || family.userId;
 }
@@ -4199,12 +4199,12 @@ function allChildren_() {
 
 /**
  * この保護者の子どもを list の内容にそろえる。
- * 同じ名前の子がすでにいれば保護者として追加する（両親とも登録できる）。
+ * 同じ名前の子がすでにいれば保護者として追加する（家族のだれが登録してもよい）。
  * @param {{name: string, grade: number}[]} list
  */
 function saveChildren_(userId, list) {
   withLock_(() => {
-    // 家族をまとめていれば、夫婦のどちらが直しても両方の子どもとして登録される
+    // 家族をまとめていれば、家族のだれが直しても両方の子どもとして登録される
     const members = familyMembers_(userId);
     const rows = readRows_(SHEETS.CHILDREN);
     const names = list.map((c) => c.name);
@@ -4269,8 +4269,8 @@ function joinFamily_(userId, inviterId) {
 }
 
 /**
- * 同じ子を、別々の家族として登録した保護者（父と母が招待番号を使わずにそれぞれ登録したなど）を1つの家族にまとめる。
- * 当番や家族の一覧が2つに分かれないように。まとめたら true
+ * 同じ子を、別々の家族として登録した保護者（父と母・祖父母などが招待番号を使わずにそれぞれ登録したなど）を1つの家族にまとめる。
+ * 当番や家族の一覧が2つに分かれないように。祖父母・兄姉が登録しても同じ家族に入る。まとめたら true
  */
 function mergeSameKidFamilies_() {
   let changed = false;
@@ -4278,12 +4278,23 @@ function mergeSameKidFamilies_() {
     const families = readRows_(SHEETS.FAMILIES);
     const famOf = {};
     families.forEach((f) => (famOf[f.userId] = famIdOf_(f)));
+    const kids = readRows_(SHEETS.CHILDREN).filter((c) => c['名前']);
+    const famKids = {};
+    kids.forEach((c) => splitNames_(c['保護者userId']).forEach((u) => { if (famOf[u]) (famKids[famOf[u]] = famKids[famOf[u]] || {})[c['名前']] = true; }));
+    const meets = (a, b) => Object.keys(famKids[a] || {}).some((k) => (famKids[b] || {})[k]);
+    // 2つの別の家族の子をどちらも登録している人（いとこの祖父母など）は、2つの家族をつながないよう自動ではまとめない
+    const bridge = (f) => {
+      const others = Object.keys(famKids).filter((g) => g !== f && meets(f, g));
+      return others.some((g, i) => others.slice(i + 1).some((h) => !meets(g, h)));
+    };
     let pair = null;
-    readRows_(SHEETS.CHILDREN).some((c) => {
+    kids.some((c) => {
       const us = splitNames_(c['保護者userId']).filter((u) => famOf[u]);
-      const first = us[0];
-      const other = us.find((u) => famOf[u] !== famOf[first]);
-      if (other) pair = { user: other, into: first };
+      us.some((a) => us.some((b) => {
+        if (famOf[a] === famOf[b] || bridge(famOf[a]) || bridge(famOf[b])) return false;
+        pair = { user: b, into: a };
+        return true;
+      }));
       return !!pair;
     });
     if (!pair) break;

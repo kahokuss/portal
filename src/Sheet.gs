@@ -213,7 +213,7 @@ function isOwner_(family) {
   return !!family && /^(○|◯|〇|o|yes|true|1|管理者)$/i.test(String(family['管理者'] || '').trim());
 }
 
-/** 役員は家族ごと：父・母のどちらかに ○ があれば、同じ家族の人はみな役員 */
+/** 役員は家族ごと：家族のだれかに ○ があれば、同じ家族の人はみな役員 */
 function isAdmin_(family) {
   if (!family) return false;
   if (isAdminRow_(family) || isOwner_(family)) return true;
@@ -226,7 +226,7 @@ function familyRowsOf_(rows, famId) {
   return rows.filter((f) => famIdOf_(f) === famId);
 }
 
-/** 家族のまとまり（夫婦など）。まとめていない人は userId がそのまま家族ID */
+/** 家族のまとまり（父母・祖父母・兄姉など）。まとめていない人は userId がそのまま家族ID */
 function famIdOf_(family) {
   return family['家族ID'] || family.userId;
 }
@@ -292,12 +292,12 @@ function allChildren_() {
 
 /**
  * この保護者の子どもを list の内容にそろえる。
- * 同じ名前の子がすでにいれば保護者として追加する（両親とも登録できる）。
+ * 同じ名前の子がすでにいれば保護者として追加する（家族のだれが登録してもよい）。
  * @param {{name: string, grade: number}[]} list
  */
 function saveChildren_(userId, list) {
   withLock_(() => {
-    // 家族をまとめていれば、夫婦のどちらが直しても両方の子どもとして登録される
+    // 家族をまとめていれば、家族のだれが直しても両方の子どもとして登録される
     const members = familyMembers_(userId);
     const rows = readRows_(SHEETS.CHILDREN);
     const names = list.map((c) => c.name);
@@ -362,8 +362,8 @@ function joinFamily_(userId, inviterId) {
 }
 
 /**
- * 同じ子を、別々の家族として登録した保護者（父と母が招待番号を使わずにそれぞれ登録したなど）を1つの家族にまとめる。
- * 当番や家族の一覧が2つに分かれないように。まとめたら true
+ * 同じ子を、別々の家族として登録した保護者（父と母・祖父母などが招待番号を使わずにそれぞれ登録したなど）を1つの家族にまとめる。
+ * 当番や家族の一覧が2つに分かれないように。祖父母・兄姉が登録しても同じ家族に入る。まとめたら true
  */
 function mergeSameKidFamilies_() {
   let changed = false;
@@ -371,12 +371,23 @@ function mergeSameKidFamilies_() {
     const families = readRows_(SHEETS.FAMILIES);
     const famOf = {};
     families.forEach((f) => (famOf[f.userId] = famIdOf_(f)));
+    const kids = readRows_(SHEETS.CHILDREN).filter((c) => c['名前']);
+    const famKids = {};
+    kids.forEach((c) => splitNames_(c['保護者userId']).forEach((u) => { if (famOf[u]) (famKids[famOf[u]] = famKids[famOf[u]] || {})[c['名前']] = true; }));
+    const meets = (a, b) => Object.keys(famKids[a] || {}).some((k) => (famKids[b] || {})[k]);
+    // 2つの別の家族の子をどちらも登録している人（いとこの祖父母など）は、2つの家族をつながないよう自動ではまとめない
+    const bridge = (f) => {
+      const others = Object.keys(famKids).filter((g) => g !== f && meets(f, g));
+      return others.some((g, i) => others.slice(i + 1).some((h) => !meets(g, h)));
+    };
     let pair = null;
-    readRows_(SHEETS.CHILDREN).some((c) => {
+    kids.some((c) => {
       const us = splitNames_(c['保護者userId']).filter((u) => famOf[u]);
-      const first = us[0];
-      const other = us.find((u) => famOf[u] !== famOf[first]);
-      if (other) pair = { user: other, into: first };
+      us.some((a) => us.some((b) => {
+        if (famOf[a] === famOf[b] || bridge(famOf[a]) || bridge(famOf[b])) return false;
+        pair = { user: b, into: a };
+        return true;
+      }));
       return !!pair;
     });
     if (!pair) break;

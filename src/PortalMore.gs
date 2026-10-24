@@ -5,7 +5,7 @@
 
 // ---- 家族 ----
 
-/** 夫婦などを同じ家族にまとめるための招待番号（6けた）を作る */
+/** 父母・祖父母・兄姉などを同じ家族にまとめるための招待番号（6けた）を作る */
 function inviteFamilyAction_(ctx) {
   const cache = CacheService.getScriptCache();
   let code = '';
@@ -39,7 +39,7 @@ function setAdminAction_(ctx, p) {
     if (!f) throw new Error('見つかりません。');
     const id = famIdOf_(f);
     if (!p.on && !rows.some((x) => famIdOf_(x) !== id && isAdminRow_(x))) throw new Error('役員が1家族もいなくなるので、外せません。先にほかの家族を役員にしてください。');
-    // 役員は家族ごと：父・母どちらの行もそろえる
+    // 役員は家族ごと：家族のみんなの行もそろえる
     familyRowsOf_(rows, id).forEach((x) => { x['役員'] = p.on ? '○' : ''; x['役員申請'] = ''; x['更新日時'] = now_(); updateRow_(SHEETS.FAMILIES, x); });
   });
   return (p.on ? '役員にしました（家族の全員）' : '役員から外しました（家族の全員）');
@@ -1204,7 +1204,7 @@ function adminCodeAction_(ctx, p) {
   return { code: adminCode_(!!p.renew) };
 }
 
-/** 家族ごと役員にする（父・母どちらの行も） */
+/** 家族ごと役員にする（家族のみんなの行も） */
 function makeAdmin_(f) {
   familyRowsOf_(readRows_(SHEETS.FAMILIES), famIdOf_(f)).forEach((x) => {
     x['役員'] = '○';
@@ -1249,7 +1249,7 @@ function answerAdminAction_(ctx, p) {
   });
 }
 
-/** 家族の係（会計・記録係など）を決める（役員だけ）。父・母どちらの行もそろえる */
+/** 家族の係（会計・記録係など）を決める（役員だけ）。家族のみんなの行もそろえる */
 function setRoleAction_(ctx, p) {
   const role = String(p.role || '').replace(/\s+/g, ' ').trim().slice(0, 40);
   withLock_(() => {

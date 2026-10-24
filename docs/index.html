@@ -488,9 +488,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "1aa8c44ea9";
+var BUILD = "1cc747e463";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "d7c8436c05";
+var EXPECT_SERVER = "20e60de4b5";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -3966,7 +3966,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
             (ST.me.owner ? '<button class="btn small ghost" type="button" data-owner="' + esc(p.id) + '" data-on="' + (p.owner ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.owner ? '管理者から外す' : '管理者にする') + '</button>' : '') +
             '<button class="btn small ghost" type="button" data-coach="' + esc(p.id) + '" data-on="' + (p.coach ? '' : '1') + '" data-name="' + esc(p.name) + '">' + (p.coach ? 'コーチから外す' : 'コーチにする') + '</button></span></div>';
         }).join('') + '</div></div>';
-    }).join('') + '</div><div class="hint">役員と係は家族ごとです（父・母どちらも同じ役になります）。役員になると下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。コーチは一人ずつで、家族が「コーチに見せる」にしている子の自主トレを見られます。ここに出るのは、一度でもポータルにログインした人です。役員が1家族もいなくなる操作はできません。</div></section>';
+    }).join('') + '</div><div class="hint">役員と係は家族ごとです（父・母・祖父母など、家族のみんなが同じ役になります）。役員になると下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。コーチは一人ずつで、家族が「コーチに見せる」にしている子の自主トレを見られます。ここに出るのは、一度でもポータルにログインした人です。役員が1家族もいなくなる操作はできません。</div></section>';
     view.innerHTML = h;
     bindBack();
     on('[data-owner]', function () { var d = this.dataset; if (confirm(d.name + 'さんを' + (d.on ? '管理者にしますか？（役員の管理やサーバーの更新ができるようになります）' : '管理者から外しますか？'))) call('setOwner', { userId: d.owner, on: !!d.on }); });
@@ -3981,7 +3981,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#acRenew', function () { if (confirm('役員の番号を変えますか？前の番号は使えなくなります。')) showCode(true); });
     on('[data-admin]', function () {
       var d = this.dataset;
-      if (!confirm(d.name + 'を' + (d.on ? '役員にしますか？（父・母どちらも役員になります）' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
+      if (!confirm(d.name + 'を' + (d.on ? '役員にしますか？（家族のみんなが役員になります）' : '役員から外しますか？') + (d.me && !d.on ? '\n自分を外すと、この管理画面は使えなくなります。' : ''))) return;
       call('setAdmin', { userId: d.admin, on: !!d.on }, function () { if (d.me && !d.on) S.tab = 'home'; });
     });
     on('[data-coach]', function () {
@@ -4035,8 +4035,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var h = '<section class="card"><h2>家族<small>' + ST.me.family.length + '人でつかっています</small></h2><div class="sub">' + ST.me.family.map(function (n) { return esc(n) + 'さん'; }).join('・') + '</div>';
     if (S.invite) {
       h += '<div class="copybox" id="copyText">' + esc(CLUB + 'のポータルで、家族の登録をまとめます。下のリンクを開いてLINEでログインしてください（招待番号 ' + S.invite.code + '）\n' + S.invite.url) + '</div><button class="btn" id="copyBtn" type="button">家族に送る文章をコピー</button>' +
-        '<div class="hint">夫婦の1対1のトークなどに貼ってください。番号は' + S.invite.hours + '時間、1回だけ使えます。</div>';
-    } else h += '<button class="btn small" id="invite" type="button" style="justify-self:start">家族を招待する（夫婦で共有）</button><div class="hint">家族になると、お子さんの登録・エントリー・当番が共通になります。それぞれのLINEでログインできます。</div>';
+        '<div class="hint">家族（父・母・祖父母・お兄さんお姉さんなど）とのLINEのトークに貼ってください。何人でも招待できます。番号は' + S.invite.hours + '時間、1回だけ使えます。</div>';
+    } else h += '<button class="btn small" id="invite" type="button" style="justify-self:start">家族を招待する（祖父母・兄姉もOK）</button><div class="hint">家族になると、お子さんの登録・エントリー・当番が共通になります。送り迎えをする祖父母なども、それぞれのLINEでログインして同じように使えます。</div>';
     h += '<form class="f" id="joinForm"><label>家族から招待番号をもらったとき<input id="joinCode" inputmode="numeric" maxlength="6" placeholder="6けたの番号"></label><button class="btn small ghost" type="submit" style="justify-self:start">家族になる</button></form>';
     if (ST.me.family.length > 1) h += '<button class="link" id="leaveFam" type="button">家族のまとまりから外れる</button>';
     var mine = myDuties();

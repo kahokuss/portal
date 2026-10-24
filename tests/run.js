@@ -182,6 +182,20 @@ test('ポータル: わが家で子どもを直す・両親で同じ子を登録
   assert.strictEqual(st.families[0].label, '山田家（たろう・はなこ）');
   assert.strictEqual(new Set(gas.rows('家族').filter((r) => /^U[14]$/.test(r.userId)).map((r) => r['家族ID'] || r.userId)).size, 1);
   assert.deepStrictEqual(plain(gas.ctx.api(gas.login('U4').key, 'bootstrap').me.children.map((c) => c.name)), ['山田たろう', '山田はなこ'], 'もう一人の親にも見える');
+  // 祖父母など3人目が同じ子を登録しても、同じ家族に入る
+  gas.line(dm('U3'), '登録 山田たろう');
+  st = gas.ctx.api(k, 'bootstrap');
+  assert.strictEqual(st.families.length, 1);
+  assert.strictEqual(st.me.family.length, 3, JSON.stringify(plain(st.me.family)));
+  // いとこ（別の家族の子）を両方登録した祖父母がいても、2つの家族はまとめない
+  gas.line(dm('U2'), '登録 鈴木けんた');
+  gas.profiles.U5 = '祖母'; gas.members.add('U5');
+  gas.line(dm('U5'), '登録 鈴木けんた');
+  gas.ctx.api(gas.login('U5').key, 'saveChildren', { children: [{ name: '鈴木けんた' }, { name: '山田たろう' }] });
+  assert.ok(gas.rows('子ども').filter((r) => /U5/.test(r['保護者userId'])).length === 2, '祖母は2人の子の保護者');
+  st = gas.ctx.api(k, 'bootstrap');
+  assert.ok(!st.families.some((f) => /たろう/.test(f.label) && /けんた/.test(f.label) && f.parents.length > 1), JSON.stringify(plain(st.families)));
+  assert.strictEqual(st.me.family.length, 3, '山田家はそのまま');
 });
 
 test('家族の呼び名：名字家（下の名前）', () => {

@@ -912,6 +912,9 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-dk="練習"]');
       assert.ok((await a.textContent('#view')).includes('50m'), '練習で測った記録も入る');
       assert.ok((await a.textContent('#view')).includes('練習に参加した時間'), '練習時間の積み上げ');
+      assert.ok((await a.textContent('#view')).includes('期間で比べる（全員）'), '全員の期間比較');
+      await a.click('#dCmp [data-cmpp="fy"]');
+      assert.strictEqual(await a.getAttribute('#dCmp [data-cmpp="fy"]', 'aria-pressed'), 'true');
       await a.shot('25-dash');
       await a.click('#dBack');
       assert.ok((await a.textContent('#view')).includes('管理メニュー') || (await a.$('[data-go="dash"]')));

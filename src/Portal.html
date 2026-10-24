@@ -3799,7 +3799,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
-  if (q.get('tab') && /^(home|events|album|family)$/.test(q.get('tab'))) S.tab = q.get('tab');
+  if (q.get('tab') && /^(home|events|album|family|train|admin|dash)$/.test(q.get('tab'))) S.tab = q.get('tab');
   if (q.get('v') || q.get('tab')) { q.delete('v'); q.delete('tab'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   if (q.get('join')) {
     try { localStorage.setItem(JOIN, q.get('join').replace(/\D/g, '').slice(0, 6)); } catch (e) {}

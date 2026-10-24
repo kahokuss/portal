@@ -3512,9 +3512,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var nm = function (x) { return String(x).replace(/\s|　/g, ''); };
       var already = function (r) { var meet = (r.date || R.impDate || ST.today) + ' ' + (r.meet || R.impMeet || '過去の記録'); return ST.results.some(function (x) { return nm(x.child) === nm(r.child) && x.race === r.race && x.record === r.record && x.meet === meet; }); };
       var dupN = R.preview.filter(already).length;
-      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th><th>日付</th><th>大会</th><th></th></tr></thead><tbody>' + R.preview.slice(0, 200).map(function (r) {
+      var hasRP = R.preview.some(function (r) { return r.place || r.round; });
+      h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>種目</th><th>記録</th>' + (hasRP ? '<th>ラウンド</th><th>順位</th>' : '') + '<th>日付</th><th>大会</th><th></th></tr></thead><tbody>' + R.preview.slice(0, 300).map(function (r) {
         var ok = ST.kids.some(function (k) { return k.name === r.child; }), dup = ok && already(r);
-        return '<tr' + (ok ? '' : ' class="hl"') + (dup ? ' style="opacity:.55"' : '') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td><td>' + esc(r.date || R.impDate || '（今日）') + '</td><td>' + esc(r.meet || R.impMeet || '過去の記録') + '</td><td class="sub">' + (dup ? '入っています' : '') + '</td></tr>';
+        return '<tr' + (ok ? '' : ' class="hl"') + (dup ? ' style="opacity:.55"' : '') + '><td>' + esc(r.child) + (ok ? '' : ' ⚠') + '</td><td>' + esc(r.race) + '</td><td>' + esc(r.record) + '</td>' + (hasRP ? '<td>' + esc(r.round || '') + '</td><td>' + esc(r.place || '') + '</td>' : '') + '<td>' + esc(r.date || R.impDate || '（今日）') + '</td><td>' + esc(r.meet || R.impMeet || '過去の記録') + '</td><td class="sub">' + (dup ? '入っています' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>' + (dupN ? '<div class="hint">「入っています」の ' + dupN + '行は、もう取り込んであるので、とばします（2重にはなりません）。</div>' : '') + (bad ? '<div class="hint">⚠ の ' + bad + '行は、名前が登録と合わないので入りません（「わが家」の名前と同じ書き方にしてください。空白はあってもなくてもOK）。</div>' : '') +
         '<button class="btn" type="button" id="recSave">' + (R.preview.length - bad) + '件を入れる（' + R.impKind + '）</button>';
     }
@@ -3581,14 +3582,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var out = [];
     if (hi >= 0) {
       var head = rows[hi], col = function (re) { return head.findIndex(function (c) { return re.test(c); }); };
-      var cN = col(/^(名前|氏名|選手名?|なまえ)$/), cR = col(/^種目$/), cV = col(/^(記録|タイム|ベスト|自己ベスト)$/), cD = col(/日付|年月日|日にち/), cM = col(/大会|場所|記録会/);
+      var cN = col(/^(名前|氏名|選手名?|なまえ)$/), cR = col(/^種目$/), cV = col(/^(記録|タイム|ベスト|自己ベスト)$/), cD = col(/日付|年月日|日にち/), cM = col(/大会|場所|記録会/), cP = col(/^(順位|着順)$/), cRd = col(/^(ラウンド|予選決勝)$/), cMemo = col(/^(メモ|備考)$/);
       var skip = /^(No\.?|番号|学年|年|性別|男女|ふりがな|カナ|フリガナ|所属|チーム|備考|メモ)$/;
       rows.slice(hi + 1).forEach(function (r) {
         var child = findKid(r[cN]);
         if (!child) return;
-        if (cR >= 0 && cV >= 0) { if (r[cR] && r[cV]) out.push({ child: child, race: r[cR], record: r[cV], date: cD >= 0 ? toDate(r[cD]) : '', meet: cM >= 0 ? r[cM] : '' }); return; }
+        if (cR >= 0 && cV >= 0) { if (r[cR] && r[cV]) out.push({ child: child, race: r[cR], record: r[cV], date: cD >= 0 ? toDate(r[cD]) : '', meet: cM >= 0 ? r[cM] : '', place: cP >= 0 ? r[cP] : '', round: cRd >= 0 ? r[cRd] : '', memo: cMemo >= 0 ? r[cMemo] : '' }); return; }
         head.forEach(function (h, i) {
-          if (i === cN || i === cD || i === cM || !h || skip.test(h) || !r[i]) return;
+          if (i === cN || i === cD || i === cM || i === cP || i === cRd || !h || skip.test(h) || !r[i]) return;
           var v = r[i], dm = v.match(/[（(]\s*([^)）]+)[)）]/), date = dm ? toDate(dm[1]) || (function () { var m2 = dm[1].match(/(\d{1,2})[\/月](\d{1,2})/); return m2 ? ST.today.slice(0, 4) + '-' + pad(m2[1]) + '-' + pad(m2[2]) : ''; })() : (cD >= 0 ? toDate(r[cD]) : '');
           var rec = v.replace(/[（(][^)）]*[)）]/g, '').trim().split(/\s+/)[0];
           if (markValue(rec) !== null || /\d/.test(rec)) out.push({ child: child, race: h, record: rec, date: date, meet: cM >= 0 ? r[cM] : '' });

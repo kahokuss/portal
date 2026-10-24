@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '88bb74b466';
+const SERVER_VERSION = '8ae0ba9558';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1683,6 +1683,7 @@ const API_ACTIONS = {
   deleteResult: { run: deleteResultAction_ },
   addRecords: { admin: true, run: addRecordsAction_ },
   removeDuplicateRecords: { admin: true, run: removeDuplicateRecordsAction_ },
+  fixPracticeKinds: { admin: true, run: fixPracticeKindsAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },
@@ -2835,7 +2836,7 @@ function addRecordsAction_(ctx, p) {
     ok.push({
       '日時': now_(), eventKey: '', '大会・練習': meet, '子ども': child, '種目': race, '記録': record,
       '順位': String(r.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(r.round) >= 0 ? r.round : '',
-      '区分': (r.kind || p.kind) === '練習' ? '練習' : '公式',
+      '区分': (r.kind || p.kind) === '練習' || PRACTICE_MEET.test(String(r.meet || '')) ? '練習' : '公式',
       'メモ': String(r.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
     });
   });
@@ -3511,6 +3512,34 @@ function linkResultsToEvents_() {
     });
   });
   return n;
+}
+
+/** 大会名が練習のものか（加速走・ダッシュ・1周走など） */
+const PRACTICE_MEET = /加速|練習|ダッシュ|1周|一周|坂道|タイム走|計測|トライアル/;
+
+/**
+ * 練習の記録なのに「公式」で入ってしまったもの（大会名が加速走など）を「練習」に直す（役員）。
+ * 大会に結びついていたら外して、その日の練習に結びつけなおす
+ */
+function fixPracticeKindsAction_(ctx) {
+  const raceKeys = {};
+  readRows_(SHEETS.RACES).forEach((r) => (raceKeys[r.eventKey] = true));
+  const isRace = {};
+  readRows_(SHEETS.EVENTS).forEach((e) => { isRace[e.eventKey] = raceKeys[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習'; });
+  let n = 0;
+  withLock_(() => {
+    readRows_(SHEETS.RESULTS).forEach((x) => {
+      if (!x['記録'] || x['区分'] === '練習') return;
+      const meet = String(x['大会・練習'] || '').replace(/^\d{4}-\d{2}-\d{2}\s*/, '');
+      if (!PRACTICE_MEET.test(meet)) return;
+      x['区分'] = '練習';
+      if (x.eventKey && isRace[x.eventKey]) x.eventKey = '';
+      updateRow_(SHEETS.RESULTS, x);
+      n++;
+    });
+  });
+  const linked = linkResultsToEvents_();
+  return n ? n + '件を「練習」の記録に直しました' + (linked ? '（' + linked + '件をその日の練習に結びつけました）' : '') : '直す記録はありませんでした';
 }
 
 // ===== Results.gs =====

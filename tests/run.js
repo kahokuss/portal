@@ -1117,6 +1117,23 @@ test('記録の取り込み：その日の大会に結びつき、大会のペ�
   assert.ok(gas.ctx.api(kA, 'addRecords', { rows }).message.includes('もう入っています'));
 });
 
+test('記録の種類：大会名が加速走などは「練習」として入る・前に「公式」で入った分を直せる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 4年');
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kA, 'addRecords', { kind: '公式', rows: [{ child: '山田たろう', race: '50m', record: '8.51', date: '2026-09-19', meet: '50m加速走' }, { child: '山田たろう', race: '100m', record: '17.76', date: '2026-09-27', meet: '県小学生陸上競技大会' }] });
+  let res = gas.ctx.api(kA, 'bootstrap').results;
+  assert.strictEqual(res.find((r) => r.race === '50m').kind, '練習', '「公式」を選んでいても、加速走は練習');
+  assert.strictEqual(res.find((r) => r.race === '100m').kind, '公式');
+  // 前の版で「公式」のまま入った分
+  gas.run("appendRow_(SHEETS.RESULTS, { '子ども': '山田たろう', '種目': '50m', '記録': '8.80', '大会・練習': '2026-07-18 50m加速走', '区分': '公式', id: 'w1' })");
+  assert.ok(gas.ctx.api(kA, 'fixPracticeKinds', {}).message.startsWith('1件'));
+  res = gas.ctx.api(kA, 'bootstrap').results;
+  assert.ok(res.filter((r) => r.race === '50m').every((r) => r.kind === '練習'));
+  assert.strictEqual(res.find((r) => r.race === '100m').kind, '公式', '大会の記録はそのまま');
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

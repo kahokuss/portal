@@ -64,6 +64,7 @@ const API_ACTIONS = {
   deleteResult: { run: deleteResultAction_ },
   addRecords: { admin: true, run: addRecordsAction_ },
   removeDuplicateRecords: { admin: true, run: removeDuplicateRecordsAction_ },
+  fixPracticeKinds: { admin: true, run: fixPracticeKindsAction_ },
   saveEntry: { run: saveEntryAction_ },
   setPaid: { admin: true, run: setPaidAction_ },
   reportAbsence: { run: reportAbsenceAction_ },

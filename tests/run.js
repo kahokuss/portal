@@ -930,14 +930,37 @@ test('自主トレ：家族が「コーチに見せる」にした子だけ、�
   assert.strictEqual(st.training.length, 0, 'まだだれも見せていない');
   assert.throws(() => gas.ctx.api(k2, 'setTrainShare', { child: '佐藤さくら', on: true }), /わが家/);
   gas.ctx.api(k2, 'setTrainShare', { child: '鈴木けんた', on: true });
-  assert.deepStrictEqual(plain(gas.ctx.api(k2, 'bootstrap').trainShare.mine), ['鈴木けんた']);
+  assert.deepStrictEqual(plain(gas.ctx.api(k2, 'bootstrap').trainShare.mine), { '鈴木けんた': 'coach' });
   st = gas.ctx.api(k4, 'bootstrap');
-  assert.deepStrictEqual(plain(st.trainShare.kids), [{ name: '鈴木けんた', grade: 5 }]);
+  assert.deepStrictEqual(plain(st.trainShare.kids), [{ name: '鈴木けんた', grade: 5, level: 'coach' }]);
+  assert.strictEqual(gas.ctx.api(k3, 'bootstrap').training.filter((t) => t.child === '鈴木けんた').length, 0, 'コーチでない人には見えない');
+  // コメント：コーチ ↔ 家族
+  assert.throws(() => gas.ctx.api(k3, 'addTrainComment', { child: '鈴木けんた', text: 'がんばって' }), /書きこめません/);
+  gas.ctx.api(k4, 'addTrainComment', { child: '鈴木けんた', text: 'ペースが安定してきたね' });
+  let tc = gas.ctx.api(k2, 'bootstrap').trainComments;
+  assert.strictEqual(tc.list.length, 1);
+  assert.ok(tc.list[0].coach && tc.list[0].text.includes('ペース'));
+  assert.ok(!tc.read['鈴木けんた'], 'まだ読んでいない');
+  gas.ctx.api(k2, 'markTrainRead', { child: '鈴木けんた' });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').trainComments.read['鈴木けんた'], '読んだ');
+  gas.ctx.api(k2, 'addTrainComment', { child: '鈴木けんた', text: 'ありがとうございます' });
+  tc = gas.ctx.api(k4, 'bootstrap').trainComments;
+  assert.strictEqual(tc.list.length, 2);
+  assert.ok(!tc.list.find((c) => c.text.includes('ありがとう')).coach, '家族の書きこみはコーチの印なし');
+  assert.strictEqual(gas.ctx.api(k3, 'bootstrap').trainComments.list.length, 0, 'ほかの家には見えない');
+  assert.throws(() => gas.ctx.api(k4, 'deleteTrainComment', { id: tc.list.find((c) => !c.coach).id }), /見つかりません/, '人のコメントは消せない');
+  // みんなに見せる
+  gas.ctx.api(k3, 'setTrainShare', { child: '佐藤さくら', level: 'all' });
+  const st2 = gas.ctx.api(k2, 'bootstrap');
+  assert.deepStrictEqual(plain(st2.trainShare.kids.map((k) => k.name)), ['佐藤さくら'], 'みんなに見せる子は、だれでも見られる');
+  assert.ok(st2.training.some((t) => t.child === '佐藤さくら'));
+  assert.throws(() => gas.ctx.api(k2, 'addTrainComment', { child: '佐藤さくら', text: 'すごい' }), /書きこめません/, 'コメントはコーチと家族だけ');
+  assert.ok(gas.ctx.api(k4, 'bootstrap').trainShare.kids.some((k) => k.name === '佐藤さくら' && k.level === 'all'), 'コーチにも見える');
   assert.deepStrictEqual(plain(st.training.map((t) => t.child)), ['鈴木けんた'], '見せていない子は見えない');
-  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').training.length, 0, 'コーチでない役員には見えない');
+  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').training.filter((t) => t.child === '鈴木けんた').length, 0, 'コーチでない役員には見えない');
   assert.throws(() => gas.ctx.api(k4, 'deleteTraining', { id: st.training[0].id }), /見つかりません/, 'コーチは消せない');
   gas.ctx.api(k2, 'setTrainShare', { child: '鈴木けんた', on: false });
-  assert.strictEqual(gas.ctx.api(k4, 'bootstrap').training.length, 0, 'やめるとすぐ見えなくなる');
+  assert.strictEqual(gas.ctx.api(k4, 'bootstrap').training.filter((t) => t.child === '鈴木けんた').length, 0, 'やめるとすぐ見えなくなる');
 });
 
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {

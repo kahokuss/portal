@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'df4690ccf6';
+const SERVER_VERSION = '9bb99fcbc5';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1693,6 +1693,9 @@ const API_ACTIONS = {
   setAttend: { run: setAttendAction_ },
   saveTraining: { run: saveTrainingAction_ },
   setTrainShare: { run: setTrainShareAction_ },
+  addTrainComment: { run: addTrainCommentAction_ },
+  deleteTrainComment: { run: deleteTrainCommentAction_ },
+  markTrainRead: { raw: true, run: markTrainReadAction_ },
   setCoach: { admin: true, run: setCoachAction_ },
   deleteTraining: { run: deleteTrainingAction_ },
   saveTimes: { run: saveTimesAction_ },
@@ -1846,6 +1849,7 @@ function buildState_(ctx) {
     absences: absences,
     training: trainingFor_(ctx, children),
     trainShare: trainShareFor_(ctx, children),
+    trainComments: trainCommentsFor_(ctx, children),
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,
@@ -3055,30 +3059,100 @@ function myKidNames_(ctx) {
   return childrenOf_(ctx.userId).map((c) => c.name);
 }
 
-/** 自主トレを「コーチに見せる」にしている子の名前 */
-function sharedTrainKids_() {
-  const on = {};
-  readRows_(SHEETS.TRAIN_SHARE).forEach((x) => { if (x['子ども']) on[x['子ども']] = x['公開'] === '○'; });
-  return Object.keys(on).filter((k) => on[k]);
+/** 自主トレを見せる範囲：子どもの名前 → 'coach'（コーチに見せる）／'all'（みんなに見せる）。家族だけの子は入らない */
+function trainShareLevels_() {
+  const lv = {};
+  readRows_(SHEETS.TRAIN_SHARE).forEach((x) => {
+    if (!x['子ども']) return;
+    const v = x['公開'] === '全員' ? 'all' : x['公開'] === '○' ? 'coach' : '';
+    if (v) lv[x['子ども']] = v; else delete lv[x['子ども']];
+  });
+  return lv;
 }
 
-/** わが家の子で「コーチに見せる」にしている子／コーチには、見せてもらっている子（学年つき） */
+/** この人が（わが家の子のほかに）見られる子：コーチは「コーチ」「みんな」の子、ほかの人は「みんな」の子 */
+function viewableTrainKids_(ctx) {
+  const lv = trainShareLevels_();
+  return Object.keys(lv).filter((k) => lv[k] === 'all' || (ctx.coach && lv[k] === 'coach'));
+}
+
+/** コーチとやりとりできる子（コーチに見せている子） */
+function coachThreadKids_(ctx) {
+  if (!ctx.coach) return [];
+  const lv = trainShareLevels_();
+  return Object.keys(lv);
+}
+
+/** mine：わが家の子の見せる範囲／kids：わが家のほかに見られる子（学年・範囲つき） */
 function trainShareFor_(ctx, children) {
-  const shared = sharedTrainKids_();
+  const lv = trainShareLevels_();
+  const myKids = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
+  const view = viewableTrainKids_(ctx);
+  const mine = {};
+  myKids.forEach((k) => (mine[k] = lv[k] || ''));
   return {
-    mine: children.filter((c) => c.parents.indexOf(ctx.userId) >= 0 && shared.indexOf(c.name) >= 0).map((c) => c.name),
-    kids: ctx.coach ? children.filter((c) => shared.indexOf(c.name) >= 0).map((c) => ({ name: c.name, grade: c.grade })) : [],
+    mine: mine,
+    kids: children.filter((c) => view.indexOf(c.name) >= 0 && myKids.indexOf(c.name) < 0).map((c) => ({ name: c.name, grade: c.grade, level: lv[c.name] })),
   };
 }
 
 function setTrainShareAction_(ctx, p) {
   if (myKidNames_(ctx).indexOf(p.child) < 0) throw new Error('わが家のお子さんを選んでください。');
+  const level = p.level !== undefined ? p.level : p.on ? 'coach' : '';
+  const v = level === 'all' ? '全員' : level === 'coach' ? '○' : '';
   withLock_(() => {
     const row = readRows_(SHEETS.TRAIN_SHARE).find((x) => x['子ども'] === p.child);
-    const data = { '子ども': p.child, '公開': p.on ? '○' : '', '更新者': ctx.name, '日時': now_() };
+    const data = { '子ども': p.child, '公開': v, '更新者': ctx.name, '日時': now_() };
     if (row) { Object.assign(row, data); updateRow_(SHEETS.TRAIN_SHARE, row); } else appendRow_(SHEETS.TRAIN_SHARE, data);
   });
-  return p.child + 'の自主トレを' + (p.on ? 'コーチに見せるようにしました' : 'コーチに見せないようにしました');
+  return p.child + 'の自主トレを、' + (v === '全員' ? 'みんなに見せる' : v ? 'コーチに見せる' : '家族だけが見る') + 'ようにしました';
+}
+
+// ---- 自主トレへのコーチのコメント（その子の家族とコーチのやりとり） ----
+
+function canTrainThread_(ctx, child) {
+  return myKidNames_(ctx).indexOf(child) >= 0 || coachThreadKids_(ctx).indexOf(child) >= 0;
+}
+
+function trainCommentsFor_(ctx, children) {
+  const kids = myKidNames_(ctx).concat(coachThreadKids_(ctx));
+  if (!kids.length) return { list: [], read: {} };
+  const read = {};
+  readRows_(SHEETS.TRAIN_SHARE).forEach((x) => { if (kids.indexOf(x['子ども']) >= 0) read[x['子ども']] = x['家族既読'] || ''; });
+  const list = readRows_(SHEETS.TRAIN_COMMENTS).filter((x) => x.id && kids.indexOf(x['子ども']) >= 0).map((x) => ({
+    id: x.id, child: x['子ども'], text: x['本文'], by: x['表示名'], coach: x['コーチ'] === '○', at: x['日時'], mine: x.userId === ctx.userId,
+  }));
+  return { list: list, read: read };
+}
+
+function addTrainCommentAction_(ctx, p) {
+  if (!canTrainThread_(ctx, p.child)) throw new Error('この子の自主トレには書きこめません。');
+  const text = String(p.text || '').trim().slice(0, 500);
+  if (!text) throw new Error('コメントを書いてください。');
+  const isFamily = myKidNames_(ctx).indexOf(p.child) >= 0;
+  withLock_(() => appendRow_(SHEETS.TRAIN_COMMENTS, {
+    id: randomKey_().slice(0, 10), '子ども': p.child, '本文': text, userId: ctx.userId, '表示名': ctx.name, 'コーチ': ctx.coach && !isFamily ? '○' : '', '日時': now_(),
+  }));
+  return 'コメントしました';
+}
+
+function deleteTrainCommentAction_(ctx, p) {
+  withLock_(() => {
+    const row = readRows_(SHEETS.TRAIN_COMMENTS).find((x) => x.id && x.id === p.id);
+    if (!row || row.userId !== ctx.userId) throw new Error('消せるコメントが見つかりません。');
+    clearRow_(SHEETS.TRAIN_COMMENTS, row);
+  });
+  return 'コメントを消しました';
+}
+
+/** 家族が自主トレを開いたら、コーチのコメントを「読んだ」にする */
+function markTrainReadAction_(ctx, p) {
+  if (myKidNames_(ctx).indexOf(p.child) < 0) return '';
+  withLock_(() => {
+    const row = readRows_(SHEETS.TRAIN_SHARE).find((x) => x['子ども'] === p.child);
+    if (row) { row['家族既読'] = now_(); updateRow_(SHEETS.TRAIN_SHARE, row); } else appendRow_(SHEETS.TRAIN_SHARE, { '子ども': p.child, '公開': '', '更新者': ctx.name, '日時': now_(), '家族既読': now_() });
+  });
+  return '';
 }
 
 /** コーチにする・外す（役員だけ）。コーチは、見せてもらっている子の自主トレを見られる */
@@ -3095,7 +3169,7 @@ function setCoachAction_(ctx, p) {
 
 function trainingFor_(ctx, children) {
   let mine = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
-  if (ctx.coach) mine = mine.concat(sharedTrainKids_());
+  mine = mine.concat(viewableTrainKids_(ctx));
   if (!mine.length) return [];
   const from = addDays_(today_(), -400);
   return readRows_(SHEETS.TRAINING)
@@ -3370,7 +3444,8 @@ const SHEETS = {
   FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
   FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
   TRAINING: { name: '自主トレ', headers: ['id', '日付', '子ども', '種類', '距離km', '時間分', '回数', '調子', 'メモ', 'userId', '表示名', '日時'] },
-  TRAIN_SHARE: { name: '自主トレ公開', headers: ['子ども', '公開', '更新者', '日時'] },
+  TRAIN_SHARE: { name: '自主トレ公開', headers: ['子ども', '公開', '更新者', '日時', '家族既読'] },
+  TRAIN_COMMENTS: { name: '自主トレコメント', headers: ['id', '子ども', '本文', 'userId', '表示名', 'コーチ', '日時'] },
   ATTEND: { name: '出席', headers: ['日付', 'eventKey', '子ども', 'userId', '表示名', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },

@@ -1297,14 +1297,36 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-absx]', function () { S.absPick = null; render(); });
   }
   // ---- 練習中のタイム計測（紙の記録表のように、子ども × 1本目・2本目…） ----
-  var TM_NAMES = ['加速走', '50m走', '100m走', 'スタート練習', '1000m'];
-  var TM_DIST = ['50m', '60m', '80m', '100m', '200m', '800m', '1000m'];
+  // 測る種目。grade：学年で距離を選ぶ／race：記録の種目名が決まっている
+  var TM_PRESETS = [{ n: '加速走', grade: true }, { n: 'タイム走', grade: true }, { n: '50m走', race: '50m' }, { n: '100m走', race: '100m' }, { n: '800m', race: '800m' }, { n: '1000m', race: '1000m' },
+    { n: '立ち幅跳び', race: '立ち幅跳び' }, { n: '走幅跳', race: '走幅跳' }, { n: 'ボール投げ', race: 'ボール投げ' }];
+  var TM_NAMES = TM_PRESETS.map(function (x) { return x.n; });
+  var TM_DIST = ['50m', '60m', '80m', '100m', '200m', '300m', '400m', '800m', '1000m', '1500m'];
+  var TM_UNITS = [['time', 'タイム'], ['m', '長さ（m）'], ['count', '回数']];
+  function tmPreset(name) { return TM_PRESETS.find(function (x) { return x.n === name; }); }
   function canTime(e) { return ST.me.admin || dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; }); }
-  /** 「1455」→「14.55」、「955」→「9.55」。区切りがあればそのまま */
-  function fmtRec(v) {
-    var t = toHalf(v).trim();
+  /**
+   * 打った数字を記録の形にする（区切りがあればそのまま）
+   *   短い距離：1455 → 14.55　長い距離：312 → 3:12、1012 → 10:12
+   *   跳ぶ・投げる：185 → 1m85、2350 → 23m50　回数：45 → 45回
+   */
+  function fmtRec(v, race, unit) {
+    var t = toHalf(v).trim().replace(/、|，/g, '.');
+    if (!t) return '';
+    var k = unit === 'count' ? 'count' : unit === 'm' ? 'field' : unit === 'time' ? 'short' : recKind(race || '');
+    if (k === 'count') return /^\d+$/.test(t) ? t + '回' : t;
+    if (k === 'field') {
+      if (/^\d{3,4}$/.test(t)) return t.slice(0, -2) + 'm' + t.slice(-2);
+      var m = t.match(/^(\d+)\.(\d{1,2})m?$/); if (m) return m[1] + 'm' + (m[2] + '0').slice(0, 2);
+      return t;
+    }
+    if (k === 'long' && /^\d{3,4}$/.test(t)) return t.slice(0, -2) + ':' + t.slice(-2);
     if (/^\d{3,4}$/.test(t)) return t.slice(0, -2) + '.' + t.slice(-2);
-    return t.replace(/、|，/g, '.');
+    return t;
+  }
+  function tmHint(race, unit) {
+    var k = unit === 'count' ? 'count' : unit === 'm' ? 'field' : unit === 'time' ? 'short' : recKind(race || '');
+    return { short: '1455', long: '312', field: '185', count: '45' }[k];
   }
   function timeRuns(e) {
     var runs = {};
@@ -1319,46 +1341,64 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function timesCard(e) {
     var runs = timeRuns(e), names = Object.keys(runs), edit = canTime(e) && !e.cancelled;
     if (!edit && !names.length) return '';
-    var T = S.tm && S.tm.key === e.key ? S.tm : (S.tm = { key: e.key, name: names[0] || '加速走', low: '50m', high: '100m', run: 1, vals: {} });
+    var T = S.tm && S.tm.key === e.key ? S.tm : (S.tm = { key: e.key, name: names[0] || '加速走', low: '50m', high: '100m', run: 1, vals: {}, other: '', unit: 'time' });
+    var pre = tmPreset(T.name), isOther = !pre;
     var cur = runs[T.name] || {}, maxRun = Math.max(T.run, 1);
     Object.keys(cur).forEach(function (c) { Object.keys(cur[c]).forEach(function (n) { maxRun = Math.max(maxRun, +n); }); });
+    if (isOther && T.name) {
+      // 前に入れた記録から、記録の種類（回数・長さ・タイム）を思い出す
+      var sample = []; Object.keys(cur).forEach(function (c) { Object.keys(cur[c]).forEach(function (n) { sample.push(cur[c][n].record); }); });
+      if (sample.some(function (x) { return /回$/.test(x); })) T.unit = 'count'; else if (sample.some(function (x) { return /\dm/.test(x); })) T.unit = 'm'; else if (sample.length) T.unit = 'time';
+    }
     var off = absentOn(e.date).map(function (a) { return a.child; });
     var kids = ST.kids.filter(function (k) { return off.indexOf(k.name) < 0 || cur[k.name]; }).slice().sort(byGrade);
     if (!edit) kids = kids.filter(function (k) { return cur[k.name]; });
     var mine = myNames();
-    var h = '<section class="card" id="times"><h2>タイム計測' + (names.length ? '<small>' + names.map(esc).join('・') + '</small>' : '') + '</h2>';
+    var h = '<section class="card" id="times"><h2>タイム・記録の計測' + (names.length ? '<small>' + names.map(esc).join('・') + '</small>' : '') + '</h2>';
     if (edit) {
-      h += '<div class="choice">' + TM_NAMES.concat(names.filter(function (n) { return TM_NAMES.indexOf(n) < 0; })).map(function (n) { return '<button type="button" data-tmn="' + esc(n) + '" aria-pressed="' + (T.name === n) + '">' + esc(n) + '</button>'; }).join('') + '</div>' +
-        '<div class="row sub">距離　1・2年 <select id="tm-low" class="tmsel">' + TM_DIST.map(function (d) { return '<option' + (T.low === d ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
-        '　3〜6年 <select id="tm-high" class="tmsel">' + TM_DIST.map(function (d) { return '<option' + (T.high === d ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select></div>' +
-        '<div class="tabs" role="group" aria-label="何本目">' + Array.apply(null, { length: Math.min(9, maxRun + 1) }).map(function (_, i) { return '<button type="button" data-tmr="' + (i + 1) + '" aria-pressed="' + (T.run === i + 1) + '">' + (i + 1) + '本目</button>'; }).join('') + '</div>';
+      h += '<div class="choice">' + TM_NAMES.concat(names.filter(function (n) { return TM_NAMES.indexOf(n) < 0; })).map(function (n) { return '<button type="button" data-tmn="' + esc(n) + '" aria-pressed="' + (T.name === n) + '">' + esc(n) + '</button>'; }).join('') +
+        '<button type="button" data-tmn="" aria-pressed="' + (isOther && names.indexOf(T.name) < 0) + '">＋ その他</button></div>';
+      if (isOther && names.indexOf(T.name) < 0) {
+        h += '<div class="row"><input id="tm-other" class="tmin" style="width:11em" placeholder="例：反復横跳び、ハードル" value="' + esc(T.other) + '"><select id="tm-unit" class="tmsel">' + TM_UNITS.map(function (u) { return '<option value="' + u[0] + '"' + (T.unit === u[0] ? ' selected' : '') + '>' + u[1] + '</option>'; }).join('') + '</select><button class="btn small" id="tm-ok" type="button">決める</button></div>';
+      }
+      if (pre && pre.grade) h += '<div class="row sub">距離　1・2年 <select id="tm-low" class="tmsel">' + TM_DIST.map(function (d) { return '<option' + (T.low === d ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
+        '　3〜6年 <select id="tm-high" class="tmsel">' + TM_DIST.map(function (d) { return '<option' + (T.high === d ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select></div>';
+      h += '<div class="tabs" role="group" aria-label="何本目">' + Array.apply(null, { length: Math.min(9, maxRun + 1) }).map(function (_, i) { return '<button type="button" data-tmr="' + (i + 1) + '" aria-pressed="' + (T.run === i + 1) + '">' + (i + 1) + '本目</button>'; }).join('') + '</div>';
     }
     if (!names.length && !edit) return '';
-    h += '<div class="tbl-wrap"><table class="tmt"><thead><tr><th>学年</th><th>名前</th><th>距離</th>' + Array.apply(null, { length: maxRun }).map(function (_, i) { return '<th' + (edit && T.run === i + 1 ? ' class="on"' : '') + '>' + (i + 1) + '本目</th>'; }).join('') + '</tr></thead><tbody>' +
+    h += '<div class="tbl-wrap"><table class="tmt"><thead><tr><th>学年</th><th>名前</th><th>種目</th>' + Array.apply(null, { length: maxRun }).map(function (_, i) { return '<th' + (edit && T.run === i + 1 ? ' class="on"' : '') + '>' + (i + 1) + '本目</th>'; }).join('') + '</tr></thead><tbody>' +
       kids.map(function (k) {
-        var dist = (cur[k.name] && Object.keys(cur[k.name]).map(function (n) { return cur[k.name][n].race; })[0]) || (k.grade && k.grade <= 2 ? T.low : T.high);
+        var dist = (cur[k.name] && Object.keys(cur[k.name]).map(function (n) { return cur[k.name][n].race; })[0]) || (pre ? (pre.grade ? (k.grade && k.grade <= 2 ? T.low : T.high) : pre.race) : T.name);
         return '<tr class="' + (mine.indexOf(k.name) >= 0 ? 'hl' : '') + '"><td>' + (k.grade || '') + '</td><td>' + esc(k.name) + '</td><td class="sub">' + esc(dist) + '</td>' + Array.apply(null, { length: maxRun }).map(function (_, i) {
           var r = cur[k.name] && cur[k.name][i + 1], v = r ? r.record : '';
-          if (edit && T.run === i + 1) { var dv = T.vals[k.name] !== undefined ? T.vals[k.name] : v; return '<td><input class="tmin" data-tmk="' + esc(k.name) + '" data-tmd="' + esc(dist) + '" inputmode="decimal" enterkeyhint="next" value="' + esc(dv) + '" placeholder="1455" aria-label="' + esc(k.name) + ' ' + (i + 1) + '本目"></td>'; }
+          if (edit && T.run === i + 1) { var dv = T.vals[k.name] !== undefined ? T.vals[k.name] : v; return '<td><input class="tmin" data-tmk="' + esc(k.name) + '" data-tmd="' + esc(dist) + '" inputmode="decimal" enterkeyhint="next" value="' + esc(dv) + '" placeholder="' + tmHint(dist, isOther ? T.unit : '') + '" aria-label="' + esc(k.name) + ' ' + (i + 1) + '本目"></td>'; }
           return '<td>' + (r ? '<b>' + esc(v) + '</b>' + (isPB(r) ? ' <span class="pill p-race">ベスト</span>' : '') : '') + '</td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
-    if (edit) h += '<button class="btn" id="tmSave" type="button">' + T.run + '本目を保存</button><div class="hint">「1455」と打つと 14.55 になります。休みの子は出ません。保存すると、わが家の記録グラフ（練習）にも入ります。</div>';
+    if (edit && isOther && !T.name) return h.replace(/<div class="tbl-wrap">[\s\S]*$/, '') + '<div class="hint">測るものの名前と、記録の種類（タイム・長さ・回数）を決めてください。</div></section>';
+    if (edit) h += '<button class="btn" id="tmSave" type="button">' + T.run + '本目を保存</button><div class="hint">打った数字は「1455」→14.55、800mなどは「312」→3:12、跳ぶ・投げるは「185」→1m85、回数は「45」→45回 になります。休みの子は出ません。保存すると、わが家の記録グラフ（練習）にも入ります。</div>';
     return h + '</section>';
   }
   function bindTimes(e) {
     var T = S.tm; if (!T || T.key !== e.key) return;
     var keep = function () { view.querySelectorAll('[data-tmk]').forEach(function (x) { T.vals[x.dataset.tmk] = x.value; }); };
     on('[data-tmn]', function () { keep(); T.name = this.dataset.tmn; T.run = 1; T.vals = {}; render(); });
+    on('#tm-ok', function () {
+      var n = document.getElementById('tm-other').value.trim().slice(0, 20);
+      T.other = n; T.unit = document.getElementById('tm-unit').value;
+      if (!n) return;
+      T.name = n; T.run = 1; T.vals = {}; render();
+    });
+    var pre = tmPreset(T.name), unit = pre ? '' : T.unit;
     on('[data-tmr]', function () { keep(); T.run = +this.dataset.tmr; T.vals = {}; render(); });
     ['tm-low', 'tm-high'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('change', function () { keep(); T[id === 'tm-low' ? 'low' : 'high'] = this.value; render(); }); });
     var ins = Array.prototype.slice.call(view.querySelectorAll('[data-tmk]'));
     ins.forEach(function (x, i) {
-      x.addEventListener('blur', function () { if (this.value) this.value = fmtRec(this.value); });
-      x.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); this.value = this.value ? fmtRec(this.value) : ''; if (ins[i + 1]) ins[i + 1].focus(); else document.getElementById('tmSave').focus(); } });
+      x.addEventListener('blur', function () { if (this.value) this.value = fmtRec(this.value, this.dataset.tmd, unit); });
+      x.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); this.value = fmtRec(this.value, this.dataset.tmd, unit); if (ins[i + 1]) ins[i + 1].focus(); else document.getElementById('tmSave').focus(); } });
     });
     on('#tmSave', function () {
-      var rows = ins.map(function (x) { return { child: x.dataset.tmk, race: x.dataset.tmd, record: x.value ? fmtRec(x.value) : '' }; });
+      var rows = ins.map(function (x) { return { child: x.dataset.tmk, race: x.dataset.tmd, record: fmtRec(x.value, x.dataset.tmd, unit) }; });
       call('saveTimes', { key: e.key, name: T.name, run: T.run, rows: rows }, function (st) { if (st.message) { T.vals = {}; } });
     });
   }
@@ -2150,9 +2190,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if ((m = r.match(/^(\d+(?:\.\d+)?)m$/))) return +m[1];
     if ((m = r.match(/^(\d+)[:'分](\d{1,2}(?:\.\d+)?)"?秒?$/))) return +m[1] * 60 + +m[2];
     if ((m = r.match(/^(\d+(?:\.\d+)?)秒?$/))) return +m[1];
+    if ((m = r.match(/^(\d+)回$/))) return +m[1];
     return null;
   }
-  function isBetter(race, a, b) { var x = markValue(a), y = markValue(b); if (x === null) return false; if (y === null) return true; return higherBetter(race) ? x > y : x < y; }
+  function isBetter(race, a, b) { var x = markValue(a), y = markValue(b); if (x === null) return false; if (y === null) return true; return higherBetter(race) || /回$/.test(a) ? x > y : x < y; }
   /** 子どもの種目ごとのベスト（種目名のちがいはそろえる）。kind：'公式'・'練習'（なしなら両方） */
   function bests(child, kind) {
     var out = {};

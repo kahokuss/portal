@@ -1100,6 +1100,23 @@ test('記録の取り込み：同じ表を2回貼っても2重にならない・
   assert.strictEqual(gas.rows('結果').filter((r) => r['記録']).length, 3);
 });
 
+test('記録の取り込み：その日の大会に結びつき、大会のページの「結果」に出る（前に入れた分も）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  // 前の版で、結びつかずに入った記録
+  gas.run("appendRow_(SHEETS.RESULTS, { '子ども': '山田たろう', '種目': '100m', '記録': '17.00', '大会・練習': '2026-11-01 秋季記録会', '区分': '公式', id: 'old1' })");
+  const rows = [{ child: '山田たろう', race: '走幅跳', record: '3m10', date: '2026-11-01', meet: '秋季記録会', kind: '公式', round: '決勝', place: '3' }];
+  const msg = gas.ctx.api(kA, 'addRecords', { rows }).message;
+  assert.ok(msg.includes('大会・練習のページ'), msg);
+  const res = gas.ctx.api(kA, 'bootstrap').results.filter((r) => r.key === race.key);
+  assert.deepStrictEqual(plain(res.map((r) => [r.race, r.record, r.round, r.place])).sort(), [['100m', '17.00', '', ''], ['走幅跳', '3m10', '決勝', '3']]);
+  // 同じ表をもう一度貼っても、結びつけだけする
+  assert.ok(gas.ctx.api(kA, 'addRecords', { rows }).message.includes('もう入っています'));
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

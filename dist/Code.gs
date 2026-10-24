@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '596fe0e524';
+const SERVER_VERSION = '88bb74b466';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2839,10 +2839,14 @@ function addRecordsAction_(ctx, p) {
       'メモ': String(r.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, id: randomKey_().slice(0, 10),
     });
   });
-  if (!ok.length && dup && !ng.length) return 'どの記録も、もう入っています（' + dup + '件）。2重にはしていません';
+  if (!ok.length && dup && !ng.length) {
+    const linked = linkResultsToEvents_();
+    return 'どの記録も、もう入っています（' + dup + '件）。2重にはしていません' + (linked ? '。' + linked + '件を、その日の大会・練習に結びつけました' : '');
+  }
   if (!ok.length) throw new Error(ng.join('\n') || '入れる記録がありません。');
   withLock_(() => ok.forEach((row) => appendRow_(SHEETS.RESULTS, row)));
-  return ok.length + '件の記録を入れました' + (dup ? '（' + dup + '件はもう入っていたので、とばしました）' : '') + (ng.length ? '（入れられなかったもの：' + ng.join('／') + '）' : '');
+  const linked = linkResultsToEvents_();
+  return ok.length + '件の記録を入れました' + (linked ? '（' + linked + '件はその日の大会・練習のページにも出ます）' : '') + (dup ? '（' + dup + '件はもう入っていたので、とばしました）' : '') + (ng.length ? '（入れられなかったもの：' + ng.join('／') + '）' : '');
 }
 
 // ---- タイムテーブルづくり（コーチ・役員が事前に） ----
@@ -3476,6 +3480,37 @@ function removeDuplicateRecordsAction_(ctx) {
     });
   });
   return n ? '2重になっていた記録を' + n + '件消しました' : '2重になっている記録はありません';
+}
+
+/**
+ * 大会・練習に結びついていない記録を、同じ日の予定に結びつける（大会のページの「結果」に出るように）。
+ * 公式の記録はその日の大会に、練習の記録はその日の練習に。その日にひとつだけあるときだけ結びつける。
+ * @return {number} 結びつけた件数
+ */
+function linkResultsToEvents_() {
+  const raceKeys = {};
+  readRows_(SHEETS.RACES).forEach((r) => (raceKeys[r.eventKey] = true));
+  const byDate = {};
+  readRows_(SHEETS.EVENTS).forEach((e) => {
+    if (!e.eventKey || e['状態'] === '中止') return;
+    const race = raceKeys[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習';
+    const d = byDate[e['日付']] || (byDate[e['日付']] = { race: [], prac: [] });
+    d[race ? 'race' : 'prac'].push(e.eventKey);
+  });
+  let n = 0;
+  withLock_(() => {
+    readRows_(SHEETS.RESULTS).forEach((x) => {
+      if (!x['記録'] || x.eventKey) return;
+      const d = byDate[String(x['大会・練習'] || '').slice(0, 10)];
+      if (!d) return;
+      const list = x['区分'] === '練習' ? d.prac : d.race;
+      if (list.length !== 1) return;
+      x.eventKey = list[0];
+      updateRow_(SHEETS.RESULTS, x);
+      n++;
+    });
+  });
+  return n;
 }
 
 // ===== Results.gs =====

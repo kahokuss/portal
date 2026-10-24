@@ -361,6 +361,31 @@ function joinFamily_(userId, inviterId) {
   });
 }
 
+/**
+ * 同じ子を、別々の家族として登録した保護者（父と母が招待番号を使わずにそれぞれ登録したなど）を1つの家族にまとめる。
+ * 当番や家族の一覧が2つに分かれないように。まとめたら true
+ */
+function mergeSameKidFamilies_() {
+  let changed = false;
+  for (let i = 0; i < 20; i++) {
+    const families = readRows_(SHEETS.FAMILIES);
+    const famOf = {};
+    families.forEach((f) => (famOf[f.userId] = famIdOf_(f)));
+    let pair = null;
+    readRows_(SHEETS.CHILDREN).some((c) => {
+      const us = splitNames_(c['保護者userId']).filter((u) => famOf[u]);
+      const first = us[0];
+      const other = us.find((u) => famOf[u] !== famOf[first]);
+      if (other) pair = { user: other, into: first };
+      return !!pair;
+    });
+    if (!pair) break;
+    joinFamily_(pair.user, pair.into);
+    changed = true;
+  }
+  return changed;
+}
+
 /** 家族のまとまりから外れる。登録した子どもは、ほかの家族の人の子どもとして残る */
 function leaveFamily_(userId) {
   withLock_(() => {

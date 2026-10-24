@@ -177,8 +177,21 @@ test('ポータル: わが家で子どもを直す・両親で同じ子を登録
   assert.strictEqual(gas.rows('子ども')[0]['保護者userId'], 'U1,U4');
   let st = gas.ctx.api(k, 'saveChildren', { children: [{ name: '山田たろう', grade: 4 }, { name: '山田はなこ', grade: 1 }] });
   assert.deepStrictEqual(plain(st.me.children), [{ name: '山田たろう', grade: 4, sex: '' }, { name: '山田はなこ', grade: 1, sex: '' }]);
-  st = gas.ctx.api(k, 'saveChildren', { children: [{ name: '山田はなこ', grade: 1 }] });
-  assert.deepStrictEqual(st.kids.map((c) => c.name), ['山田たろう', '山田はなこ'], 'もう一人の親が登録しているので残る');
+  // 招待番号を使わずに両親がそれぞれ同じ子を登録 → 1つの家族にまとまる（当番の一覧が2つに分かれない）
+  assert.strictEqual(st.families.length, 1);
+  assert.strictEqual(st.families[0].label, '山田家（たろう・はなこ）');
+  assert.strictEqual(new Set(gas.rows('家族').filter((r) => /^U[14]$/.test(r.userId)).map((r) => r['家族ID'] || r.userId)).size, 1);
+  assert.deepStrictEqual(plain(gas.ctx.api(gas.login('U4').key, 'bootstrap').me.children.map((c) => c.name)), ['山田たろう', '山田はなこ'], 'もう一人の親にも見える');
+});
+
+test('家族の呼び名：名字家（下の名前）', () => {
+  const gas = setupClub();
+  const L = (kids, parents, known) => gas.ctx.familyLabel_(kids, parents, known);
+  assert.strictEqual(L(['海野 そら'], ['x']), '海野家（そら）');
+  assert.strictEqual(L(['川辺りく'], ['川辺 健']), '川辺家（りく）', '空白なし → 保護者のLINEの名前から');
+  assert.strictEqual(L(['森あおい', '森ゆう'], ['Ken']), '森家（あおい・ゆう）', 'きょうだいの名前から');
+  assert.strictEqual(L(['川辺りく'], ['Ken']), '川辺りく', '分からなければ子どもの名前');
+  assert.strictEqual(L(['野々村りく'], ['Ken'], ['野々', '野々村']), '野々村家（りく）', 'ほかの子の名字から（長いほう）');
 });
 
 test('家族: 招待番号で夫婦をまとめると、子どもの登録が共通になる', () => {
@@ -199,7 +212,7 @@ test('家族: 招待番号で夫婦をまとめると、子どもの登録が共
   st = gas.ctx.api(k1, 'bootstrap');
   assert.deepStrictEqual(plain(st.me.children), [{ name: '山田たろう', grade: 3, sex: '男' }, { name: '山田はなこ', grade: 1, sex: '女' }], 'もう一人が足した子も見える');
   assert.strictEqual(st.families.length, 1);
-  assert.strictEqual(st.families[0].label, '山田たろう・山田はなこ');
+  assert.strictEqual(st.families[0].label, '山田家（たろう・はなこ）', '名字家（下の名前）');
   st = gas.ctx.api(k4, 'leaveFamily');
   assert.strictEqual(st.me.children.length, 0);
   assert.strictEqual(gas.ctx.api(k1, 'bootstrap').me.children.length, 2);

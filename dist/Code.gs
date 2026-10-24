@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '9ffc9a3729';
+const SERVER_VERSION = 'd7c8436c05';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1773,6 +1773,7 @@ function parseDeadlines_(s) {
 }
 
 function buildState_(ctx) {
+  if (mergeSameKidFamilies_()) { const f = findFamily_(ctx.userId); if (f) ctx.famId = famIdOf_(f); }
   const today = today_();
   const range = syncRange_();
   const races = {};
@@ -1944,9 +1945,35 @@ function familiesList_(familyRows, children) {
       if (c.parents.some((u) => x.userIds.indexOf(u) >= 0) && x.kids.indexOf(c) < 0) x.kids.push(c);
     });
   });
+  // 空白入りで登録された子の名字（「海野 そら」→ 海野）。空白なしの子の名字さがしに使う
+  const knownSur = children.map((c) => String(c.name).trim().split(/[\s　]+/)).filter((x) => x.length > 1).map((x) => x[0]);
   return Object.keys(byId).map((id) => byId[id]).filter((x) => x.kids.length)
-    .map((x) => ({ id: x.id, label: x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name).join('・'), parents: x.parents, userIds: x.userIds }))
+    .map((x) => ({ id: x.id, label: familyLabel_(x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name), x.parents, knownSur), parents: x.parents, userIds: x.userIds }))
     .sort((a, b) => (a.label < b.label ? -1 : 1));
+}
+
+/**
+ * 家族の呼び名：「名字家（子どもの下の名前）」。例：海野家（そら）、森家（あおい・ゆう）
+ * 名字は、子どもの名前の空白の前。空白がなければ、ほかの子の名字（空白入りで登録された子）、保護者のLINEの名前、きょうだいの名前の頭の共通部分から。
+ * 分からなければ子どもの名前をそのまま
+ */
+function familyLabel_(kids, parents, knownSur) {
+  const strip = (s) => String(s || '').replace(/[\s　]/g, '');
+  const common = (a, b) => { let n = 0; while (n < a.length && n < b.length && a[n] === b[n]) n++; return n; };
+  let sur = '';
+  const sp = kids.map((k) => String(k).trim().split(/[\s　]+/)).find((x) => x.length > 1);
+  if (sp) sur = sp[0];
+  else {
+    const k0 = strip(kids[0]);
+    const fromParent = Math.max.apply(null, [0].concat(parents.map((p) => common(k0, strip(p)))));
+    const fromSib = kids.length > 1 ? Math.min.apply(null, kids.slice(1).map((k) => common(k0, strip(k)))) : 0;
+    const known = (knownSur || []).filter((x) => k0.indexOf(x) === 0 && k0.length > x.length).sort((a, b) => b.length - a.length)[0];
+    const n = known ? known.length : fromParent || fromSib;
+    if (n > 0 && n < k0.length) sur = k0.slice(0, Math.min(n, 4));
+  }
+  if (!sur) return kids.join('・');
+  const given = kids.map((k) => { const t = strip(k); return t.indexOf(sur) === 0 && t.length > sur.length ? t.slice(sur.length) : t; });
+  return sur + '家（' + given.join('・') + '）';
 }
 
 /** 休みの連絡をLINEで受け取るか。「休み通知」が ○ の人、または役員（× にした人を除く） */
@@ -4239,6 +4266,31 @@ function joinFamily_(userId, inviterId) {
       updateRow_(SHEETS.CHILDREN, row);
     });
   });
+}
+
+/**
+ * 同じ子を、別々の家族として登録した保護者（父と母が招待番号を使わずにそれぞれ登録したなど）を1つの家族にまとめる。
+ * 当番や家族の一覧が2つに分かれないように。まとめたら true
+ */
+function mergeSameKidFamilies_() {
+  let changed = false;
+  for (let i = 0; i < 20; i++) {
+    const families = readRows_(SHEETS.FAMILIES);
+    const famOf = {};
+    families.forEach((f) => (famOf[f.userId] = famIdOf_(f)));
+    let pair = null;
+    readRows_(SHEETS.CHILDREN).some((c) => {
+      const us = splitNames_(c['保護者userId']).filter((u) => famOf[u]);
+      const first = us[0];
+      const other = us.find((u) => famOf[u] !== famOf[first]);
+      if (other) pair = { user: other, into: first };
+      return !!pair;
+    });
+    if (!pair) break;
+    joinFamily_(pair.user, pair.into);
+    changed = true;
+  }
+  return changed;
 }
 
 /** 家族のまとまりから外れる。登録した子どもは、ほかの家族の人の子どもとして残る */

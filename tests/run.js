@@ -1172,6 +1172,24 @@ test('Strava：管理者が設定 → 家族がつなぐ → 子どもの名前�
   assert.ok(d.message.includes('2件') && !d.strava.connected && gas.strava.deauthorized === 1, d.message);
 });
 
+test('アプリ連携の要望：「使いたい」を数える（人数は役員だけ）', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.throws(() => gas.ctx.api(k2, 'appRequest', { app: 'なにか', on: true }), /選べません/);
+  gas.ctx.api(k2, 'appRequest', { app: 'Garmin Connect', on: true });
+  gas.ctx.api(k2, 'appRequest', { app: 'Garmin Connect', on: true });
+  gas.ctx.api(k3, 'appRequest', { app: 'Garmin Connect', on: true });
+  gas.ctx.api(k3, 'appRequest', { app: 'Strava', on: true });
+  let r = gas.ctx.api(k2, 'bootstrap').appRequests;
+  assert.deepStrictEqual(plain(r.mine), ['Garmin Connect']);
+  assert.deepStrictEqual(plain(r.counts), {}, '保護者には人数を見せない');
+  r = gas.ctx.api(kA, 'bootstrap').appRequests;
+  assert.deepStrictEqual(plain(r.counts), { 'Garmin Connect': 2, Strava: 1 }, '同じ人は1回');
+  gas.ctx.api(k3, 'appRequest', { app: 'Strava', on: false });
+  assert.deepStrictEqual(plain(gas.ctx.api(kA, 'bootstrap').appRequests.counts), { 'Garmin Connect': 2 });
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

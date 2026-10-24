@@ -753,7 +753,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '25935e1194';
+const SERVER_VERSION = '13a05e5e9c';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1704,6 +1704,7 @@ const API_ACTIONS = {
   saveTraining: { run: saveTrainingAction_ },
   setStravaKeys: { admin: true, run: setStravaKeysAction_ },
   stravaAuthUrl: { raw: true, run: stravaAuthUrlAction_ },
+  appRequest: { run: appRequestAction_ },
   stravaConnect: { run: stravaConnectAction_ },
   stravaKeywords: { run: stravaKeywordsAction_ },
   stravaSync: { run: stravaSyncAction_ },
@@ -1877,6 +1878,7 @@ function buildState_(ctx) {
     absences: absences,
     training: trainingFor_(ctx, children),
     strava: stravaStateFor_(ctx),
+    appRequests: appRequestsFor_(ctx),
     trainShare: trainShareFor_(ctx, children),
     trainComments: trainCommentsFor_(ctx, children),
     participation: participationFor_(ctx, children),
@@ -3784,6 +3786,7 @@ const SHEETS = {
   TRAINING: { name: '自主トレ', headers: ['id', '日付', '子ども', '種類', '距離km', '時間分', '回数', '調子', 'メモ', 'userId', '表示名', '日時'] },
   TRAIN_SHARE: { name: '自主トレ公開', headers: ['子ども', '公開', '更新者', '日時', '家族既読'] },
   TRAIN_COMMENTS: { name: '自主トレコメント', headers: ['id', '子ども', '本文', 'userId', '表示名', 'コーチ', '日時'] },
+  APP_REQ: { name: 'アプリ連携の要望', headers: ['アプリ', 'userId', '表示名', '日時'] },
   ATTEND: { name: '出席', headers: ['日付', 'eventKey', '子ども', 'userId', '表示名', '日時'] },
   PHOTOS: { name: '写真', headers: ['日時', 'eventKey', '予定', 'userId', '表示名', 'ファイル名', 'URL', 'ファイルID', '種類'] },
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
@@ -4376,6 +4379,27 @@ function stravaSyncAll_() {
   Object.keys(props).filter((k) => /^SV_/.test(k)).forEach((k) => {
     try { stravaSync_(k.slice(3), false); } catch (err) { console.warn('Strava の取り込みに失敗: ' + k + ' ' + err); }
   });
+}
+
+// ---- ほかのトレーニングアプリ：いまは「開発中」。使いたい人の数を数えて、多いものから作る ----
+const APP_LIST = ['Strava', 'Garmin Connect', 'Apple ヘルスケア', 'Google ヘルスコネクト', 'Fitbit', 'Polar', 'COROS', 'Suunto', 'Nike Run Club'];
+
+function appRequestAction_(ctx, p) {
+  if (APP_LIST.indexOf(p.app) < 0) throw new Error('そのアプリは選べません。');
+  withLock_(() => {
+    const row = readRows_(SHEETS.APP_REQ).find((x) => x['アプリ'] === p.app && x.userId === ctx.userId);
+    if (p.on && !row) appendRow_(SHEETS.APP_REQ, { 'アプリ': p.app, userId: ctx.userId, '表示名': ctx.name, '日時': now_() });
+    if (!p.on && row) clearRow_(SHEETS.APP_REQ, row);
+  });
+  return p.on ? p.app + 'の連携を「使いたい」にしました。要望が集まったら作ります' : '';
+}
+
+/** mine：自分が「使いたい」にしたアプリ／counts：アプリごとの人数（役員・管理者だけ） */
+function appRequestsFor_(ctx) {
+  const rows = readRows_(SHEETS.APP_REQ).filter((x) => x['アプリ']);
+  const counts = {};
+  if (ctx.admin) rows.forEach((x) => (counts[x['アプリ']] = (counts[x['アプリ']] || 0) + 1));
+  return { list: APP_LIST, mine: rows.filter((x) => x.userId === ctx.userId).map((x) => x['アプリ']), counts: counts };
 }
 
 // ===== Util.gs =====

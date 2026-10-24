@@ -208,3 +208,24 @@ function stravaSyncAll_() {
     try { stravaSync_(k.slice(3), false); } catch (err) { console.warn('Strava の取り込みに失敗: ' + k + ' ' + err); }
   });
 }
+
+// ---- ほかのトレーニングアプリ：いまは「開発中」。使いたい人の数を数えて、多いものから作る ----
+const APP_LIST = ['Strava', 'Garmin Connect', 'Apple ヘルスケア', 'Google ヘルスコネクト', 'Fitbit', 'Polar', 'COROS', 'Suunto', 'Nike Run Club'];
+
+function appRequestAction_(ctx, p) {
+  if (APP_LIST.indexOf(p.app) < 0) throw new Error('そのアプリは選べません。');
+  withLock_(() => {
+    const row = readRows_(SHEETS.APP_REQ).find((x) => x['アプリ'] === p.app && x.userId === ctx.userId);
+    if (p.on && !row) appendRow_(SHEETS.APP_REQ, { 'アプリ': p.app, userId: ctx.userId, '表示名': ctx.name, '日時': now_() });
+    if (!p.on && row) clearRow_(SHEETS.APP_REQ, row);
+  });
+  return p.on ? p.app + 'の連携を「使いたい」にしました。要望が集まったら作ります' : '';
+}
+
+/** mine：自分が「使いたい」にしたアプリ／counts：アプリごとの人数（役員・管理者だけ） */
+function appRequestsFor_(ctx) {
+  const rows = readRows_(SHEETS.APP_REQ).filter((x) => x['アプリ']);
+  const counts = {};
+  if (ctx.admin) rows.forEach((x) => (counts[x['アプリ']] = (counts[x['アプリ']] || 0) + 1));
+  return { list: APP_LIST, mine: rows.filter((x) => x.userId === ctx.userId).map((x) => x['アプリ']), counts: counts };
+}

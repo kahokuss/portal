@@ -468,9 +468,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "6ea3a2b608";
+var BUILD = "e5a651e0fd";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "25935e1194";
+var EXPECT_SERVER = "13a05e5e9c";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -544,6 +544,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!st.trainComments) st.trainComments = { list: [], read: {} };
     if (!st.participation) st.participation = { kids: {} };
     if (!st.strava) st.strava = { configured: false, connected: false, kw: {} };
+    if (!st.appRequests) st.appRequests = { list: [], mine: [], counts: {} };
     if (!st.me.family) st.me.family = [st.me.name];
     if (!st.choices.practiceTimes) st.choices.practiceTimes = [['17:00', '18:30'], ['18:00', '19:30']];
     if (!st.choices.warmMinutes) st.choices.warmMinutes = 30;
@@ -2486,10 +2487,24 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function hmText(min) { return min >= 600 ? Math.round(min / 60) + '時間' : min >= 60 ? Math.floor(min / 60) + '時間' + (min % 60 ? (min % 60) + '分' : '') : min + '分'; }
   function round1(n) { return Math.round(n * 10) / 10; }
+  /** 自主トレ：ほかのトレーニングアプリとの連携（いまは開発中。「使いたい」の数が多いものから作る） */
+  function appsCard() {
+    var R = ST.appRequests;
+    if (!R.list.length) return ST.me.owner ? stravaCard() : '';
+    var h = '<section class="card" id="apps"><h2>アプリ連携<small>開発中</small></h2><div class="sub">いつも使っているトレーニングアプリの記録を、自主トレに自動で取り込めるようにする予定です。<b>使いたいアプリの「使いたい」を押してください。</b>要望が集まったものから作ります。</div><div class="list">' +
+      R.list.map(function (a) {
+        var on = R.mine.indexOf(a) >= 0, n = R.counts[a];
+        return '<div class="between"><span><b>' + esc(a) + '</b> <span class="pill p-gray">開発中</span>' + (ST.me.admin && n ? ' <span class="sub">' + n + '人が使いたい</span>' : '') + '</span>' +
+          '<button class="btn small ' + (on ? 'ok' : 'ghost') + '" type="button" data-appreq="' + esc(a) + '" data-on="' + (on ? '' : '1') + '">' + (on ? '✓ 使いたい' : '使いたい') + '</button></div>';
+      }).join('') + '</div><div class="hint">どれも、記録は保護者のアカウントから取り込み、わが家だけに見える形になる予定です。</div></section>';
+    // Strava は管理者だけ、ためしに使える
+    if (ST.me.owner) h += stravaCard();
+    return h;
+  }
   /** 自主トレ：Strava とつなぐ（家族ごと）。取り込んだ記録は家族だけに見せる */
   function stravaCard() {
     var V = ST.strava;
-    var h = '<section class="card" id="strava"><h2>Strava<small>' + (V.connected ? 'つながっています' : V.configured ? 'つながっていません' : '準備中') + '</small></h2>';
+    var h = '<section class="card" id="strava"><h2>Strava（開発中・管理者だけに表示）<small>' + (V.connected ? 'つながっています' : V.configured ? 'つながっていません' : '準備中') + '</small></h2>';
     if (!V.configured) {
       if (!ST.me.owner) return h + '<div class="sub">管理者が Strava の設定をすると、Strava の記録を自主トレに取り込めるようになります。</div></section>';
       return h + '<div class="sub">管理者の設定（1回だけ）</div><ol class="sub" style="margin:0;padding-left:1.4em;line-height:1.8">' +
@@ -2545,12 +2560,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + effortCard(child) + trCalendarCard(child) + trReportCard(child) +
       '<section class="card"><h2>だれに見せる<small>' + LV.filter(function (x) { return x[0] === level; })[0][1] + '</small></h2><div class="choice" role="group" aria-label="だれに見せる">' +
       LV.map(function (x) { return '<button type="button" data-trlv="' + x[0] + '" aria-pressed="' + (level === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-      '<div class="hint">' + esc(child) + 'の自主トレを、' + LV.filter(function (x) { return x[0] === level; })[0][2] + '。直せるのは家族だけです。Strava から取り込んだ記録は、家族だけに見えます。</div></section>' + stravaCard();
+      '<div class="hint">' + esc(child) + 'の自主トレを、' + LV.filter(function (x) { return x[0] === level; })[0][2] + '。直せるのは家族だけです。</div></section>' + appsCard();
     view.innerHTML = modeTabs + h;
     bindCommon();
     bindTrain(child, F);
     bindTips();
     bindStrava();
+    on('[data-appreq]', function () { call('appRequest', { app: this.dataset.appreq, on: !!this.dataset.on }); });
     bindTrComments(child);
     on('[data-trlv]', function () { if (this.dataset.trlv !== level) call('setTrainShare', { child: child, level: this.dataset.trlv }); });
     if (trUnread(child).length && !serverOld()) rpc('markTrainRead', { child: child }, function () { ST.trainComments.read[child] = '9999'; saveState(ST); }, function () {});

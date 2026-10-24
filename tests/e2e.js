@@ -1033,6 +1033,19 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await a.textContent('#strava')).includes('つながっています'));
       await a.shot('30-strava');
     });
+    await step('アプリ連携：保護者には「開発中」と「使いたい」ボタン（Strava のつなぐ画面は出ない）', async () => {
+      const q = await openPortal(browser, gas, 'U2', 'parent8');
+      await q.click('[data-nav="train"]');
+      const t = await q.textContent('#apps');
+      assert.ok(t.includes('開発中') && t.includes('Garmin Connect') && t.includes('Strava'), t);
+      assert.ok(!(await q.$('#strava')), 'Strava の画面は管理者だけ');
+      await q.click('[data-appreq="Garmin Connect"]');
+      await q.idle();
+      assert.ok(gas.rows('アプリ連携の要望').some((r) => r['アプリ'] === 'Garmin Connect' && r.userId === 'U2'));
+      await q.shot('apps');
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

@@ -957,6 +957,24 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors);
       await q.close();
     });
+    await step('記録ダッシュボードは保護者も「わが家」から見られる（練習時間と記録がない子は出ない）', async () => {
+      // この時点で役員になっている家族を、いったん役員でない保護者にもどして見る
+      const fam = gas.sheet('家族'), h = fam.data[0], ia = h.indexOf('役員'), saved = fam.data.map((r) => r[ia]);
+      fam.data.forEach((r, i) => { if (i && (r[0] === 'U2' || r[0] === 'U3')) r[ia] = ''; });
+      gas.run("invalidateTable_('家族'); resetMemo_();");
+      const q = await openPortal(browser, gas, 'U2', 'parent7');
+      fam.data.forEach((r, i) => { r[ia] = saved[i]; });
+      gas.run("invalidateTable_('家族'); resetMemo_();");
+      await q.click('[data-nav="family"]');
+      await q.click('#toDash2');
+      const t = await q.textContent('#view');
+      assert.ok(t.includes('記録ダッシュボード') && t.includes('ランキング'), t);
+      assert.ok(!t.includes('練習に参加した時間') && !t.includes('記録がない子'), '保護者には出さない');
+      await q.click('#dBack');
+      assert.ok(await q.$('#toDash2'), 'わが家にもどる');
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('カードの見出しを押すと折りたためて、開き直しても覚えている', async () => {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');

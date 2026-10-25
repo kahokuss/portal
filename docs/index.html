@@ -115,11 +115,12 @@ tr.hl td { background: var(--track-soft); }
 .stat b { font-family: var(--font-display); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 11px; color: var(--muted); }
 form.f, .f { display: grid; gap: 8px; }
-.f label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
-.f select, .f input, .f textarea { font: inherit; font-size: 16px; color: var(--fg); background: var(--surface-2); border: 1px solid transparent; border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; }
+.f label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; color: var(--fg); }
+.f select, .f input, .f textarea { font: inherit; font-weight: 400; font-size: 16px; min-height: 44px; color: var(--fg); background: var(--surface-2); border: 1px solid transparent; border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; }
 .f textarea { min-height: 90px; resize: vertical; font-size: 16px; }
 .f .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.f .lbl { font-size: 12px; color: var(--muted); margin-bottom: -4px; }
+.f .lbl { font-size: 13px; font-weight: 700; color: var(--fg); margin-bottom: -4px; }
+.f input:focus, .f select:focus, .f textarea:focus, .tmin:focus, .tbin:focus, .tmsel:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px var(--sky-soft); background: var(--surface); }
 .f input::placeholder, .f textarea::placeholder { color: var(--muted); opacity: .7; }
 .filled { background: var(--field-soft) !important; border-color: var(--field) !important; }
 .quick { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -132,6 +133,8 @@ form.f, .f { display: grid; gap: 8px; }
 .menu b { display: block; font-size: 14px; }
 .menu span.d { font-size: 12px; color: var(--muted); }
 .busy { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--surface); padding: 6px 14px; border-radius: 999px; font-size: 12.5px; z-index: 10; }
+.kidcard { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.kc-no { font-size: 13px; }
 .childrow { display: grid; grid-template-columns: minmax(0, 1fr) 6.5em 32px; gap: 6px; align-items: center; }
 .icon-btn { border: 0; background: var(--surface-2); color: var(--muted); border-radius: 8px; width: 32px; height: 32px; font: inherit; cursor: pointer; }
 .empty { padding: 24px 8px; text-align: center; color: var(--muted); }
@@ -173,6 +176,25 @@ form.f, .f { display: grid; gap: 8px; }
 .tt-kids { display: grid; gap: 4px; }
 .tt-kids > span { justify-content: space-between; }
 .callt { color: var(--track); }
+.ttcards { display: grid; gap: 8px; }
+.ttcard { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.ttcard.open { border-color: var(--sky); box-shadow: 0 0 0 2px var(--sky-soft); }
+.ttcard.bad { border-color: var(--track); }
+.ttc-head { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 10px 12px; cursor: pointer; min-height: 48px; }
+.ttc-no { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.ttc-ttl { flex: 1; min-width: 0; display: grid; font-weight: 700; font-size: 14.5px; }
+.ttc-ttl small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.ttc-ttl small.ttc-warn { color: var(--track); font-weight: 700; }
+.ttc-arrow { color: var(--muted); font-size: 11px; }
+.ttc-body { padding: 4px 12px 12px; border-top: 1px solid var(--line); gap: 10px; }
+.fld { display: grid; gap: 4px; }
+.f .fld, .fld { font-size: 13px; color: var(--fg); }
+.fl { font-size: 13px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px; }
+.req { font-size: 10.5px; font-weight: 700; color: #fff; background: var(--track); border-radius: 4px; padding: 0 5px; line-height: 1.6; }
+.opt { font-size: 10.5px; font-weight: 400; color: var(--muted); }
+.fh { font-size: 11.5px; font-weight: 400; color: var(--muted); line-height: 1.45; }
+.fl { flex-wrap: wrap; row-gap: 0; }
+.choice.sm button { min-height: 34px; padding: 5px 12px; font-size: 13px; }
 .tte { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); }
 .tte:first-child { border-top: 0; }
 .tte .w2 { grid-column: span 2; }
@@ -349,7 +371,7 @@ tr.sel td { background: var(--sky-soft); }
 .tmt tr.hl td:nth-child(2) { background: var(--track-soft); }
 .tmin { font: inherit; font-size: 16px; width: 5.2em; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); font-variant-numeric: tabular-nums; }
 .tmbest { color: var(--track); font-weight: 700; white-space: nowrap; }
-.tmsel { font: inherit; font-size: 14px; padding: 4px 6px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); }
+.tmsel { font: inherit; font-size: 16px; padding: 6px 8px; min-height: 40px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); }
 .tally-names { font-size: 13px; display: grid; gap: 4px; }
 .tally-names .g { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .tally-names .g > b { font-size: 11.5px; color: var(--muted); width: 2.6em; flex: none; }
@@ -430,7 +452,7 @@ tr.sel td { background: var(--sky-soft); }
 .f .recpick select { width: auto; }
 .recpick select { font: inherit; font-size: 18px; font-variant-numeric: tabular-nums; padding: 6px 4px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); min-width: 3.4em; text-align: center; }
 .recpick .u { font-size: 13px; color: var(--muted); margin-right: 6px; }
-.tbin { font: inherit; font-size: 12.5px; width: 7.2em; padding: 1px 4px; border: 0; border-radius: 6px; background: var(--surface-2); color: var(--fg); }
+.tbin { font: inherit; font-size: 16px; width: 7.5em; padding: 6px 8px; min-height: 38px; border: 0; border-radius: 8px; background: var(--surface-2); color: var(--fg); }
 .kidpick button { font-size: 12px; padding: 2px 10px; }
 .ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .tm { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -470,8 +492,8 @@ tr.sel td { background: var(--sky-soft); }
 .cmt.nm { background: var(--warn-soft); border-radius: 10px; padding: 8px 10px; border-top: 0; margin-top: 4px; }
 .measure { background: var(--field-soft); color: var(--fg); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; white-space: pre-wrap; }
 .p-nm { background: var(--warn); color: #fff; }
-.f label.chk { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
-.f label.chk input { width: auto; }
+.f label.chk { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; }
+.f label.chk input { width: auto; min-height: 0; }
 </style>
 </head>
 <body>
@@ -496,9 +518,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "263e3a91df";
+var BUILD = "abdcf051fd";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "0ae5792a39";
+var EXPECT_SERVER = "82ee88200f";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -651,6 +673,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       return '<button type="button" ' + x.a + '><span class="ic' + (x.hot ? ' hot' : '') + '" aria-hidden="true">' + x.ic + '</span><span class="main"><b>' + x.t + '</b><span class="sub">' + x.s + '</span></span>›</button>';
     }).join('') + '</div></section>';
   }
+  function bindBotCard() { on('#botOff', function () { try { localStorage.setItem('botCardOff', '1'); } catch (x) { /* 無視 */ } render(); }); }
   function bindTodo() {
     on('[data-todo]', function () {
       var el = document.getElementById(this.dataset.todo);
@@ -788,9 +811,18 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="lbl" style="font-size:12px;color:var(--muted)">役員の番号を聞いているとき</div><div class="row"><input id="arCode" class="tmin" inputmode="numeric" maxlength="6" placeholder="6けた" style="width:8em"><button class="btn small ghost" id="arCodeBtn" type="button">番号で役員になる</button></div>' +
       '<div class="hint">申請は、役員の人の「管理」→「メンバーと役員」に出ます。役員の番号は、役員の人がそこで見られます。</div></section>';
   }
+  // ---- 見る・押すだけの変更はBot、くわしい入力はポータル ----
+  function botLink(text) { return ST.choices.botId ? 'https://line.me/R/oaMessage/' + encodeURIComponent(ST.choices.botId) + '/?' + encodeURIComponent(text) : ''; }
+  function botCard() {
+    if (!ST.choices.botId || !ST.me.children.length) return '';
+    try { if (localStorage.getItem('botCardOff') === '1') return ''; } catch (x) { /* 覚えられなくても出すだけ */ }
+    return '<section class="card botcard"><div class="between"><b>📱 見る・休み・参加は LINEのBotが早い</b><button class="link" type="button" id="botOff">閉じる</button></div>' +
+      '<div class="sub">カレンダーや予定のカードから、押すだけで休み・エントリー・アンケートができます。このポータルは、タイムテーブル・記録・大会の案内など<b>くわしい入力</b>に使ってください。</div>' +
+      '<div class="row">' + [['📅 カレンダー', 'カレンダー'], ['🙋 休み', '休み'], ['☰ メニュー', 'メニュー']].map(function (x) { return '<a class="btn small line" href="' + botLink(x[1]) + '" target="_top" style="text-decoration:none">' + x[0] + '</a>'; }).join('') + '</div></section>';
+  }
   function home() {
     var h = serverBanner() + toastHtml();
-    h += startCard() + todoCard();
+    h += startCard() + todoCard() + botCard();
     var info = '';
     if (ST.notices.length) {
       var shown = homeNotices();
@@ -882,7 +914,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
     on('[data-unabs]', function () { call('cancelAbsence', { id: this.dataset.unabs }); });
     on('#absAll', function () { S.tab = 'admin'; S.admin = 'absences'; S.toast = ''; render(); window.scrollTo(0, 0); });
-    bindTodo(); bindPolls(); bindRsvp(); markSeen();
+    bindTodo(); bindBotCard(); bindPolls(); bindRsvp(); markSeen();
   }
 
   function eligible(e) {
@@ -1066,19 +1098,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var rows = S.kidsDraft || (S.kidsDraft = ST.me.children.map(function (c) { return { name: c.name, grade: c.grade, sex: c.sex }; }));
     if (!rows.length) rows.push({ name: '', grade: 0, sex: '' });
     var h = toastHtml() + '<section class="card"><h2>お子さん<small>学年は4月に上げてください</small></h2><form class="f" id="kidsForm">' + rows.map(function (c, i) {
-      return '<div class="childrow"><input data-kn="' + i + '" value="' + esc(c.name) + '" placeholder="例：山田たろう" aria-label="名前"><select data-kg="' + i + '" aria-label="学年"><option value="0">学年</option>' +
-        [1, 2, 3, 4, 5, 6].map(function (g) { return '<option value="' + g + '"' + (c.grade === g ? ' selected' : '') + '>' + g + '年</option>'; }).join('') + '</select>' +
-        '<select data-ks="' + i + '" aria-label="男女"><option value="">男女</option>' + ['男', '女'].map(function (x) { return '<option' + (c.sex === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
-        '<button class="icon-btn" type="button" data-kdel="' + i + '" aria-label="この行を消す">×</button></div>';
+      return '<div class="kidcard"><div class="between"><b class="kc-no">' + (rows.length > 1 ? (i + 1) + '人目' : 'お子さん') + '</b><button class="link" type="button" data-kdel="' + i + '">この子を消す</button></div>' +
+        '<label class="fld"><span class="fl">名前<b class="req">必須</b></span><input data-kn="' + i + '" value="' + esc(c.name) + '" placeholder="例：山田 たろう" autocomplete="off"><span class="fh">名字と名前のあいだに空白を入れると、当番などで「山田家」と表示されます。</span></label>' +
+        '<div class="fl">学年</div><div class="choice sm">' + [1, 2, 3, 4, 5, 6].map(function (g) { return '<button type="button" data-kgc="' + i + '|' + g + '" aria-pressed="' + (c.grade === g) + '">' + g + '年</button>'; }).join('') + '</div>' +
+        '<div class="fl">男女</div><div class="choice sm">' + ['男', '女'].map(function (x) { return '<button type="button" data-ksc="' + i + '|' + x + '" aria-pressed="' + (c.sex === x) + '">' + (x === '男' ? '男の子' : '女の子') + '</button>'; }).join('') + '</div></div>';
     }).join('') + '<button class="btn small ghost" id="kidAdd" type="button" style="justify-self:start">＋ きょうだいを追加</button>' + rosterPick(rows) +
-      '<button class="btn" type="submit">保存する</button><div class="hint">名前はクラブで呼ばれている書き方で。男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() + rolesCard() + adminRequestCard() + ownerCard() +
+      '<button class="btn" type="submit">保存する</button><div class="hint">男女は、大会のタイムテーブルで「男子」「女子」の種目を見分けるのに使います。</div></form></section>' + familyCard() + recordsCard() + rolesCard() + adminRequestCard() + ownerCard() +
       '<section class="card"><h2>PCでも使う</h2><div class="sub">PCで ' + esc(HOME_URL) + ' を開き、「スマホに出した番号でログイン」に下の番号を入れてください（LINEのアカウントやパスワードは使いません）。</div>' +
         (S.pc ? '<div class="big" style="font-size:2rem;letter-spacing:.3em;text-align:center">' + esc(S.pc.code) + '</div><div class="hint" style="text-align:center">' + S.pc.minutes + '分間・1回だけ使えます。人に見せないでください。</div>' : '<button class="btn small ghost" type="button" id="pcCodeBtn" style="justify-self:start">番号を出す</button>') + '</section>' +
       '<section class="card"><h2>ログイン</h2><div class="sub">' + esc(ST.me.name) + 'さんのLINEでログインしています。このページは' + esc(ST.club) + 'のLINEグループのメンバーだけが見られます。家族のスマホで使うときは、ログアウトしてからそれぞれのLINEでログインしてください。</div><button class="btn small ghost" id="logout" type="button" style="justify-self:start">ログアウト</button></section>';
     view.innerHTML = h;
     view.querySelectorAll('[data-kn]').forEach(function (el) { el.addEventListener('input', function () { rows[+this.dataset.kn].name = this.value; }); });
-    view.querySelectorAll('[data-kg]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.kg].grade = +this.value; }); });
-    view.querySelectorAll('[data-ks]').forEach(function (el) { el.addEventListener('change', function () { rows[+this.dataset.ks].sex = this.value; }); });
+    on('[data-kgc]', function () { var p = this.dataset.kgc.split('|'); rows[+p[0]].grade = +p[1]; render(); });
+    on('[data-ksc]', function () { var p = this.dataset.ksc.split('|'); rows[+p[0]].sex = rows[+p[0]].sex === p[1] ? '' : p[1]; render(); });
     bindFamilyCard(); bindCommon(); bindCharts();
     on('#toDash2', function () { S.dashFrom = 'family'; go('dash'); });
     bindCompare();
@@ -1192,9 +1224,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += '</section>';
     }
     h += toastHtml() + '<section class="card"><h2>' + (D.from === 'edit' ? '大会の案内を直す' : '大会の内容') + (Object.keys(S.filled).length ? '<small>緑の欄は自動で入りました</small>' : '') + '</h2><form class="f" id="evForm">' +
-      '<label>大会名<input id="d-title"' + cls('title') + ' value="' + esc(D.title) + '" placeholder="例：秋季記録会"></label>' +
+      '<label><span class="fl">大会名<b class="req">必須</b></span><input id="d-title"' + cls('title') + ' value="' + esc(D.title) + '" placeholder="例：秋季記録会"></label>' +
       '<div class="lbl">種別</div><div class="choice">' + ['大会', '記録会', '練習試合'].map(function (x) { return '<button type="button" data-set="type|' + x + '" aria-pressed="' + (D.type === x) + '">' + x + '</button>'; }).join('') + '</div>' +
-      '<div class="two"><label>日付<input type="date" id="d-date"' + cls('date') + ' value="' + D.date + '"></label><label>集合時刻<input id="d-meetTime"' + cls('meetTime') + ' inputmode="numeric" placeholder="820 → 8:20" value="' + esc(D.meetTime) + '"></label></div>' +
+      '<div class="two"><label><span class="fl">日付<b class="req">必須</b></span><input type="date" id="d-date"' + cls('date') + ' value="' + D.date + '"></label><label>集合時刻<input id="d-meetTime"' + cls('meetTime') + ' inputmode="numeric" placeholder="820 → 8:20" value="' + esc(D.meetTime) + '"></label></div>' +
       '<div class="quick">' + ['7:30', '7:50', '8:00', '8:20', '8:30'].map(function (x) { return '<button type="button" data-set="meetTime|' + x + '">' + x + '</button>'; }).join('') + '</div>' +
       '<label>会場<input id="d-place"' + cls('place') + ' value="' + esc(D.place) + '" placeholder="例：市営陸上競技場"></label>' +
       (venues().length ? '<div class="quick">' + venues().map(function (v, i) { return '<button type="button" data-venue="' + i + '">' + esc(v.n) + '</button>'; }).join('') + '</div>' : '') +
@@ -1935,19 +1967,54 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       return r.race ? r : null;
     }).filter(Boolean);
   }
+  // ---- タイムテーブルの手入力：1種目に1枚のカード。見出しを押すと開く ----
+  function ttGroupParse(g) {
+    g = toHalf(String(g || ''));
+    var grades = [], m = g.match(/([1-6](?:\s*[・,、~〜\-]\s*[1-6])*)\s*年/);
+    if (m) { var n = m[1].match(/[1-6]/g).map(Number); if (/[~〜\-]/.test(m[1]) && n.length === 2) { for (var x = n[0]; x <= n[1]; x++) grades.push(x); } else grades = n; }
+    return { grades: grades, sex: /男女|混合/.test(g) ? '男女' : /男/.test(g) ? '男子' : /女/.test(g) ? '女子' : '' };
+  }
+  function ttGroupText(p) { return (p.grades.length ? p.grades.slice().sort().join('・') + '年' : '') + p.sex; }
+  function ttMissing(r) { var m = []; if (!String(r.start).trim()) m.push('開始時刻'); if (!String(r.race).trim()) m.push('種目'); return m; }
+  function ttCard(e, r, i) {
+    var open = S.ttOpen === i || (S.ttOpen === undefined && !r.race && !r.start), miss = ttMissing(r), blank = !r.race && !r.start && !r.group;
+    var title = [r.start, r.race, r.group, r.heat].filter(function (x) { return String(x || '').trim(); }).join('　') || '（新しい種目）';
+    var h = '<div class="ttcard' + (open ? ' open' : '') + (miss.length && !blank ? ' bad' : '') + '"><button type="button" class="ttc-head" data-tto="' + i + '"><span class="ttc-no">' + (i + 1) + '</span><span class="ttc-ttl">' + esc(title) +
+      (r.call ? '<small>招集 ' + esc(r.call) + '</small>' : '') + (miss.length && !blank ? '<small class="ttc-warn">⚠ ' + miss.join('・') + 'がありません</small>' : '') + '</span><span class="ttc-arrow" aria-hidden="true">' + (open ? '▲' : '▼') + '</span></button>';
+    if (!open) return h + '</div>';
+    var races = ((e.detail && e.detail.races) || []).concat(TTB_RACES).filter(function (x, k, a) { return a.indexOf(x) === k; }).slice(0, 12);
+    var gp = ttGroupParse(r.group);
+    function f(k, label, o) {
+      o = o || {};
+      return '<label class="fld' + (o.wide ? ' wide' : '') + '"><span class="fl">' + label + (o.req ? '<b class="req">必須</b>' : '<span class="opt">なくてもOK</span>') + '</span>' +
+        '<input data-tt="' + i + '|' + k + '" value="' + esc(r[k]) + '" placeholder="' + esc(o.ph || '') + '"' + (o.num ? ' inputmode="numeric"' : '') + (k === 'race' ? ' list="raceList"' : '') + '>' + (o.hint ? '<span class="fh">' + o.hint + '</span>' : '') + '</label>';
+    }
+    h += '<div class="ttc-body f">' +
+      '<div class="two">' + f('start', '開始時刻', { req: 1, num: 1, ph: '例 1030', hint: '「1030」→ 10:30' }) + f('call', '招集時刻', { num: 1, ph: '例 1000' }) + '</div>' +
+      f('race', '種目', { req: 1, wide: 1, ph: '下のボタンで選べます' }) +
+      '<div class="choice sm">' + races.map(function (x) { return '<button type="button" data-ttc="' + i + '|race|' + esc(x) + '" aria-pressed="' + (r.race === x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<div class="fl">出る子（学年・男女）<span class="opt">なくてもOK</span></div>' +
+      '<div class="choice sm">' + [1, 2, 3, 4, 5, 6].map(function (g) { return '<button type="button" data-ttc="' + i + '|grade|' + g + '" aria-pressed="' + (gp.grades.indexOf(g) >= 0) + '">' + g + '年</button>'; }).join('') + '</div>' +
+      '<div class="choice sm">' + ['男子', '女子', '男女'].map(function (x) { return '<button type="button" data-ttc="' + i + '|sex|' + x + '" aria-pressed="' + (gp.sex === x) + '">' + x + '</button>'; }).join('') + '</div>' +
+      f('group', '区分（ボタンで入らないとき手で）', { wide: 1, ph: '例 5年男子、4・5・6年混合', hint: '学年と男女が入っていると、その子の「わが家のタイムテーブル」に出ます。' }) +
+      '<div class="fl">ラウンド・組<span class="opt">なくてもOK</span></div>' +
+      '<div class="choice sm">' + TTB_ROUNDS.map(function (x) { return '<button type="button" data-ttc="' + i + '|heat|' + x + '" aria-pressed="' + (String(r.heat).indexOf(x) >= 0) + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<div class="two">' + f('heat', '組', { ph: '例 予選 2組' }) + f('warm', 'アップ時刻', { num: 1, ph: '空でOK', hint: '空なら招集の' + ST.choices.warmMinutes + '分前が目安' }) + '</div>' +
+      f('memo', 'メモ', { wide: 1, ph: '例 雨天時は室内' }) +
+      '<div class="row"><button class="btn small" type="button" data-tto="-1">閉じる</button><button class="btn small ghost" type="button" data-ttdel="' + i + '">この種目を消す</button></div></div>';
+    return h + '</div>';
+  }
+
   function ttEditor(e) {
     var D = S.ttDraft, others = ST.events.filter(function (x) { return x.key !== e.key && ST.timetable.some(function (r) { return r.key === x.key; }); });
     var h = '<button class="link" id="ttBack" type="button">‹ タイムテーブルに戻る（保存しない）</button>' +
       '<section class="card"><h2>プログラムから貼り付け</h2><form class="f" id="ttPaste"><textarea id="ttIn" placeholder="1行に1種目。例：&#10;10:30 5年男子 100m 予選 招集10:00&#10;13:30 5年男子 100m 決勝 招集13:10&#10;11:00 3年女子 走り幅跳び 招集10:30"></textarea><button class="btn" type="submit">読み取って下に足す</button>' +
       '<div class="hint">時刻・学年・男子／女子・種目・予選／決勝・組・「招集」「アップ」の時刻を読み取ります（AIは使いません）。予選と決勝がある種目は、決勝に進んだ子だけ決勝の時刻が出ます（「決勝へ」ボタン）。読み取れなかったところは手で直してください。</div></form>' +
       (others.length ? '<div class="lbl">前の大会からコピー</div><div class="quick">' + others.map(function (x) { return '<button type="button" data-ttcopy="' + x.key + '">' + md(x.date) + ' ' + esc(x.title) + '</button>'; }).join('') + '</div>' : '') + '</section>' +
-      '<section class="card"><h2>タイムテーブル<small>' + D.length + '件</small></h2><div>' + D.map(function (r, i) {
-        function inp(k, ph, cls, num) { return '<input class="' + cls + '" data-tt="' + i + '|' + k + '" value="' + esc(r[k]) + '" placeholder="' + ph + '" aria-label="' + ph + '"' + (num ? ' inputmode="numeric"' : '') + (k === 'race' ? ' list="raceList"' : '') + '>'; }
-        return '<div class="tte">' + inp('start', '開始', '', 1) + inp('race', '種目', 'w2') + inp('group', '区分（5年男子）', 'w2') + inp('heat', '組', '') +
-          inp('call', '招集', '', 1) + inp('warm', 'アップ', '', 1) + inp('memo', 'メモ', 'w3') + '<button class="icon-btn" type="button" data-ttdel="' + i + '" aria-label="この行を消す">×</button></div>';
-      }).join('') + '</div><datalist id="raceList">' + ST.choices.races.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
-      '<button class="btn small ghost" id="ttAdd" type="button" style="justify-self:start">＋ 1行足す</button><button class="btn" id="ttSave" type="button">保存する</button>' +
-      '<div class="hint">時刻は「1030」と入れると10:30になります。区分に学年や男子・女子を入れると、その子のタイムテーブルに出ます。アップは空でもOK（招集の' + ST.choices.warmMinutes + '分前を目安に出します）。</div></section>';
+      '<section class="card"><h2>タイムテーブル<small>' + D.length + '件</small></h2>' +
+      '<div class="hint">1種目に1枚。<b>開始時刻</b>と<b>種目</b>があれば保存できます。行を押すと開いて直せます。</div>' +
+      '<div class="ttcards">' + D.map(function (r, i) { return ttCard(e, r, i); }).join('') + '</div><datalist id="raceList">' + ST.choices.races.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+      '<button class="btn ghost" id="ttAdd" type="button">＋ 種目を足す</button><button class="btn" id="ttSave" type="button">保存する（' + D.filter(function (r) { return String(r.race).trim(); }).length + '種目）</button></section>';
     return h;
   }
   function bindTTEditor(e) {
@@ -1958,8 +2025,24 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       if (el.inputMode === 'numeric') el.addEventListener('blur', function () { var p = this.dataset.tt.split('|'); D[+p[0]][p[1]] = this.value = fmtTime(this.value); });
     });
     on('#ttBack', function () { S.ttDraft = null; S.toast = ''; render(); });
-    on('[data-ttdel]', function () { D.splice(+this.dataset.ttdel, 1); render(); });
-    on('#ttAdd', function () { D.push(blankTT()); render(); });
+    on('[data-ttdel]', function () { D.splice(+this.dataset.ttdel, 1); S.ttOpen = -1; render(); });
+    on('#ttAdd', function () {
+      D.push(blankTT()); S.ttOpen = D.length - 1; render();
+      var el = view.querySelector('[data-tt="' + (D.length - 1) + '|start"]'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); }
+    });
+    on('[data-tto]', function () { var n = +this.dataset.tto; S.ttOpen = S.ttOpen === n ? -1 : n; render(); });
+    on('[data-ttc]', function () {
+      var p = this.dataset.ttc.split('|'), r = D[+p[0]];
+      if (p[1] === 'race') r.race = r.race === p[2] ? '' : p[2];
+      if (p[1] === 'heat') { var cur = String(r.heat || '').replace(/予選|決勝|タイムレース/g, '').trim(); r.heat = String(r.heat).indexOf(p[2]) >= 0 ? cur : (p[2] + (cur ? ' ' + cur : '')); }
+      if (p[1] === 'grade' || p[1] === 'sex') {
+        var g = ttGroupParse(r.group);
+        if (p[1] === 'grade') { var n = +p[2], k = g.grades.indexOf(n); if (k >= 0) g.grades.splice(k, 1); else g.grades.push(n); }
+        else g.sex = g.sex === p[2] ? '' : p[2];
+        r.group = ttGroupText(g);
+      }
+      S.ttOpen = +p[0]; render();
+    });
     on('[data-ttcopy]', function () {
       var k = this.dataset.ttcopy;
       ST.timetable.filter(function (r) { return r.key === k; }).forEach(function (r) { D.push({ id: '', start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }); });
@@ -1971,10 +2054,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var rows = parseTT(val('ttIn'));
       rows.forEach(function (r) { D.push(r); });
       removeBlank(D);
-      S.toast = rows.length ? '✅ ' + rows.length + '行を読み取りました。下で確かめてから保存してください' : '読み取れる行がありませんでした'; S.toastErr = !rows.length;
+      S.toast = rows.length ? '✅ ' + rows.length + '行を読み取りました。下で確かめてから保存してください' : '読み取れる行がありませんでした'; S.toastErr = !rows.length; S.ttOpen = -1;
       render();
     });
-    on('#ttSave', function () { call('saveTimetable', { key: e.key, rows: D.filter(function (r) { return String(r.race).trim(); }) }, function (st) { if (st.message) S.ttDraft = null; }); });
+    on('#ttSave', function () {
+      removeBlank(D);
+      var bad = D.map(function (r, i) { var m = ttMissing(r); return m.length ? (i + 1) + '番目：' + m.join('・') : ''; }).filter(Boolean);
+      if (bad.length) { S.toast = '入っていないところがあります（' + bad.slice(0, 3).join('／') + '）。赤い枠の種目を開いて入れてください'; S.toastErr = true; S.ttOpen = -1; render(); window.scrollTo(0, 0); return; }
+      call('saveTimetable', { key: e.key, rows: D }, function (st) { if (st.message) { S.ttDraft = null; S.ttOpen = undefined; } });
+    });
   }
   function removeBlank(D) { for (var i = D.length - 1; i >= 0; i--) if (!D[i].race && !D[i].start && !D[i].group && !D[i].call) D.splice(i, 1); }
 
@@ -4268,8 +4356,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
   if (q.get('tab') && /^(home|events|album|family|train|admin|dash)$/.test(q.get('tab'))) S.tab = q.get('tab');
-  if (q.get('ev') && /^[\w-]{6,40}$/.test(q.get('ev'))) { S.tab = 'events'; S.event = q.get('ev'); S.etab = '概要'; }
-  if (q.get('v') || q.get('tab') || q.get('ev')) { q.delete('v'); q.delete('tab'); q.delete('ev'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  if (q.get('ev') && /^[\w-]{6,40}$/.test(q.get('ev'))) { S.tab = 'events'; S.event = q.get('ev'); S.etab = /^(概要|エントリー|種目|タイムテーブル|手続き|結果|写真)$/.test(q.get('et') || '') ? q.get('et') : '概要'; }
+  if (q.get('v') || q.get('tab') || q.get('ev')) { q.delete('v'); q.delete('tab'); q.delete('ev'); q.delete('et'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   // Strava のログインから戻ってきたとき（?strava=1&code=…&state=…）。LINEログインの code とは分けて扱う
   if (q.get('strava')) {
     S.stravaPending = { code: q.get('code') || '', state: q.get('state') || '', scope: q.get('scope') || '', error: q.get('error') || '' };

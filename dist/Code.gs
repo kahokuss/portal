@@ -446,7 +446,7 @@ function pbParse_(s) {
 }
 function pbAction_(label, data, display) { return { type: 'postback', label: String(label).slice(0, 20), data: pbData_(data), displayText: display ? String(display).slice(0, 300) : undefined }; }
 function uriAction_(label, uri) { return { type: 'uri', label: String(label).slice(0, 20), uri: uri }; }
-function evUrl_(key) { const u = portalUrl_(); return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'ev=' + encodeURIComponent(key); }
+function evUrl_(key, tab) { const u = portalUrl_(); return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'ev=' + encodeURIComponent(key) + (tab ? '&et=' + encodeURIComponent(tab) : ''); }
 function flex_(alt, contents) { return { type: 'flex', altText: String(alt).slice(0, 400), contents: contents }; }
 function txt_(t, o) { return Object.assign({ type: 'text', text: String(t === '' || t == null ? ' ' : t), wrap: true, size: 'sm' }, o || {}); }
 function btn_(action, style, color) { return { type: 'button', action: action, style: style || 'secondary', height: 'sm', color: color }; }
@@ -498,6 +498,11 @@ function eventBubble_(e, u, d, ctxData) {
     });
     if (e.row['ダウン']) body.push(txt_('🏃 ダウンに入りました（' + String(e.row['ダウン']).replace(/^0/, '') + '）', { size: 'xs', color: C_RACE }));
   }
+  // くわしい入力はポータルで（役員・その日の当番に、足りないものを入れるボタン）
+  const canEdit = u.admin || duty.some((x) => x['家族ID'] === u.famId);
+  if (e.race && canEdit && !e.detail) buttons.push(btn_(uriAction_('📝 案内を入れる', evUrl_(e.key)), 'link'));
+  else if (e.race && canEdit && !(ctxData.ttKeys || {})[e.key]) buttons.push(btn_(uriAction_('📝 タイムテーブルを入れる', evUrl_(e.key, 'タイムテーブル')), 'link'));
+  else if (!e.race && canEdit) buttons.push(btn_(uriAction_('⏱ タイムを入れる', evUrl_(e.key)), 'link'));
   buttons.push(btn_(uriAction_('ポータルで開く', evUrl_(e.key)), 'link'));
   return {
     type: 'bubble', size: 'kilo',
@@ -519,6 +524,7 @@ function botCtxData_() {
     entries: readRows_(SHEETS.ENTRIES),
     absences: readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] >= today_()),
     notices: pendingNotices_(),
+    ttKeys: readRows_(SHEETS.TIMETABLE).reduce((m, r) => { if (r.id) m[r.eventKey] = true; return m; }, {}),
   };
 }
 
@@ -786,6 +792,8 @@ function helpBubble_() {
       txt_('ボタンを押すか、言葉を送ってください。予定のカードから、休み・エントリーもそのまま押せます。', { color: C_SUB, size: 'xs' }),
       row(['新着', '今日', 'カレンダー']), row(['予定', '休み', '当番']), row(['エントリー', 'アンケート', '集金']), row(['お知らせ', '自主トレ', '記録']), row(['出欠', '写真', 'ポータル']),
       txt_('そのほか：「休み 明日 体調不良」「登録 山田たろう 3年」「結果 100m 15.2秒」「自主トレ ランニング 3km 20分」', { color: C_SUB, size: 'xxs' }),
+      txt_('📱 見る・休み・参加・アンケートは、このBotで。\n💻 タイムテーブル・記録・大会の案内・名簿など、くわしい入力はポータルで。', { size: 'xs', margin: 'md' }),
+      btn_(uriAction_('ポータルを開く', portalUrl_()), 'primary', C_RACE),
     ] },
   });
 }
@@ -1150,7 +1158,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '0ae5792a39';
+const SERVER_VERSION = '82ee88200f';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1400,6 +1408,20 @@ function getDisplayName_(source) {
       url = LINE_API + '/profile/' + source.userId;
     }
     return JSON.parse(lineFetch_(url, 'get').getContentText()).displayName || '';
+  } catch (err) {
+    console.warn(err);
+    return '';
+  }
+}
+
+/** Botの LINE ID（@から始まる）。ポータルから「Botで開く」リンクを作るのに使う。1回だけ調べて覚える */
+function botBasicId_() {
+  const saved = prop_('BOT_BASIC_ID');
+  if (saved) return saved === '-' ? '' : saved;
+  try {
+    const id = JSON.parse(lineFetch_(LINE_API + '/info', 'get').getContentText()).basicId || '';
+    setProp_('BOT_BASIC_ID', id || '-');
+    return id;
   } catch (err) {
     console.warn(err);
     return '';
@@ -2326,7 +2348,7 @@ function buildState_(ctx) {
     fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], botId: botBasicId_(), absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
   };
 }
 

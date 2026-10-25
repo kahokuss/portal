@@ -54,6 +54,20 @@ function getDisplayName_(source) {
   }
 }
 
+/** Botの LINE ID（@から始まる）。ポータルから「Botで開く」リンクを作るのに使う。1回だけ調べて覚える */
+function botBasicId_() {
+  const saved = prop_('BOT_BASIC_ID');
+  if (saved) return saved === '-' ? '' : saved;
+  try {
+    const id = JSON.parse(lineFetch_(LINE_API + '/info', 'get').getContentText()).basicId || '';
+    setProp_('BOT_BASIC_ID', id || '-');
+    return id;
+  } catch (err) {
+    console.warn(err);
+    return '';
+  }
+}
+
 function text_(t) {
   return { type: 'text', text: String(t).slice(0, 5000) };
 }

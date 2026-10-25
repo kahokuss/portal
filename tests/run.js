@@ -711,8 +711,14 @@ test('Bot：カレンダー・予定のカードから押すだけで、休み�
   const tr = gas.rows('自主トレ').find((r) => r['子ども'] === '鈴木けんた');
   assert.strictEqual(tr['距離km'], '3');
 
+  // くわしい入力はポータルへ：役員には足りないもの（タイムテーブル）を入れるボタン、保護者には出ない
+  assert.ok(gas.line(dm('U1'), '予定').includes('[📝 タイムテーブルを入れる]'));
+  assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /ev=.+&et=%E3%82%BF/.test(b.uri)), 'タイムテーブルのタブを開くリンク');
+  assert.ok(!gas.line(dm('U2'), '予定').includes('タイムテーブルを入れる'));
+  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').choices.botId, '@kahoku-test', 'ポータルからBotを開くためのID');
   // メニュー・お知らせ
   assert.ok(gas.line(dm('U2'), 'メニュー').includes('[カレンダー]'));
+  assert.ok(gas.line(dm('U2'), 'メニュー').includes('くわしい入力はポータルで'));
   gas.ctx.api(kA, 'saveNotice', { title: '集合時間の変更', body: '8時集合です' });
   assert.ok(gas.line(dm('U2'), 'お知らせ').includes('集合時間の変更'));
   // 新着には次の練習・大会のカードも

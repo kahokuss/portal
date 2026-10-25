@@ -725,6 +725,20 @@ test('Bot：カレンダー・予定のカードから押すだけで、休み�
   assert.ok(gas.line(dm('U2'), '新着').includes('次の練習・大会'));
 });
 
+test('タイムテーブル：大会の種目にない種目を入れると、大会の種目に足す（エントリーで選べる）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kA, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', races: ['100m'] });
+  const st = gas.ctx.api(kA, 'saveTimetable', { key: race.key, rows: [{ start: '9:00', race: '全体アップ' }, { start: '10:00', race: '100m', group: '3年男子' }, { start: '11:00', race: '2km', group: '3年男子' }] });
+  assert.ok(st.message.includes('2km を足した'), st.message);
+  assert.deepStrictEqual(plain(st.events.find((e) => e.key === race.key).detail.races), ['100m', '2km'], '全体アップは足さない');
+  gas.ctx.api(kA, 'saveEntry', { key: race.key, child: '山田たろう', join: '参加', races: ['2km'] });
+  assert.strictEqual(gas.rows('エントリー')[0]['種目'], '2km');
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

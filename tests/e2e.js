@@ -320,18 +320,28 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('[data-ttc="3|sex|女子"]');
       await p.click('[data-ttc="3|heat|タイムレース"]');
       assert.deepStrictEqual(await ttRow(p, 3, ['start', 'race', 'group', 'heat']), ['14:20', '走幅跳', '5・6年女子', 'タイムレース']);
+      // 「次の種目へ」：学年・男女・ラウンドを引きつぎ、時刻はボタン（ひとつ前+10分、招集は開始の30分前）
+      await p.click('[data-ttnext="3"]');
+      assert.strictEqual(await ttVal(p, 4, 'group'), '5・6年女子');
+      await p.click('[data-ttc="4|start|+10"]');
+      assert.strictEqual(await ttVal(p, 4, 'start'), '14:30');
+      await p.click('[data-ttc="4|call|-30"]');
+      assert.strictEqual(await ttVal(p, 4, 'call'), '14:00');
+      await p.click('[data-ttc="4|race|走高跳"]');
       await p.shot('5-tt-edit');
       // 時刻のない種目があると保存しないで知らせる
       await p.click('#ttAdd');
-      await p.click('[data-ttc="4|race|100m"]');
+      await p.click('[data-ttc="5|race|100m"]');
       await p.click('#ttSave');
-      assert.ok((await p.textContent('#view')).includes('5番目：開始時刻'));
-      await p.click('[data-tto="4"]');
-      await p.click('[data-ttdel="4"]');
+      assert.ok((await p.textContent('#view')).includes('6番目：開始時刻'));
+      await p.click('[data-tto="5"]');
+      await p.click('[data-ttdel="5"]');
       await p.click('#ttSave');
       await p.idle();
-      assert.strictEqual(gas.rows('タイムテーブル').length, 4);
+      assert.strictEqual(gas.rows('タイムテーブル').length, 5);
       assert.ok(gas.rows('タイムテーブル').some((r) => r['種目'] === '走幅跳' && r['区分'] === '5・6年女子' && r['開始'] === '14:20'));
+      assert.ok((await p.textContent('#view')).includes('4年女子'), '保存した直後は「全部」で入れたものを確かめられる');
+      await p.click('[data-ttf="わが家"]');
       const text = await p.textContent('#view');
       assert.ok(text.includes('招集 10:00') && text.includes('アップ 9:30頃'), text);
       assert.ok(!text.includes('4年女子'), 'わが家の子の種目だけ');
@@ -773,7 +783,8 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(gas.rows('タイムテーブル').some((r) => r['招集'] === '10:05〜10:15' && r['アップ'] === '9:00〜9:35'), '幅のある時刻も保存できる');
       const text = await q.textContent('#view');
       assert.ok(text.includes('全体') && text.includes('7:40–8:40'), '全体アップが上に出る');
-      assert.ok(text.includes('2種目ダブリ'), '時間の近い種目に注意が出る');
+      await q.click('[data-ttf="わが家"]');
+      assert.ok((await q.textContent('#view')).includes('2種目ダブリ'), '時間の近い種目に注意が出る');
       await q.shot('12-sporec');
       a.errors.push(...q.errors);
       await q.close();

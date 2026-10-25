@@ -173,8 +173,22 @@ function saveTimetableAction_(ctx, p) {
     });
     rows.filter((x) => !keep[x.id]).forEach((x) => clearRow_(SHEETS.TIMETABLE, x));
   });
-  logHistory_(p.key, ctx, 'タイムテーブルを保存（' + list.length + '件）');
-  return 'タイムテーブルを保存しました（' + list.length + '件）';
+  // タイムテーブルにあって大会の「種目」にない種目は、エントリーで選べるよう大会の種目に足す（全体アップなどは除く）
+  let added = [];
+  withLock_(() => {
+    const race = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (!race) return;
+    const have = splitNames_(race['種目']);
+    list.forEach((r) => {
+      const name = r['種目'];
+      if (/全体|アップ|集合|開会|閉会|昼|休憩/.test(name)) return;
+      if (have.some((h) => sameRaceGs_(h, name)) || added.indexOf(name) >= 0) return;
+      added.push(name);
+    });
+    if (added.length) { race['種目'] = have.concat(added).join(','); race['更新日時'] = now_(); updateRow_(SHEETS.RACES, race); }
+  });
+  logHistory_(p.key, ctx, 'タイムテーブルを保存（' + list.length + '件）' + (added.length ? '・大会の種目に ' + added.join('・') + ' を追加' : ''));
+  return 'タイムテーブルを保存しました（' + list.length + '件）' + (added.length ? '。大会の種目に ' + added.join('・') + ' を足したので、エントリーで選べます' : '');
 }
 
 // ---- 手続き（チェックリスト） ----

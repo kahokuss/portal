@@ -1142,6 +1142,36 @@ async function openPortal(browser, gas, userId, name) {
       assert.deepStrictEqual(errs, []);
       await g.close();
     });
+    await step('役員：ホームの「運用チェック」で足りないものが優先度順に出て、押すと直す画面へ。管理は目的ごと', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'ops');
+      await q.click('[data-nav="home"]');
+      const card = await q.textContent('.ops');
+      assert.ok(card.includes('運用チェック') && /高|中|低/.test(card), card.slice(0, 200));
+      await q.click('[data-nav="admin"]');
+      assert.ok((await q.textContent('#view')).includes('ふだん使う'), '目的ごとのまとまり');
+      await q.click('[data-go="ops"]');
+      const t = await q.textContent('#view');
+      assert.ok(t.includes('運用に必要な情報') && t.includes('名簿（保護者が登録ずみ）'), t.slice(0, 200));
+      await q.shot('ops');
+      await q.click('[data-ops]');
+      assert.ok(!(await q.textContent('#view')).includes('運用に必要な情報'), '押すとその画面へ');
+      await q.close();
+    });
+    await step('はじめての人：「はじめにやること」が順番に出て、押すとその画面へ。ページの説明は閉じられる', async () => {
+      gas.profiles.U7 = '新人'; gas.members.add('U7');
+      const q = await openPortal(browser, gas, 'U7', 'newbie');
+      const t = await q.textContent('.start');
+      assert.ok(t.includes('はじめにやること') && t.includes('お子さんを登録する') && t.includes('Botを友だち追加'), t);
+      await q.shot('start');
+      await q.click('.start [data-step="1"]');
+      assert.ok(await q.$('[data-kn="0"]'), 'わが家の登録画面へ');
+      assert.ok((await q.textContent('.guide')).includes('わが家'));
+      await q.click('#guideOff');
+      assert.strictEqual(await q.$('.guide'), null);
+      await q.click('[data-nav="events"]');
+      assert.ok((await q.textContent('.guide')).includes('予定・大会'), 'ページごとの説明');
+      await q.close();
+    });
     await step('スマホ：下のメニューはスクロールの途中でも画面の下に出ている', async () => {
       const p = await openPortal(browser, gas, 'U3', 'navchk');
       await p.evaluate(() => window.scrollTo(0, 300));

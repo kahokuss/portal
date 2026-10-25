@@ -402,6 +402,31 @@ tr.sel td { background: var(--sky-soft); }
 .rtodo .it.ok b { color: var(--muted); font-weight: 600; text-decoration: line-through; text-decoration-color: var(--line); }
 .rtodo .it.info .mk { background: var(--sky-soft); color: var(--sky); }
 .rtodo .it .main { flex: 1; min-width: 0; display: grid; }
+.opsit { display: flex; align-items: flex-start; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 9px 0; cursor: pointer; border-top: 1px solid var(--line); }
+.ops .list .opsit:first-child { border-top: 0; }
+.opsit .pill { flex: none; margin-top: 2px; }
+.opsit .main { flex: 1; min-width: 0; display: grid; }
+.opsit .main b { font-size: 13.5px; }
+.opsit .go { color: var(--muted); font-size: 18px; }
+.opsms { display: grid; gap: 12px; }
+.opsm { display: grid; gap: 4px; width: 100%; height: auto; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 0; cursor: pointer; line-height: 1.5; }
+.opsm > span { display: block; } .opsm > .between { display: flex; justify-content: space-between; gap: 8px; }
+.opsm .bar { display: block; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.opsm .bar i { display: block; height: 100%; background: var(--field); }
+.opsm .ok { color: var(--field); font-weight: 700; } .opsm .ng { color: var(--track); font-weight: 700; }
+.mgroup { font-size: 12px; font-weight: 700; color: var(--muted); margin: 6px 2px -4px; }
+.menu .cnt { margin-left: 6px; }
+.opsbtn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; font: inherit; color: var(--fg); text-align: left; cursor: pointer; border: 2px solid var(--track-soft); }
+.opsbtn > span { display: grid; gap: 2px; } .opsbtn .d { font-size: 12px; color: var(--muted); }
+.guide { display: flex; align-items: flex-start; gap: 8px; background: var(--sky-soft); color: var(--fg); border-radius: 12px; padding: 8px 8px 8px 12px; font-size: 13px; line-height: 1.5; }
+.guide span { flex: 1; } .guide .icon-btn { flex: none; width: 26px; height: 26px; background: transparent; }
+.start .bar { height: 6px; border-radius: 3px; background: var(--surface); overflow: hidden; margin: 6px 0 4px; } .start .bar i { display: block; height: 100%; background: var(--field); }
+.steps2 { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.steps2 li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; }
+.steps2 .mk { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--surface); color: var(--muted); }
+.steps2 li.done .mk { background: var(--field); color: #fff; } .steps2 li.done b { color: var(--muted); font-weight: 500; }
+.steps2 li.cur .mk { background: var(--track); color: #fff; }
+.steps2 .main { flex: 1; display: grid; gap: 4px; } .steps2 .main b { font-size: 13.5px; }
 .todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
 .newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
 .p-imp { background: var(--track); color: #fff; }
@@ -518,7 +543,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "abdcf051fd";
+var BUILD = "5db0ccf688";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "82ee88200f";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -681,12 +706,53 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
   }
   /** はじめての人向け：やっておくことのチェック */
+  /** はじめての人向け：やることを順番に。全部済むか「閉じる」で出なくなる */
+  function startSteps() {
+    var kids = ST.me.children, ok = kids.length && kids.every(function (k) { return k.sex && k.grade; });
+    var bot = false; try { bot = localStorage.getItem('stepBot') === '1'; } catch (x) { /* 無視 */ }
+    var race = upcoming(isRace).find(function (e) { var det = e.detail || {}; return det.deadline && det.deadline >= ST.today && kids.some(function (k) { return inTarget(det.target, k.grade) && !entryOf(e.key, k.name); }); });
+    var steps = [
+      { done: true, t: 'LINEでログイン' },
+      { done: !!ok, t: 'お子さんを登録する（名前・学年・男女）', btn: '「わが家」で登録', go: { tab: 'family' } },
+      { done: bot || !ST.choices.botId, t: 'LINEのBotを友だち追加する', sub: '休みの連絡・参加の回答・予定の確認が、LINEで押すだけでできます', btn: 'Botを開く', link: botLink('メニュー') },
+      { done: ST.me.family.length > 1, opt: true, t: '家族を招待する（父母・祖父母など）', sub: '同じ家族として、当番・エントリーが共通になります', btn: '招待する', go: { tab: 'family' } },
+    ];
+    if (race) steps.push({ done: false, t: race.title + 'のエントリーに答える', sub: '締切 ' + md(race.detail.deadline), btn: '答える', go: { ev: race.key, etab: 'エントリー' } });
+    return steps;
+  }
   function startCard() {
-    var kids = ST.me.children, sexOk = kids.length && kids.every(function (k) { return k.sex && k.grade; });
-    if (kids.length && sexOk) return '';
-    var row = function (ok, t) { return '<div><span class="' + (ok ? 'ok' : 'ng') + '">' + (ok ? '✓' : '○') + '</span>' + t + '</div>'; };
-    return '<section class="card banner"><h2>' + (kids.length ? 'あと少しで登録完了' : 'はじめての方へ') + '</h2><div class="check">' + row(true, 'LINEでログイン') + row(kids.length, 'お子さんの名前を登録') + row(sexOk, '学年と男女を入れる（大会の種目分けに使います）') +
-      row(ST.me.family.length > 1, '家族のスマホでも使う（なくてもOK）') + '</div><button class="btn" data-tab="family" type="button">「わが家」で登録する</button></section>';
+    var off = false; try { off = localStorage.getItem('startOff') === '1'; } catch (x) { /* 無視 */ }
+    var steps = startSteps(), need = steps.filter(function (x) { return !x.done && !x.opt; });
+    if (!need.length || (off && ST.me.children.length)) return '';
+    var done = steps.filter(function (x) { return x.done; }).length, next = steps.find(function (x) { return !x.done; });
+    return '<section class="card banner start"><div class="between"><h2 style="margin:0">' + (ST.me.children.length ? 'あと少しで準備完了' : 'はじめにやること') + '</h2><span class="sub">' + done + ' / ' + steps.length + '</span></div><div class="bar"><i style="width:' + Math.round(done * 100 / steps.length) + '%"></i></div>' +
+      '<ol class="steps2">' + steps.map(function (x, i) {
+        var cur = x === next;
+        return '<li class="' + (x.done ? 'done' : cur ? 'cur' : '') + '"><span class="mk">' + (x.done ? '✓' : i + 1) + '</span><span class="main"><b>' + esc(x.t) + (x.opt ? ' <span class="opt">なくてもOK</span>' : '') + '</b>' + (x.sub && !x.done ? '<span class="sub">' + esc(x.sub) + '</span>' : '') +
+          (!x.done && x.btn ? (x.link ? '<a class="btn small' + (cur ? '' : ' ghost') + '" href="' + x.link + '" target="_top" data-stepbot style="text-decoration:none;justify-self:start">' + x.btn + '</a>' : '<button class="btn small' + (cur ? '' : ' ghost') + '" type="button" data-step="' + i + '" style="justify-self:start">' + x.btn + '</button>') : '') + '</span></li>';
+      }).join('') + '</ol>' + (ST.me.children.length ? '<button class="link" type="button" id="startOff">閉じる（あとは自分で）</button>' : '') + '</section>';
+  }
+  function bindStart() {
+    var steps = startSteps();
+    on('[data-step]', function () { var x = steps[+this.dataset.step]; if (x && x.go) goTo(x.go); });
+    view.querySelectorAll('[data-stepbot]').forEach(function (a) { a.addEventListener('click', function () { try { localStorage.setItem('stepBot', '1'); } catch (x) { /* 無視 */ } setTimeout(render, 500); }); });
+    on('#startOff', function () { try { localStorage.setItem('startOff', '1'); } catch (x) { /* 無視 */ } render(); });
+  }
+  // ---- 画面ごとの「ここでできること」（はじめの人向け。閉じると出ない） ----
+  var GUIDES = {
+    home: '🏠 ホーム：やること・次の練習・次の大会がまとめて出ます。上から順に見れば大丈夫です。',
+    events: '📅 予定・大会：予定を押すと、くわしい案内・エントリー・タイムテーブル・結果が見られます。',
+    train: '🏃 自主トレ：家での練習（ランニング・縄跳びなど）を記録すると、グラフとレポートになります。',
+    album: '🖼 写真：LINEグループに送った写真が、大会・練習ごとに自動でまとまります。',
+    family: '👪 わが家：お子さんの登録・家族の招待・役員や係の確認はここです。',
+    admin: '🛠 管理：まず「運用チェック」を見ると、足りないものと直す画面が分かります。',
+  };
+  function injectGuide() {
+    var key = S.tab, text = GUIDES[key];
+    if (!text || (key === 'events' && S.event) || (key === 'admin' && S.admin !== 'menu' && S.admin)) return;
+    try { if (localStorage.getItem('guide:' + key) === '1') return; } catch (x) { return; }
+    view.insertAdjacentHTML('afterbegin', '<div class="guide"><span>' + esc(text) + '</span><button type="button" class="icon-btn" id="guideOff" aria-label="閉じる">×</button></div>');
+    document.getElementById('guideOff').addEventListener('click', function () { try { localStorage.setItem('guide:' + key, '1'); } catch (x) { /* 無視 */ } this.parentNode.remove(); });
   }
   function homeNotices() {
     var list = ST.notices.filter(function (n, i) { return i < 3 || !n.read || n.important; });
@@ -811,6 +877,99 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="lbl" style="font-size:12px;color:var(--muted)">役員の番号を聞いているとき</div><div class="row"><input id="arCode" class="tmin" inputmode="numeric" maxlength="6" placeholder="6けた" style="width:8em"><button class="btn small ghost" id="arCodeBtn" type="button">番号で役員になる</button></div>' +
       '<div class="hint">申請は、役員の人の「管理」→「メンバーと役員」に出ます。役員の番号は、役員の人がそこで見られます。</div></section>';
   }
+  // ---- 運用チェック：運用に必要な情報のうち、足りないものを優先度順に（役員） ----
+  /** 押すとその画面へ。d = {admin:'roster'} / {ev:key, etab:'タイムテーブル'} / {editRace:key} / {tab:'family'} */
+  function goTo(d) {
+    S.toast = '';
+    if (d.editRace) { var e = evByKey(d.editRace); if (e) { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; } }
+    else if (d.ev) { S.tab = 'events'; S.event = d.ev; S.etab = d.etab || '概要'; }
+    else if (d.admin) { S.tab = 'admin'; S.admin = d.admin; }
+    else if (d.tab) { S.tab = d.tab; }
+    render(); window.scrollTo(0, 0);
+  }
+  function opsChecks() {
+    if (!ST.me.admin) return [];
+    var out = [], today = ST.today, add = function (pri, area, t, sub, go, n) { out.push({ pri: pri, area: area, t: t, sub: sub || '', go: go, n: n || 1 }); };
+    var within = function (e, days) { return e.date >= today && e.date <= addDays(today, days); };
+    var up = ST.events.filter(function (e) { return !e.cancelled && e.date >= today; });
+    if (serverOld()) add(1, 'しくみ', 'サーバー（Apps Script）が古い版です', '新しい機能が保存されないことがあります。「管理」の下で更新の手順を見られます', { admin: 'menu' });
+    // メンバー
+    if (!ST.kids.length) add(1, 'メンバー', '名簿に子どもがいません', 'まず名簿に全員の名前を入れると、当番表・記録・エントリーが使えます', { admin: 'roster' });
+    var free = ST.kids.filter(function (k) { return k.free; });
+    if (free.length) add(2, 'メンバー', '保護者がまだ登録していない子 ' + free.length + '人', free.slice(0, 4).map(function (k) { return k.name; }).join('・') + (free.length > 4 ? ' ほか' : '') + '。LINEグループで「ポータルを開いて登録」を呼びかけてください', { admin: 'roster' }, free.length);
+    var noGs = ST.kids.filter(function (k) { return !k.grade || !k.sex; });
+    if (noGs.length) add(2, 'メンバー', '学年か男女が入っていない子 ' + noGs.length + '人', '大会の対象やタイムテーブルの見分けに使います', { admin: 'roster' }, noGs.length);
+    if (ST.families.filter(function (f) { return f.admin; }).length < 2) add(3, 'メンバー', '役員が1家族だけです', '休みの確認や当番の割り当てを分担できるよう、役員を増やしましょう', { admin: 'members' });
+    // 予定・当番
+    if (!up.some(function (e) { return e.type === '練習' && within(e, 14); })) add(1, '予定', '2週間以内に練習の予定がありません', '練習の予定をつくると、休みの連絡・当番・タイム計測が使えます', { admin: 'practice' });
+    var noDuty = up.filter(function (e) { return within(e, 14) && !dutyOf(e.key).length; });
+    if (noDuty.length) add(noDuty.some(function (e) { return within(e, 7); }) ? 1 : 2, '当番', '当番が決まっていない予定 ' + noDuty.length + '件（2週間以内）', noDuty.slice(0, 3).map(function (e) { return md(e.date) + ' ' + e.title; }).join('・'), { admin: 'duty' }, noDuty.length);
+    var kidDuty = ST.duties.filter(function (x) { return /^kid:/.test(x.fam) && x.date >= today; });
+    if (kidDuty.length) add(3, '当番', '保護者がまだの家の当番 ' + kidDuty.length + '件', 'その家の保護者が登録すると、自動でその家の当番になります', { admin: 'roster' }, kidDuty.length);
+    // 大会
+    up.filter(function (e) { return e.type !== '練習' && within(e, 60); }).forEach(function (e) {
+      var det = e.detail, n = diff(today, e.date);
+      if (!det) return add(n <= 21 ? 1 : 2, '大会', md(e.date) + ' ' + e.title + '：案内がまだ', '対象・参加費・締切・種目・集合を入れると、エントリーが始まります（あと' + n + '日）', { editRace: e.key });
+      var miss = [!det.deadline && '締切', !det.meetTime && '集合時刻', !(det.races || []).length && '種目', !(det.items || []).length && '持ち物'].filter(Boolean);
+      if (miss.length) add(n <= 7 ? 1 : 3, '大会', md(e.date) + ' ' + e.title + '：' + miss.join('・') + 'がまだ', 'だれでも「案内を直す」から入れられます', { editRace: e.key });
+      if (det.applyBy && STEPS.indexOf(raceStatus(e)) < STEPS.indexOf('申込済み') && det.applyBy <= addDays(today, 7)) add(1, '大会', md(e.date) + ' ' + e.title + '：主催への申込 ' + md(det.applyBy) + 'まで', '申込んだら「大会の状況」で済にしてください', { ev: e.key });
+      if (det.deadline && det.deadline >= today) {
+        var un = eligible(e).filter(function (k) { return !entryOf(e.key, k.name); });
+        if (un.length) add(diff(today, det.deadline) <= 3 ? 1 : 2, '大会', md(e.date) + ' ' + e.title + '：エントリー未回答 ' + un.length + '人', '締切 ' + md(det.deadline) + '（あと' + diff(today, det.deadline) + '日）。LINEで声かけを', { ev: e.key, etab: 'エントリー' }, un.length);
+      }
+      if (n <= 10 && !ST.timetable.some(function (r) { return r.key === e.key; })) add(n <= 5 ? 1 : 2, '大会', md(e.date) + ' ' + e.title + '：タイムテーブルがまだ', 'プログラムが届いたら貼り付けるだけ。当番の人も入れられます', { ev: e.key, etab: 'タイムテーブル' });
+      if (det.fee) { var unpaid = ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加' && !x.paid; }); if (unpaid.length) add(n <= 7 ? 2 : 3, 'お金', md(e.date) + ' ' + e.title + '：参加費の未集金 ' + unpaid.length + '人', '受け取ったら「エントリー」で済にします', { ev: e.key, etab: 'エントリー' }, unpaid.length); }
+    });
+    // 連絡・お金・安全
+    var unack = ST.absences.filter(function (a) { return !a.ack && a.date >= today; });
+    if (unack.length) add(2, '連絡', '確認していない休みの連絡 ' + unack.length + '件', '', { admin: 'absences' }, unack.length);
+    var nm = ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; });
+    if (nm.length) add(2, '安全', '対策がまだのヒヤリハット ' + nm.length + '件', '', { admin: 'nearmiss' }, nm.length);
+    ST.fees.filter(function (f) { return !f.closed; }).forEach(function (f) { var due = f.kids.length - f.paid.length; if (due > 0) add(f.deadline && f.deadline <= addDays(today, 7) ? 2 : 3, 'お金', f.name + '：未集金 ' + due + '人', f.deadline ? '期限 ' + md(f.deadline) : '', { admin: 'fees' }, due); });
+    return out.sort(function (a, b) { return a.pri - b.pri; });
+  }
+  var PRI = { 1: ['高', 'p-race'], 2: ['中', 'p-warn'], 3: ['低', 'p-gray'] };
+  function opsItem(x, i) {
+    return '<button type="button" class="opsit" data-ops="' + i + '"><span class="pill ' + PRI[x.pri][1] + '">' + PRI[x.pri][0] + '</span><span class="main"><b>' + esc(x.t) + '</b>' + (x.sub ? '<span class="sub">' + esc(x.sub) + '</span>' : '') + '</span><span class="go">›</span></button>';
+  }
+  function opsCard() {
+    var list = opsChecks();
+    if (!ST.me.admin) return '';
+    if (!list.length) return '<section class="card"><div class="todo-done">✓ 運用に足りないものはありません</div></section>';
+    var hi = list.filter(function (x) { return x.pri === 1; }).length;
+    return '<section class="card ops"><h2>運用チェック<small>' + (hi ? '急ぎ ' + hi + '件・' : '') + '全部で ' + list.length + '件</small></h2><div class="list">' + list.slice(0, 5).map(opsItem).join('') + '</div>' +
+      (list.length > 5 ? '<button class="link" type="button" id="opsAll">すべて見る（' + list.length + '件） ›</button>' : '') + '</section>';
+  }
+  function bindOps() {
+    var list = opsChecks();
+    on('[data-ops]', function () { var x = list[+this.dataset.ops]; if (x) goTo(x.go); });
+    on('#opsAll', function () { goTo({ admin: 'ops' }); });
+  }
+  /** 運用チェックの全部と、運用に必要な情報がどこまでそろったか */
+  function adminOps() {
+    var list = opsChecks(), up = ST.events.filter(function (e) { return !e.cancelled && e.date >= ST.today && e.date <= addDays(ST.today, 30); });
+    var meter = function (label, done, all, go, hint) {
+      var pct = all ? Math.round(done * 100 / all) : 100;
+      return '<button type="button" class="opsm" data-mgo="' + esc(JSON.stringify(go)) + '"><span class="between"><b>' + label + '</b><span class="' + (pct === 100 ? 'ok' : 'ng') + '">' + done + ' / ' + all + '</span></span><span class="bar"><i style="width:' + pct + '%"></i></span><span class="sub">' + hint + '</span></button>';
+    };
+    var races = up.filter(function (e) { return e.type !== '練習'; });
+    var h = backBtn() + '<section class="card"><h2>運用に必要な情報<small>そろっているか</small></h2><div class="opsms">' +
+      meter('名簿（保護者が登録ずみ）', ST.kids.filter(function (k) { return !k.free; }).length, ST.kids.length, { admin: 'roster' }, '子どもの名前と、保護者のLINEが結びついているか') +
+      meter('学年・男女', ST.kids.filter(function (k) { return k.grade && k.sex; }).length, ST.kids.length, { admin: 'roster' }, '大会の対象・タイムテーブルに使います') +
+      meter('当番（30日以内の予定）', up.filter(function (e) { return dutyOf(e.key).length; }).length, up.length, { admin: 'duty' }, '練習当番・大会当番') +
+      meter('大会の案内（30日以内）', races.filter(function (e) { return e.detail; }).length, races.length, races[0] ? { editRace: (races.find(function (e) { return !e.detail; }) || races[0]).key } : { admin: 'race' }, '対象・締切・種目・集合・持ち物') +
+      meter('タイムテーブル（30日以内の大会）', races.filter(function (e) { return ST.timetable.some(function (r) { return r.key === e.key; }); }).length, races.length, races[0] ? { ev: (races.find(function (e) { return !ST.timetable.some(function (r) { return r.key === e.key; }); }) || races[0]).key, etab: 'タイムテーブル' } : { admin: 'ttb' }, 'プログラムから貼り付け') +
+      '</div></section>';
+    [1, 2, 3].forEach(function (p) {
+      var g = list.map(function (x, i) { x._i = i; return x; }).filter(function (x) { return x.pri === p; });
+      if (g.length) h += '<section class="card ops"><h2>優先度 ' + PRI[p][0] + '<small>' + g.length + '件</small></h2><div class="list">' + g.map(function (x) { return opsItem(x, x._i); }).join('') + '</div></section>';
+    });
+    if (!list.length) h += '<section class="card"><div class="todo-done">✓ 運用に足りないものはありません</div></section>';
+    view.innerHTML = toastHtml() + h;
+    bindBack(); bindOps();
+    on('[data-mgo]', function () { goTo(JSON.parse(this.dataset.mgo)); });
+  }
+
   // ---- 見る・押すだけの変更はBot、くわしい入力はポータル ----
   function botLink(text) { return ST.choices.botId ? 'https://line.me/R/oaMessage/' + encodeURIComponent(ST.choices.botId) + '/?' + encodeURIComponent(text) : ''; }
   function botCard() {
@@ -822,7 +981,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function home() {
     var h = serverBanner() + toastHtml();
-    h += startCard() + todoCard() + botCard();
+    h += startCard() + opsCard() + todoCard() + botCard();
     var info = '';
     if (ST.notices.length) {
       var shown = homeNotices();
@@ -914,7 +1073,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
     on('[data-unabs]', function () { call('cancelAbsence', { id: this.dataset.unabs }); });
     on('#absAll', function () { S.tab = 'admin'; S.admin = 'absences'; S.toast = ''; render(); window.scrollTo(0, 0); });
-    bindTodo(); bindBotCard(); bindPolls(); bindRsvp(); markSeen();
+    bindTodo(); bindBotCard(); bindOps(); bindStart(); bindPolls(); bindRsvp(); markSeen();
   }
 
   function eligible(e) {
@@ -1153,11 +1312,22 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'polls') return adminPolls();
     if (S.admin === 'roster') return adminRoster();
     if (S.admin === 'fees') return adminFees();
+    if (S.admin === 'ops') return adminOps();
     var items = [['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
-    view.innerHTML = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') + '<div class="menu">' + items.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' +
+    // 目的ごとにまとめ、足りないもの（運用チェック）の件数を出す
+    var ops = opsChecks(), cnt = {};
+    ops.forEach(function (x) { var k = x.go.admin || (x.go.editRace || x.go.ev ? 'race' : ''); if (k) cnt[k] = (cnt[k] || 0) + 1; });
+    var GROUPS = [['ふだん使う', ['duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'members', 'notify']], ['お金', ['fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
+    var byKey = {}; items.forEach(function (x) { byKey[x[0]] = x; });
+    var menuHtml = GROUPS.map(function (g) {
+      var list = g[1].map(function (k) { return byKey[k]; }).filter(Boolean);
+      return list.length ? '<div class="mgroup">' + g[0] + '</div><div class="menu">' + list.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + (cnt[x[0]] ? '<span class="pill p-race cnt">' + cnt[x[0]] + '</span>' : '') + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' : '';
+    }).join('');
+    view.innerHTML = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') +
+      '<button type="button" class="card opsbtn" data-go="ops"><span><b>🩺 運用チェック</b><span class="d">' + (ops.length ? '足りないもの ' + ops.length + '件（急ぎ ' + ops.filter(function (x) { return x.pri === 1; }).length + '件）。押すと、そろっているかの一覧と、直す画面へのボタン' : '運用に足りないものはありません') + '</span></span>›</button>' + menuHtml +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
       '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '');
     on('[data-go="dash"]', function (ev) { ev.stopImmediatePropagation(); S.dashFrom = 'admin'; go('dash'); });
@@ -4251,6 +4421,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var vt = document.getElementById('vtip'); if (vt) vt.hidden = true;
     var app = document.querySelector('.app'); if (app) app.classList.toggle('wide', S.tab === 'dash');
     ({ home: home, events: events, album: album, family: family, admin: admin, train: train, dash: dash })[S.tab]();
+    injectGuide();
     if (S.stravaPending && !serverOld()) { var sp = S.stravaPending; S.stravaPending = null; setTimeout(function () { call('stravaConnect', sp); }, 0); }
     applyFolds();
   }

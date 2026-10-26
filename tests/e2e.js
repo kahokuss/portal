@@ -55,6 +55,9 @@ async function ttVal(pg, i, k) {
   return pg.inputValue('[data-tt="' + i + '|' + k + '"]');
 }
 
+/** はじめから閉じているカードを開く */
+async function openFold(pg, title) { const h = pg.locator('.card.folded > h2', { hasText: title }); if (await h.count()) await h.first().click(); }
+
 async function ttRow(pg, i, keys) { const out = []; for (const k of keys) out.push(await ttVal(pg, i, k)); return out; }
 
 async function openPortal(browser, gas, userId, name) {
@@ -924,6 +927,11 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await a.textContent('#trReport')).includes('3.5km'), '月ごとの棒を押すと数字');
       await a.click('#trLast');
       assert.strictEqual(await a.inputValue('#tr-count'), '30', '前回と同じ');
+      // 昨日を選んでも、ほかの画面から開き直すと今日に戻る
+      await a.click('[data-trd]:has-text("昨日")');
+      await a.click('[data-nav="home"]');
+      await a.click('[data-nav="train"]');
+      assert.strictEqual(await a.getAttribute('[data-trd]:has-text("今日")', 'aria-pressed'), 'true', '開いたときは今日');
       await a.shot('22-training');
     });
     await step('自主トレ：保護者が「コーチに見せる」→ コーチの「コーチ用」に出て、コメントすると保護者の「やること」に出る', async () => {
@@ -933,6 +941,7 @@ async function openPortal(browser, gas, userId, name) {
       await q.fill('#tr-km', '2');
       await q.click('#trSave');
       await q.idle();
+      await openFold(q, 'だれに見せる');
       await q.click('[data-trlv="coach"]');
       await q.idle();
       assert.ok(gas.rows('自主トレ公開').some((r) => r['子ども'] === '鈴木けんた' && r['公開'] === '○'));
@@ -964,6 +973,7 @@ async function openPortal(browser, gas, userId, name) {
       await q.fill('#tc-text', 'ありがとうございます！');
       await q.click('#tcSend');
       await q.idle();
+      await openFold(q, 'だれに見せる');
       await q.click('[data-trlv="all"]');
       await q.idle();
       assert.ok(gas.rows('自主トレ公開').some((r) => r['子ども'] === '鈴木けんた' && r['公開'] === '全員'));
@@ -1083,6 +1093,7 @@ async function openPortal(browser, gas, userId, name) {
     await step('Strava：管理者が鍵を入れる → 「Stravaとつなぐ」→ 戻ってくると、名前の入った活動が自主トレに入る', async () => {
       await a.click('[data-nav="train"]');
       if (await a.$('[data-trkid="山田たろう"]')) await a.click('[data-trkid="山田たろう"]');
+      await openFold(a, 'Strava');
       await a.fill('#svId', '123');
       await a.fill('#svSecret', 'abcdef0123456789abcdef0123456789abcdef01');
       await a.click('#svKeys');
@@ -1107,6 +1118,7 @@ async function openPortal(browser, gas, userId, name) {
       const t = await q.textContent('#apps');
       assert.ok(t.includes('開発中') && t.includes('Garmin Connect') && t.includes('Strava'), t);
       assert.ok(!(await q.$('#strava')), 'Strava の画面は管理者だけ');
+      await openFold(q, 'アプリ連携');
       await q.click('[data-appreq="Garmin Connect"]');
       await q.idle();
       assert.ok(gas.rows('アプリ連携の要望').some((r) => r['アプリ'] === 'Garmin Connect' && r.userId === 'U2'));

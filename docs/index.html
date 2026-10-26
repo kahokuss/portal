@@ -543,7 +543,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "a115974d03";
+var BUILD = "5e55cb577e";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "00b658cfd0";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -628,7 +628,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!st.choices.docKinds) st.choices.docKinds = ['要項', '申込書', 'プログラム', '地図', 'リザルト', 'その他'];
     return st;
   }
-  function go(tab, key) { S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false; render(); window.scrollTo(0, 0); }
+  function go(tab, key) {
+    S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false;
+    // 自主トレを開いたときは、日付を今日に（前に入れた日のままにしない。直している途中は除く）
+    if (tab === 'train' && S.trForm && !S.trForm.id) S.trForm.date = ST.today;
+    render(); window.scrollTo(0, 0);
+  }
 
   function upcoming(filter) { return ST.events.filter(function (e) { return !e.cancelled && e.date >= ST.today && filter(e); }); }
   function myStatus(e) {
@@ -2924,6 +2929,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var child = trKid();
     if (!child) { view.innerHTML = '<section class="card"><h2>自主トレ</h2><div class="sub">先に「わが家」でお子さんを登録してください。</div><button class="btn" data-tab="family" type="button">お子さんを登録する</button></section>'; bindCommon(); return; }
     var F = S.trForm || (S.trForm = { date: ST.today, kind: 'ランニング', km: '', min: '', count: '', feel: '', memo: '', other: '', id: '' });
+    if (!F.id && F.made !== ST.today) { F.date = ST.today; F.made = ST.today; } // 開いたまま日がかわったときも今日に
     var h = toastHtml();
     if (ST.me.children.length > 1) h += '<div class="tabs" role="group" aria-label="だれの">' + ST.me.children.map(function (k) { return '<button type="button" data-trkid="' + esc(k.name) + '" aria-pressed="' + (k.name === child) + '">' + esc(k.name) + '</button>'; }).join('') + '</div>';
     var level = ST.trainShare.mine[child] || '';
@@ -4451,7 +4457,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // ---- 折りたたみ：カードの見出しを押すと閉じる・開く（このスマホに覚える） ----
   var FOLD_STORE = 'clubPortalFold';
   // はじめから閉じておくカード（見出しの文字）
-  var FOLD_DEFAULT = ['予定を直す', '履歴', '最近のヒヤリハット', 'PCでも使う'];
+  var FOLD_DEFAULT = ['予定を直す', '履歴', '最近のヒヤリハット', 'PCでも使う', 'だれに見せる', 'アプリ連携', 'Strava'];
   var FOLD_DEFAULT_MEMBER = ['練習当番', '大会当番']; // 当番を入れかえる役員には開いておく
   function foldState() { try { return JSON.parse(localStorage.getItem(FOLD_STORE) || '{}'); } catch (e) { return {}; } }
   function foldKey(h2) {

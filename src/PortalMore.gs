@@ -1336,6 +1336,7 @@ function saveRosterAction_(ctx, p) {
     list.forEach((c) => {
       const row = rows.find((r) => sameKidName_(r['名前'], c.name));
       if (row) {
+        if (preferSpacedName_(row['名前'], c.name)) renameKid_(row, c.name);
         row['名簿'] = '○';
         if (c.grade) row['学年'] = String(c.grade);
         if (c.sex) row['性別'] = c.sex;

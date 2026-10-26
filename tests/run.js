@@ -739,6 +739,31 @@ test('タイムテーブル：大会の種目にない種目を入れると、�
   assert.strictEqual(gas.rows('エントリー')[0]['種目'], '2km');
 });
 
+test('名前に空白を入れて直すと、空白入りの名前になる（エントリー・記録・休みもそろう）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 川辺りく 3年');
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kA, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', races: ['100m'] });
+  gas.ctx.api(kA, 'saveEntry', { key: race.key, child: '川辺りく', join: '参加', races: ['100m'] });
+  gas.ctx.api(kA, 'addRecords', { rows: [{ child: '川辺りく', race: '100m', record: '16.2', date: '2026-10-01' }] });
+  gas.ctx.api(kA, 'reportAbsence', { child: '川辺りく', date: '2026-10-15', reason: '体調不良' });
+  const st = gas.ctx.api(kA, 'saveChildren', { children: [{ name: '川辺 りく', grade: 3, sex: '男' }] });
+  assert.deepStrictEqual(plain(st.me.children.map((c) => c.name)), ['川辺 りく']);
+  assert.strictEqual(gas.rows('子ども').filter((r) => r['名前']).length, 1, 'ふえない');
+  assert.strictEqual(gas.rows('エントリー')[0]['子ども'], '川辺 りく');
+  assert.ok(gas.rows('結果').every((r) => !r['子ども'] || r['子ども'] === '川辺 りく'));
+  assert.strictEqual(gas.rows('休み').find((r) => r.id)['子ども'], '川辺 りく');
+  // 空白なしで書き直しても、空白入りのまま
+  gas.ctx.api(kA, 'saveChildren', { children: [{ name: '川辺りく', grade: 3, sex: '男' }] });
+  assert.strictEqual(gas.rows('子ども').find((r) => r['名前'])['名前'], '川辺 りく');
+  // 名簿（役員）で空白入りにしても同じ
+  gas.line(dm('U2'), '登録 海野そら 4年');
+  gas.ctx.api(kA, 'saveRoster', { rows: [{ name: '海野 そら', grade: 4 }] });
+  assert.ok(gas.rows('子ども').some((r) => r['名前'] === '海野 そら'));
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

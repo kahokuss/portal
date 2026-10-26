@@ -312,9 +312,10 @@ function saveChildren_(userId, list) {
       }
     });
     list.forEach((c) => {
-      // 名簿に入っている子なら、その子に保護者を足す（名前は名簿のまま）
+      // 名簿に入っている子なら、その子に保護者を足す（名前は名簿のまま。ただし空白入りで書き直したときは空白入りにする）
       const row = rows.find((r) => sameKidName_(r['名前'], c.name));
       if (row) {
+        if (preferSpacedName_(row['名前'], c.name)) renameKid_(row, c.name);
         const parents = splitNames_(row['保護者userId']);
         members.forEach((u) => { if (parents.indexOf(u) < 0) parents.push(u); });
         row['保護者userId'] = parents.join(',');
@@ -327,6 +328,32 @@ function saveChildren_(userId, list) {
       }
     });
   });
+}
+
+/** 空白だけちがう名前で、新しいほうに空白がある（「海野そら」→「海野 そら」）ときは、新しいほうにする */
+function preferSpacedName_(oldName, newName) {
+  const a = String(oldName || '').trim(), b = String(newName || '').trim().replace(/[\s　]+/g, ' ');
+  return a !== b && sameKidName_(a, b) && /\s/.test(b);
+}
+
+/**
+ * 子どもの名前を書きかえる。エントリー・休み・記録・自主トレ・集金・出席・手続き・当番（保護者がまだの家）の名前もそろえる
+ */
+function renameKid_(row, newName) {
+  const oldName = row['名前'];
+  newName = String(newName).trim().replace(/[\s　]+/g, ' ');
+  if (!oldName || oldName === newName) return;
+  row['名前'] = newName;
+  row['更新日時'] = now_();
+  updateRow_(SHEETS.CHILDREN, row);
+  ['ENTRIES', 'ABSENCES', 'FEE_PAID', 'TRAINING', 'TRAIN_SHARE', 'TRAIN_COMMENTS', 'ATTEND', 'RESULTS'].forEach((k) => {
+    readRows_(SHEETS[k]).forEach((r) => { if (r['子ども'] === oldName) { r['子ども'] = newName; updateRow_(SHEETS[k], r); } });
+  });
+  readRows_(SHEETS.TASKS).forEach((r) => {
+    const t = String(r['対象'] || '');
+    if (t === oldName || t.indexOf(oldName + '|') === 0) { r['対象'] = newName + t.slice(oldName.length); updateRow_(SHEETS.TASKS, r); }
+  });
+  readRows_(SHEETS.DUTIES).forEach((r) => { if (r['家族ID'] === 'kid:' + oldName) { r['家族ID'] = 'kid:' + newName; updateRow_(SHEETS.DUTIES, r); } });
 }
 
 /**

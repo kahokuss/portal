@@ -561,7 +561,7 @@ test('Bot: グループでの個人的なコマンドは、送った人にだけ
   const r = gas.line(group('U2'), '登録 鈴木けんた 5年');
   assert.ok(r.includes('友だち追加'), '友だちでない人には、グループで案内だけ');
   assert.strictEqual(gas.line(group('U3'), 'ヘルプ'), '', 'ヘルプもグループには返さない');
-  assert.ok(gas.privateTo('U3').includes('Botの使い方'), 'ヘルプは本人にだけ');
+  assert.ok(gas.privateTo('U3').includes('予定を見る'), 'ヘルプ（メニュー）は本人にだけ');
 });
 
 test('一斉通知: 役員がLINEグループに送れる。通数が足りなければ送らない', () => {
@@ -717,8 +717,12 @@ test('Bot：カレンダー・予定のカードから押すだけで、休み�
   assert.ok(!gas.line(dm('U2'), '予定').includes('タイムテーブルを入れる'));
   assert.strictEqual(gas.ctx.api(kA, 'bootstrap').choices.botId, '@kahoku-test', 'ポータルからBotを開くためのID');
   // メニュー・お知らせ
-  assert.ok(gas.line(dm('U2'), 'メニュー').includes('[カレンダー]'));
-  assert.ok(gas.line(dm('U2'), 'メニュー').includes('くわしい入力はポータルで'));
+  // メニューは2段：目的を選ぶ → その中の操作
+  const menu = gas.line(dm('U2'), 'メニュー');
+  assert.ok(menu.includes('予定を見る') && menu.includes('連絡・回答する') && menu.includes('くわしい入力はポータルで'), menu);
+  const sub = gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '予定を見る').data);
+  assert.ok(sub.includes('カレンダー') && sub.includes('日にちを押すとその日の予定'), sub);
+  assert.ok(gas.lastButtons().some((b) => b.type === 'message' && b.text === 'カレンダー'));
   gas.ctx.api(kA, 'saveNotice', { title: '集合時間の変更', body: '8時集合です' });
   assert.ok(gas.line(dm('U2'), 'お知らせ').includes('集合時間の変更'));
   // 新着には次の練習・大会のカードも

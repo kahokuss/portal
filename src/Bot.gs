@@ -20,7 +20,7 @@ function quickItems_(labels) {
   };
 }
 
-const MAIN_QUICK = ['新着', '今日', 'カレンダー', '予定', '休み', '当番', 'メニュー'];
+const MAIN_QUICK = ['メニュー', '新着', 'カレンダー', '休み'];
 
 /** 「カレンダー 12」→ 今日から見て近いほうの12月 */
 function botMonthOf_(m) {

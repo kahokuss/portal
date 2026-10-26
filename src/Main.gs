@@ -103,7 +103,7 @@ function handleEvent_(ev) {
     return;
   }
   if (ev.type === 'follow') {
-    reply_(ev.replyToken, [text_('友だち追加ありがとうございます！\n\n' + helpText_())]);
+    reply_(ev.replyToken, [text_('友だち追加ありがとうございます！\nはじめに、ポータルの「わが家」でお子さんを登録してください。\n' + portalUrl_()), helpBubble_()]);
     return;
   }
 

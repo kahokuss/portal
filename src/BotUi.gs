@@ -188,6 +188,7 @@ function handlePostback_(ev) {
       case 'race': return doRaceToggle_(ev, p.k, p.c, p.r);
       case 'poll': return doPoll_(ev, p.id, p.o);
       case 'tr': return handleTraining_(ev, p.t || '');
+      case 'menu': return respond_(ev, [p.g ? subMenuBubble_(p.g) : helpBubble_()]);
     }
   } catch (err) {
     respond_(ev, botMessages_(['⚠ ' + String((err && err.message) || err)]));
@@ -356,18 +357,54 @@ function handleTraining_(ev, args) {
   respond_(ev, botMessages_(['✅ ' + child + '：' + kind + ' ' + [km && km + 'km', min && min + '分', count && count + (kind === '縄跳び' ? '回' : '本')].filter(Boolean).join(' ') + ' を記録しました（今日）。'], ['自主トレ', '新着']));
 }
 
-/** 使い方（ボタンつき） */
+/** メニューの分け方：まず目的（4つ）を選び、次にその中の操作を選ぶ */
+const BOT_MENU = [
+  { id: 'see', icon: '📅', t: '予定を見る', d: 'カレンダー・これからの予定・今日', items: [
+    ['カレンダー', '月の表。日にちを押すとその日の予定'], ['予定', 'これからの予定（カードから休み・参加も）'], ['今日', '今日の予定。大会の日は時刻・招集'],
+  ] },
+  { id: 'send', icon: '🙋', t: '連絡・回答する', d: '休み・大会の参加・アンケート', items: [
+    ['休み', '休みの連絡（日付と理由を押すだけ）'], ['エントリー', '大会に出るか・種目'], ['アンケート', 'ボタンで回答'],
+  ] },
+  { id: 'home', icon: '🏠', t: 'わが家のこと', d: '当番・集金・記録・自主トレ', items: [
+    ['当番', 'わが家の当番と、これからの当番'], ['集金', '払っていない集金・参加費'], ['記録', 'お子さんの記録'], ['自主トレ', '自主トレを記録する'],
+  ] },
+  { id: 'club', icon: '📢', t: 'クラブの様子', d: '新着・お知らせ・出欠・写真', items: [
+    ['新着', 'わが家に関係することをまとめて'], ['お知らせ', '最近のお知らせ'], ['出欠', '次の練習で休む人'], ['写真', 'アルバム（ポータル）'],
+  ] },
+];
+
+/** 押せる1行（左にアイコン、名前と説明、右に ›）。文字が切れないよう横いっぱい */
+function menuRow_(icon, title, desc, action) {
+  return { type: 'box', layout: 'horizontal', spacing: 'md', paddingAll: '10px', backgroundColor: '#f3f6f7', cornerRadius: '10px', action: action, contents: [
+    icon ? txt_(icon, { size: 'xl', flex: 0, gravity: 'center', wrap: false }) : null,
+    { type: 'box', layout: 'vertical', flex: 1, contents: [txt_(title, { weight: 'bold', size: 'md' }), txt_(desc, { size: 'xs', color: C_SUB })] },
+    txt_('›', { size: 'xl', color: C_SUB, flex: 0, gravity: 'center', wrap: false }),
+  ].filter(Boolean) };
+}
+
+/** メニュー（1段目：目的を選ぶ） */
 function helpBubble_() {
-  const row = (items) => ({ type: 'box', layout: 'horizontal', spacing: 'xs', contents: items.map((x) => btn_({ type: 'message', label: x, text: x })) });
-  return flex_('Botの使い方', {
+  return flex_('メニュー', {
     type: 'bubble',
     body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
-      txt_('🏃 ' + CONFIG.CLUB_NAME + ' Bot', { weight: 'bold', size: 'md' }),
-      txt_('ボタンを押すか、言葉を送ってください。予定のカードから、休み・エントリーもそのまま押せます。', { color: C_SUB, size: 'xs' }),
-      row(['新着', '今日', 'カレンダー']), row(['予定', '休み', '当番']), row(['エントリー', 'アンケート', '集金']), row(['お知らせ', '自主トレ', '記録']), row(['出欠', '写真', 'ポータル']),
-      txt_('そのほか：「休み 明日 体調不良」「登録 山田たろう 3年」「結果 100m 15.2秒」「自主トレ ランニング 3km 20分」', { color: C_SUB, size: 'xxs' }),
-      txt_('📱 見る・休み・参加・アンケートは、このBotで。\n💻 タイムテーブル・記録・大会の案内・名簿など、くわしい入力はポータルで。', { size: 'xs', margin: 'md' }),
+      txt_('🏃 ' + CONFIG.CLUB_NAME + ' メニュー', { weight: 'bold', size: 'lg' }),
+      txt_('したいことを選んでください', { color: C_SUB, size: 'xs' }),
+    ].concat(BOT_MENU.map((g) => menuRow_(g.icon, g.t, g.d, pbAction_(g.t, { a: 'menu', g: g.id }, g.t)))).concat([
+      txt_('💻 タイムテーブル・記録・大会の案内・名簿など、くわしい入力はポータルで', { size: 'xs', color: C_SUB, margin: 'md' }),
       btn_(uriAction_('ポータルを開く', portalUrl_()), 'primary', C_RACE),
-    ] },
+    ]) },
+  });
+}
+
+/** メニュー（2段目：その中の操作） */
+function subMenuBubble_(id) {
+  const g = BOT_MENU.find((x) => x.id === id) || BOT_MENU[0];
+  return flex_(g.t, {
+    type: 'bubble',
+    body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
+      txt_(g.icon + ' ' + g.t, { weight: 'bold', size: 'lg' }),
+    ].concat(g.items.map((x) => menuRow_('', x[0], x[1], { type: 'message', label: x[0], text: x[0] }))).concat([
+      { type: 'text', text: '‹ メニューにもどる', size: 'sm', color: C_PRAC, margin: 'md', action: pbAction_('メニュー', { a: 'menu' }, 'メニュー') },
+    ]) },
   });
 }

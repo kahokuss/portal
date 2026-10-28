@@ -29,6 +29,8 @@ const SHEETS = {
   DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
   HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
+  GOALS: { name: '目標', headers: ['id', '子ども', '種類', '期間', 'タイトル', '種目', '目標記録', '開始記録', '期限', 'eventKey', 'やること', '親id', '状態', '達成日', 'ひとこと', '出した人', 'userId', '日時', '更新日時'] },
+  GOAL_LOG: { name: '目標のやること', headers: ['goalId', 'やること', '日付', '子ども', 'userId', '日時'] },
   SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };
 

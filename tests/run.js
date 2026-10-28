@@ -768,6 +768,51 @@ test('名前に空白を入れて直すと、空白入りの名前になる（�
   assert.ok(gas.rows('子ども').some((r) => r['名前'] === '海野 そら'));
 });
 
+test('目標管理：目標とやること（曜日）・チェック・途中目標・監督からのミッション', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 2年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const today = gas.run('today_()');
+  const wd = new Date(today + 'T00:00:00Z').getUTCDay();
+  // 家族が目標を立てる（やることは今日の曜日）
+  let st = gas.ctx.api(k2, 'saveGoal', { kind: '自分', child: '鈴木けんた', period: '年間', title: '100mで14.50', race: '100m', target: '14.50', deadline: '2027-09-30', actions: [{ t: '坂ダッシュ 10本', days: [wd] }, { t: '', days: [1] }], startRecords: { '鈴木けんた': '15.40' } });
+  assert.ok(st.message.includes('目標を立てました'));
+  const g = st.goals.list.find((x) => x.child === '鈴木けんた');
+  assert.strictEqual(g.actions.length, 1, '空のやることは入れない');
+  assert.strictEqual(g.start, '15.40');
+  assert.throws(() => gas.ctx.api(k3, 'saveGoal', { kind: '自分', child: '鈴木けんた', title: 'x', deadline: '2027-01-01' }), /わが家/);
+  assert.ok(!gas.ctx.api(k3, 'bootstrap').goals.list.some((x) => x.child === '鈴木けんた'), 'よその家族には見えない（家族だけ）');
+  // やることのチェック（家族だけ・先の日はだめ）
+  st = gas.ctx.api(k2, 'checkGoalAction', { id: g.id, act: 0, date: today, on: true });
+  assert.strictEqual(st.goals.log.length, 1);
+  gas.ctx.api(k2, 'checkGoalAction', { id: g.id, act: 0, date: today, on: true });
+  assert.strictEqual(gas.rows('目標のやること').filter((r) => r.goalId).length, 1, '2重にならない');
+  assert.throws(() => gas.ctx.api(k2, 'checkGoalAction', { id: g.id, act: 0, date: '2099-01-01', on: true }), /先の日/);
+  assert.throws(() => gas.ctx.api(k3, 'checkGoalAction', { id: g.id, act: 0, date: today, on: true }), /わが家/);
+  // Botの「今日」に今日やること
+  assert.ok(gas.line(dm('U2'), '今日').includes('✓ 坂ダッシュ 10本'));
+  // 途中目標に分ける
+  st = gas.ctx.api(k2, 'splitGoal', { id: g.id, unit: '3ヶ月', steps: [{ deadline: '2027-01-28', target: '15.12', title: '100mで 15.12' }, { deadline: '2027-04-28', target: '14.85', title: '100mで 14.85' }, { deadline: '2028-01-01', title: '期限より先は入れない' }] });
+  assert.ok(st.message.includes('2つ'));
+  assert.strictEqual(st.goals.list.filter((x) => x.parent === g.id).length, 2);
+  // 監督（役員）からのミッション：何人でもまとめて
+  assert.throws(() => gas.ctx.api(k2, 'saveGoal', { kind: 'ミッション', children: ['山田たろう'], title: 'x', deadline: '2026-11-01' }), /監督・コーチ・役員/);
+  st = gas.ctx.api(kA, 'saveGoal', { kind: 'ミッション', children: ['鈴木けんた', '佐藤さくら'], period: '大会', title: '次の大会で自己ベスト', race: '100m', deadline: '2026-11-01', note: 'スタートを意識' });
+  assert.ok(st.message.includes('2人にミッション'));
+  const m = gas.ctx.api(k2, 'bootstrap').goals.list.find((x) => x.kind === 'ミッション');
+  assert.ok(m && m.by === '山田' && m.note === 'スタートを意識' && !m.canEdit, '家族には見えて、直せない');
+  assert.throws(() => gas.ctx.api(k2, 'deleteGoal', { id: m.id }), /操作できません/);
+  st = gas.ctx.api(k2, 'setGoalDone', { id: m.id, done: true });
+  assert.ok(st.message.includes('達成'), '達成は家族もつけられる');
+  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').goals.list.filter((x) => x.kind === 'ミッション').length, 2, '出した側（役員）は全員分見られる');
+  // 消すと途中目標は残る（親を付けかえ）
+  gas.ctx.api(k2, 'deleteGoal', { id: g.id });
+  assert.ok(gas.ctx.api(k2, 'bootstrap').goals.list.filter((x) => x.child === '鈴木けんた' && x.kind === '自分').every((x) => !x.parent));
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

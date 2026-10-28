@@ -427,6 +427,30 @@ tr.sel td { background: var(--sky-soft); }
 .steps2 li.done .mk { background: var(--field); color: #fff; } .steps2 li.done b { color: var(--muted); font-weight: 500; }
 .steps2 li.cur .mk { background: var(--track); color: #fff; }
 .steps2 .main { flex: 1; display: grid; gap: 4px; } .steps2 .main b { font-size: 13.5px; }
+.seg button { flex: 1; }
+.gchk { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 8px 0; cursor: pointer; border-top: 1px solid var(--line); }
+.list .gchk:first-child { border-top: 0; }
+.gchk .mk { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 800; color: #fff; }
+.gchk.on .mk { background: var(--field); border-color: var(--field); }
+.gchk.on b { color: var(--muted); text-decoration: line-through; }
+.gchk .main { display: grid; }
+.gweek { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.gday { background: var(--surface-2); border-radius: 8px; padding: 5px 4px; display: grid; align-content: start; gap: 2px; font-size: 10.5px; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
+.gday b { font-size: 12px; display: grid; } .gday b small { font-weight: 400; color: var(--muted); }
+.gday.today { background: var(--track-soft); }
+.gday .ok { color: var(--field); }
+.glist { display: grid; gap: 10px; }
+.gcard { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; background: var(--surface); }
+.gcard.mission { border-color: var(--track); }
+.gcard.won { background: var(--field-soft); border-color: var(--field); }
+.gttl { font-weight: 800; font-size: 15px; }
+.gprog .bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; } .gprog .bar i { display: block; height: 100%; background: var(--field); }
+.okc { color: var(--field); }
+.gacts, .gsubs { display: grid; gap: 2px; font-size: 13px; }
+.gsplit { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 6px; }
+.msum summary { cursor: pointer; padding: 6px 0; }
+.gactf { display: grid; gap: 6px; padding: 8px; border-radius: 10px; background: var(--surface-2); }
+.gactf input { background: var(--surface); }
 .todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
 .newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
 .p-imp { background: var(--track); color: #fff; }
@@ -543,9 +567,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "5e55cb577e";
+var BUILD = "a63a322b70";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "90bb8d38da";
+var EXPECT_SERVER = "541dc86bff";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -747,7 +771,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   var GUIDES = {
     home: '🏠 ホーム：やること・次の練習・次の大会がまとめて出ます。上から順に見れば大丈夫です。',
     events: '📅 予定・大会：予定を押すと、くわしい案内・エントリー・タイムテーブル・結果が見られます。',
-    train: '🏃 自主トレ：家での練習（ランニング・縄跳びなど）を記録すると、グラフとレポートになります。',
+    train: '🎯 目標・自主トレ：「いつまでに・何を」の目標と、そのためにやること（曜日で毎週のスケジュールに）。家での練習を記録すると、グラフとレポートになります。',
     album: '🖼 写真：LINEグループに送った写真が、大会・練習ごとに自動でまとまります。',
     family: '👪 わが家：お子さんの登録・家族の招待・役員や係の確認はここです。',
     admin: '🛠 管理：まず「運用チェック」を見ると、足りないものと直す画面が分かります。',
@@ -2920,6 +2944,202 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       call('stravaDisconnect', { remove: confirm('Strava から取り込んだ記録も消しますか？（「キャンセル」で記録は残します）') });
     });
   }
+  // ---- 目標管理：いつまでに・何を・そのためにやること（曜日でスケジュールに）。監督からのミッションも ----
+  var G_PERIODS = ['大会', '年間', '半年', '3ヶ月', '月'];
+  var G_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
+  var G_SUGGEST = ['ランニング 2km', '坂ダッシュ 10本', '縄跳び 300回', '体幹 5分', 'ストレッチ', 'スタート練習 5本'];
+  function addMonths(s, n) { var x = d(s); x.setUTCMonth(x.getUTCMonth() + n); return x.toISOString().slice(0, 10); }
+  function canMission() { return ST.me.admin || ST.me.coach; }
+  function gList() { return (ST.goals && ST.goals.list) || []; }
+  function gLog() { return (ST.goals && ST.goals.log) || []; }
+  function gDone(g, i, date) { return gLog().some(function (x) { return x.goal === g.id && x.act === i && x.date === date; }); }
+  function gFmtMark(v, race, sample) {
+    if (v === null || v === undefined || isNaN(v)) return '';
+    if (/回$/.test(sample || '')) return Math.round(v) + '回';
+    if (higherBetter(race)) { var m = Math.floor(v), cm = Math.round((v - m) * 100); if (cm === 100) { m++; cm = 0; } return m + 'm' + pad(cm); }
+    if (v >= 60) { var mm = Math.floor(v / 60), ss = v - mm * 60; return mm + ':' + (ss < 10 ? '0' : '') + ss.toFixed(2); }
+    return v.toFixed(2);
+  }
+  /** 記録の目標の進み具合。{cur, start, target, pct, reached} か null */
+  function gProgress(g) {
+    if (!g.race || !g.target) return null;
+    var b = bests(g.child)[canon(g.race)], tv = markValue(g.target);
+    if (tv === null) return null;
+    var hb = higherBetter(g.race) || /回$/.test(g.target), cv = b ? markValue(b.record) : null, sv = markValue(g.start);
+    var reached = cv !== null && (hb ? cv >= tv : cv <= tv);
+    var pct = reached ? 100 : sv !== null && cv !== null && sv !== tv ? Math.max(0, Math.min(100, Math.round((hb ? cv - sv : sv - cv) * 100 / (hb ? tv - sv : sv - tv)))) : 0;
+    return { cur: b ? b.record : '', start: g.start, target: g.target, pct: pct, reached: reached };
+  }
+  function gActive(g) { return !g.done && g.deadline >= ST.today && !(gProgress(g) || {}).reached; }
+  /** 日付 date にやること（わが家の子・未達成・期限前） */
+  function gTodo(child, date) {
+    var wd = d(date).getUTCDay(), out = [];
+    gList().filter(function (g) { return g.child === child && gActive(g) && g.at <= date; }).forEach(function (g) {
+      g.actions.forEach(function (a, i) { if (a.days.indexOf(wd) >= 0) out.push({ g: g, a: a, i: i, done: gDone(g, i, date) }); });
+    });
+    return out;
+  }
+  function gDaysText(days) { return days.length === 7 ? '毎日' : days.length ? days.map(function (x) { return G_DAYS[x]; }).join('・') : 'いつでも'; }
+  function goalView(child) {
+    if (S.gForm) return goalForm(child);
+    var mine = gList().filter(function (g) { return g.child === child; });
+    var h = '';
+    // 今日やること
+    var today = gTodo(child, ST.today);
+    h += '<section class="card"><h2>今日やること<small>' + md(ST.today) + '</small></h2>' + (today.length ? '<div class="list">' + today.map(function (x) {
+      return '<button type="button" class="gchk' + (x.done ? ' on' : '') + '"' + (x.g.mine ? ' data-gchk="' + x.g.id + '|' + x.i + '|' + ST.today + '|' + (x.done ? '' : '1') + '"' : ' disabled') + '><span class="mk">' + (x.done ? '✓' : '') + '</span><span class="main"><b>' + esc(x.a.t) + '</b><span class="sub">🎯 ' + esc(x.g.title) + '</span></span></button>';
+    }).join('') + '</div>' : '<div class="sub">今日の「やること」はありません。' + (mine.length ? '' : '目標を立てて、やることと曜日を決めると、ここに出ます。') + '</div>') + '</section>';
+    // これから1週間
+    var week = [0, 1, 2, 3, 4, 5, 6].map(function (n) { var ds = addDays(ST.today, n); return { ds: ds, list: gTodo(child, ds) }; });
+    if (week.some(function (w) { return w.list.length; })) {
+      h += '<section class="card"><h2>1週間のスケジュール</h2><div class="gweek">' + week.map(function (w) {
+        return '<div class="gday' + (w.ds === ST.today ? ' today' : '') + '"><b>' + md(w.ds).replace(/\(.\)/, '') + '<small>' + G_DAYS[d(w.ds).getUTCDay()] + '</small></b>' + (w.list.length ? w.list.map(function (x) { return '<span class="' + (x.done ? 'ok' : '') + '">' + (x.done ? '✓ ' : '・') + esc(x.a.t) + '</span>'; }).join('') : '<span class="sub">—</span>') + '</div>';
+      }).join('') + '</div></section>';
+    }
+    // 目標の一覧（大きい目標の下に途中目標）
+    var order = function (a, b) { return G_PERIODS.indexOf(a.period) - G_PERIODS.indexOf(b.period) || (a.deadline < b.deadline ? -1 : 1); };
+    var ids = {}; mine.forEach(function (g) { ids[g.id] = true; });
+    var top = mine.filter(function (g) { return !g.parent || !ids[g.parent]; }).sort(order);
+    var act = top.filter(function (g) { return !g.done && g.deadline >= ST.today; }), old = top.filter(function (g) { return g.done || g.deadline < ST.today; });
+    h += '<section class="card"><h2>目標<small>' + act.length + '件</small></h2>' + (act.length ? '<div class="glist">' + act.map(function (g) { return goalCard(g, mine); }).join('') + '</div>' : '<div class="sub">まだ目標がありません。「いつまでに・何を」を決めて、そのためにやることを曜日で決めましょう。</div>') +
+      (myNames().indexOf(child) >= 0 ? '<button class="btn" type="button" id="gNew">＋ 目標を立てる</button>' : '') + '</section>';
+    if (canMission()) h += '<section class="card"><h2>📣 ミッションを出す<small>監督・コーチ・役員</small></h2><div class="sub">「次の大会で100m 14秒台」など、子どもたちに目標を出します。何人でもまとめて出せます。</div><button class="btn ghost" type="button" id="gMission">ミッションを出す</button></section>';
+    if (old.length) h += '<section class="card"><h2>おわった目標<small>' + old.length + '件</small></h2><div class="glist">' + old.map(function (g) { return goalCard(g, mine); }).join('') + '</div></section>';
+    return h;
+  }
+  function goalCard(g, all) {
+    var pr = gProgress(g), left = diff(ST.today, g.deadline), reached = g.done || (pr && pr.reached);
+    var subs = all.filter(function (x) { return x.parent === g.id; }).sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; });
+    var wk = [0, 1, 2, 3, 4, 5, 6].map(function (n) { return addDays(ST.today, -n); });
+    var h = '<div class="gcard' + (reached ? ' won' : '') + (g.kind === 'ミッション' ? ' mission' : '') + '">' +
+      '<div class="row"><span class="pill ' + (g.kind === 'ミッション' ? 'p-race' : 'p-prac') + '">' + (g.kind === 'ミッション' ? '📣 ミッション' : '🎯 ' + esc(g.period)) + '</span>' + (g.kind === 'ミッション' ? '<span class="pill p-gray">' + esc(g.period) + '</span>' : '') +
+      '<span class="sub">' + md(g.deadline) + 'まで' + (reached ? '' : left >= 0 ? '（あと' + left + '日）' : '（期限すぎ）') + '</span></div>' +
+      '<div class="gttl">' + (reached ? '🎉 ' : '') + esc(g.title) + '</div>' + (g.kind === 'ミッション' && g.by ? '<div class="sub">' + esc(g.by) + 'さんから' + (g.note ? '：「' + esc(g.note) + '」' : '') + '</div>' : g.note ? '<div class="sub">' + esc(g.note) + '</div>' : '');
+    if (pr) h += '<div class="gprog"><div class="bar"><i style="width:' + pr.pct + '%"></i></div><div class="sub">' + (pr.start ? 'はじめ ' + esc(pr.start) + ' → ' : '') + 'いま <b>' + esc(pr.cur || '記録なし') + '</b> → 目標 <b>' + esc(pr.target) + '</b>' + (pr.reached ? '　<b class="okc">達成！</b>' : '') + '</div></div>';
+    if (g.actions.length) h += '<div class="gacts">' + g.actions.map(function (a, i) {
+      var cnt = wk.filter(function (ds) { return gDone(g, i, ds); }).length, plan = wk.filter(function (ds) { return a.days.indexOf(d(ds).getUTCDay()) >= 0; }).length;
+      return '<div class="between"><span>・' + esc(a.t) + ' <span class="sub">' + gDaysText(a.days) + '</span></span><span class="sub">この7日 ' + cnt + (plan ? '/' + plan : '') + '回</span></div>';
+    }).join('') + '</div>';
+    if (subs.length) h += '<div class="gsubs"><div class="lbl">途中目標</div>' + subs.map(function (x) { var p2 = gProgress(x), ok = x.done || (p2 && p2.reached); return '<div class="between"><span>' + (ok ? '✓ ' : x.deadline < ST.today ? '— ' : '○ ') + md(x.deadline) + '　' + esc(x.title) + '</span>' + (x.canEdit ? '<button class="link" type="button" data-gedit="' + x.id + '">直す</button>' : '') + '</div>'; }).join('') + '</div>';
+    var acts = [];
+    if (g.mine || g.canEdit) acts.push('<button class="btn small' + (g.done ? ' ghost' : '') + '" type="button" data-gdone="' + g.id + '|' + (g.done ? '' : '1') + '">' + (g.done ? '達成をもどす' : '達成にする') + '</button>');
+    if (g.canEdit && !subs.length && !reached && diff(ST.today, g.deadline) >= 45) acts.push('<button class="btn small ghost" type="button" data-gsplit="' + g.id + '">途中目標に分ける</button>');
+    if (g.canEdit) acts.push('<button class="btn small ghost" type="button" data-gedit="' + g.id + '">直す</button><button class="link" type="button" data-gdel="' + g.id + '">消す</button>');
+    if (acts.length) h += '<div class="row">' + acts.join('') + '</div>';
+    if (S.gSplit === g.id) h += splitBox(g);
+    return h + '</div>';
+  }
+  /** 途中目標：今日から期限までを区切り、記録の目標なら少しずつ近づける */
+  function splitSteps(g, unit) {
+    var months = { '半年': 6, '3ヶ月': 3, '月': 1 }[unit], out = [], pr = gProgress(g);
+    var sv = pr ? markValue(pr.cur || pr.start) : null, tv = pr ? markValue(g.target) : null;
+    var dl = [];
+    for (var k = 1; k < 13; k++) { var ds = addMonths(ST.today, months * k); if (ds >= g.deadline) break; dl.push(ds); }
+    dl.forEach(function (ds, k) {
+      var tgt = sv !== null && tv !== null ? gFmtMark(sv + (tv - sv) * (k + 1) / (dl.length + 1), g.race, g.target) : '';
+      out.push({ deadline: ds, target: tgt, title: tgt ? g.race + 'で ' + tgt : g.title + '（' + (k + 1) + '／' + (dl.length + 1) + '）' });
+    });
+    return out;
+  }
+  function splitBox(g) {
+    var units = ['半年', '3ヶ月', '月'].filter(function (u) { return splitSteps(g, u).length; }), u = S.gUnit && units.indexOf(S.gUnit) >= 0 ? S.gUnit : units[units.length - 1];
+    if (!u) return '<div class="sub">期限までが短いので分けられません。</div>';
+    var steps = splitSteps(g, u);
+    return '<div class="gsplit"><div class="lbl">どの区切りで分けますか</div><div class="choice sm">' + units.map(function (x) { return '<button type="button" data-gunit="' + x + '" aria-pressed="' + (x === u) + '">' + x + 'ごと</button>'; }).join('') + '</div>' +
+      '<div class="list">' + steps.map(function (x) { return '<div class="between"><span>○ ' + md(x.deadline) + 'まで</span><b>' + esc(x.title) + '</b></div>'; }).join('') + '<div class="between"><span>◎ ' + md(g.deadline) + 'まで</span><b>' + esc(g.title) + '</b></div></div>' +
+      '<div class="row"><button class="btn small" type="button" data-gsplitok="' + g.id + '|' + u + '">この' + steps.length + 'つをつくる</button><button class="btn small ghost" type="button" data-gsplit="">やめる</button></div></div>';
+  }
+  /** 出したミッションの様子（同じミッションをまとめて、達成した人数） */
+  function missionSummary() {
+    var groups = {}, order = [];
+    gList().filter(function (g) { return g.kind === 'ミッション' && g.deadline >= addDays(ST.today, -30); }).forEach(function (g) {
+      var k = g.title + '|' + g.deadline; if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(g);
+    });
+    var h = '<section class="card"><h2>📣 ミッション<small>' + order.length + '件</small></h2>';
+    h += order.length ? '<div class="list">' + order.map(function (k) {
+      var list = groups[k], ok = list.filter(function (g) { return g.done || (gProgress(g) || {}).reached; });
+      return '<details class="msum"><summary><b>' + esc(list[0].title) + '</b> <span class="sub">' + md(list[0].deadline) + 'まで・達成 ' + ok.length + '/' + list.length + '人</span></summary><div class="sub">' +
+        list.map(function (g) { var p = gProgress(g); return (ok.indexOf(g) >= 0 ? '✓ ' : '・') + esc(g.child) + (p && p.cur ? '（いま ' + esc(p.cur) + '）' : ''); }).join('<br>') + '</div></details>';
+    }).join('') + '</div>' : '<div class="sub">まだミッションはありません。</div>';
+    return h + '<button class="btn" type="button" id="gMission">ミッションを出す</button></section>';
+  }
+  function newGoalForm(child, mission) {
+    var race = upcoming(isRace)[0];
+    return { id: '', mission: !!mission, kids: mission ? [] : [child], child: child, period: race ? '大会' : '月', deadline: race ? race.date : addMonths(ST.today, 1), key: race ? race.key : '', race: '', target: '', title: '', autoTitle: true, note: '', actions: mission ? [] : [{ t: '', days: [] }] };
+  }
+  function goalForm(child) {
+    var F = S.gForm, races = upcoming(isRace).slice(0, 4);
+    var bestOf = function (k) { var b = F.race ? bests(k)[canon(F.race)] : null; return b ? b.record : ''; };
+    var raceChips = (F.mission ? ST.choices.races : Object.keys(bests(child)).map(function (k) { return bests(child)[k].race; }).concat(ST.choices.races)).filter(function (x, i, a) { return a.indexOf(x) === i; }).slice(0, 14);
+    var h = '<button class="link" type="button" id="gBack">‹ 目標にもどる</button><section class="card"><h2>' + (F.id ? '目標を直す' : F.mission ? '📣 ミッションを出す' : '🎯 目標を立てる') + '</h2><div class="f">';
+    if (F.mission && !F.id) {
+      var byG = {}; ST.kids.forEach(function (k) { (byG[k.grade || 0] = byG[k.grade || 0] || []).push(k); });
+      h += '<div class="fl">だれに<b class="req">必須</b><span class="opt">' + F.kids.length + '人</span></div><div class="choice sm"><button type="button" data-gkall="all">全員</button>' + [1, 2, 3, 4, 5, 6].filter(function (g) { return byG[g]; }).map(function (g) { return '<button type="button" data-gkall="' + g + '">' + g + '年</button>'; }).join('') + '<button type="button" data-gkall="">はずす</button></div>' +
+        '<div class="choice sm">' + ST.kids.slice().sort(byGrade).map(function (k) { return '<button type="button" data-gk="' + esc(k.name) + '" aria-pressed="' + (F.kids.indexOf(k.name) >= 0) + '">' + esc(k.name) + '</button>'; }).join('') + '</div>';
+    }
+    h += '<div class="fl">いつまでに<b class="req">必須</b></div><div class="choice sm">' +
+      races.map(function (e) { return '<button type="button" data-gper="大会|' + e.date + '|' + e.key + '" aria-pressed="' + (F.key === e.key) + '">🏅 ' + md(e.date) + ' ' + esc(e.title.slice(0, 10)) + '</button>'; }).join('') +
+      [['月', 1, '1か月'], ['3ヶ月', 3, '3か月'], ['半年', 6, '半年'], ['年間', 12, '1年']].map(function (x) { var ds = addMonths(ST.today, x[1]); return '<button type="button" data-gper="' + x[0] + '|' + ds + '|" aria-pressed="' + (!F.key && F.period === x[0]) + '">' + x[2] + '</button>'; }).join('') + '</div>' +
+      '<label class="fld"><span class="fl">期限の日</span><input type="date" id="g-deadline" value="' + esc(F.deadline) + '" min="' + ST.today + '"></label>' +
+      '<div class="fl">種目と目標記録<span class="opt">記録の目標なら（自己ベストで自動で達成になります）</span></div><div class="choice sm">' + raceChips.map(function (x) { return '<button type="button" data-grace="' + esc(x) + '" aria-pressed="' + (F.race === x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      (F.race ? '<label class="fld"><span class="fl">目標記録</span><input id="g-target" inputmode="decimal" value="' + esc(F.target) + '" placeholder="' + (!F.mission && bestOf(child) ? 'いまのベスト ' + esc(bestOf(child)) : '例 14.50') + '"><span class="fh">' + (!F.mission && bestOf(child) ? 'いまのベストは ' + esc(bestOf(child)) + '。' : '') + '「1450」→14.50、800mは「312」→3:12、跳ぶは「320」→3m20</span></label>' : '') +
+      '<label class="fld"><span class="fl">目標<b class="req">必須</b></span><input id="g-title" value="' + esc(F.title) + '" placeholder="例：100mで14秒50を切る／毎日なわとび"></label>';
+    h += '<div class="fl">そのためにやること<span class="opt">曜日を選ぶと、毎週のスケジュールに入ります</span></div>' + F.actions.map(function (a, i) {
+      return '<div class="gactf"><div class="row"><input data-gat="' + i + '" value="' + esc(a.t) + '" placeholder="例：坂ダッシュ 10本" style="flex:1"><button class="icon-btn" type="button" data-gadel="' + i + '" aria-label="消す">×</button></div>' +
+        '<div class="choice sm">' + G_DAYS.map(function (x, k) { return '<button type="button" data-gday="' + i + '|' + k + '" aria-pressed="' + (a.days.indexOf(k) >= 0) + '">' + x + '</button>'; }).join('') + '<button type="button" data-gday="' + i + '|all">毎日</button></div></div>';
+    }).join('') + '<div class="quick">' + G_SUGGEST.map(function (x) { return '<button type="button" data-gsug="' + esc(x) + '">＋' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<button class="btn small ghost" type="button" id="gAddAct" style="justify-self:start">＋ やることを足す</button>' +
+      '<label class="fld"><span class="fl">' + (F.mission ? 'ひとこと（子どもたちへ）' : 'メモ') + '</span><input id="g-note" value="' + esc(F.note) + '" placeholder="' + (F.mission ? '例：スタートの一歩目を意識しよう' : '') + '"></label>' +
+      '<button class="btn" type="button" id="gSave">' + (F.id ? '保存する' : F.mission ? 'ミッションを出す（' + F.kids.length + '人）' : '目標を立てる') + '</button></div></section>';
+    return h;
+  }
+  function bindGoals(child) {
+    var F = S.gForm;
+    on('#gNew', function () { S.gForm = newGoalForm(child, false); S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('#gMission', function () { S.gForm = newGoalForm(child, true); S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('[data-gchk]', function () { var p = this.dataset.gchk.split('|'); call('checkGoalAction', { id: p[0], act: +p[1], date: p[2], on: !!p[3] }); });
+    on('[data-gdone]', function () { var p = this.dataset.gdone.split('|'); call('setGoalDone', { id: p[0], done: !!p[1] }); });
+    on('[data-gdel]', function () { if (confirm('この目標を消しますか？')) call('deleteGoal', { id: this.dataset.gdel }); });
+    on('[data-gsplit]', function () { S.gSplit = this.dataset.gsplit || null; S.gUnit = null; render(); });
+    on('[data-gunit]', function () { S.gUnit = this.dataset.gunit; render(); });
+    on('[data-gsplitok]', function () { var p = this.dataset.gsplitok.split('|'), g = gList().find(function (x) { return x.id === p[0]; }); if (!g) return; call('splitGoal', { id: g.id, unit: p[1], steps: splitSteps(g, p[1]) }, function (st) { if (st.message) S.gSplit = null; }); });
+    on('[data-gedit]', function () {
+      var g = gList().find(function (x) { return x.id === this.dataset.gedit; }, this); if (!g) return;
+      S.gForm = { id: g.id, mission: g.kind === 'ミッション', kids: [g.child], child: g.child, period: g.period, deadline: g.deadline, key: g.key || '', race: g.race || '', target: g.target || '', title: g.title, autoTitle: false, note: g.note || '', actions: g.actions.map(function (a) { return { t: a.t, days: a.days.slice() }; }), parent: g.parent || '' };
+      S.toast = ''; render(); window.scrollTo(0, 0);
+    });
+    if (!F) return;
+    var keep = function () {
+      ['deadline', 'target', 'title', 'note'].forEach(function (k) { var el = document.getElementById('g-' + k); if (el) F[k] = el.value; });
+      view.querySelectorAll('[data-gat]').forEach(function (el) { F.actions[+el.dataset.gat].t = el.value; });
+    };
+    var auto = function () { if (F.autoTitle && F.race) F.title = F.race + (F.target ? 'で ' + fmtTarget(F.target, F.race) : 'で自己ベスト更新'); };
+    on('#gBack', function () { S.gForm = null; S.toast = ''; render(); });
+    var ti = document.getElementById('g-title'); if (ti) ti.addEventListener('input', function () { F.autoTitle = false; });
+    var tg = document.getElementById('g-target'); if (tg) tg.addEventListener('change', function () { keep(); F.target = fmtTarget(F.target, F.race); auto(); render(); });
+    on('[data-gper]', function () { keep(); var p = this.dataset.gper.split('|'); F.period = p[0]; F.deadline = p[1]; F.key = p[2] || ''; render(); });
+    on('[data-grace]', function () { keep(); F.race = F.race === this.dataset.grace ? '' : this.dataset.grace; auto(); render(); });
+    on('[data-gk]', function () { keep(); var k = this.dataset.gk, i = F.kids.indexOf(k); if (i >= 0) F.kids.splice(i, 1); else F.kids.push(k); render(); });
+    on('[data-gkall]', function () { keep(); var g = this.dataset.gkall; F.kids = g === '' ? [] : ST.kids.filter(function (k) { return g === 'all' || k.grade === +g; }).map(function (k) { return k.name; }).concat(g === 'all' ? [] : F.kids).filter(function (x, i, a) { return a.indexOf(x) === i; }); render(); });
+    on('[data-gday]', function () { keep(); var p = this.dataset.gday.split('|'), a = F.actions[+p[0]]; if (p[1] === 'all') a.days = a.days.length === 7 ? [] : [0, 1, 2, 3, 4, 5, 6]; else { var k = +p[1], i = a.days.indexOf(k); if (i >= 0) a.days.splice(i, 1); else a.days.push(k); a.days.sort(); } render(); });
+    on('[data-gadel]', function () { keep(); F.actions.splice(+this.dataset.gadel, 1); render(); });
+    on('#gAddAct', function () { keep(); F.actions.push({ t: '', days: [] }); render(); });
+    on('[data-gsug]', function () { keep(); var empty = F.actions.find(function (a) { return !a.t.trim(); }); if (empty) empty.t = this.dataset.gsug; else F.actions.push({ t: this.dataset.gsug, days: [] }); render(); });
+    on('#gSave', function () {
+      keep(); auto();
+      var start = {}; (F.mission ? F.kids : [F.child]).forEach(function (k) { var b = F.race ? bests(k)[canon(F.race)] : null; if (b) start[k] = b.record; });
+      call('saveGoal', { id: F.id, kind: F.mission ? 'ミッション' : '自分', child: F.child, children: F.kids, period: F.period, deadline: F.deadline, key: F.key, race: F.race, target: F.target ? fmtTarget(F.target, F.race) : '', title: F.title, note: F.note, parent: F.parent || '',
+        actions: F.actions.filter(function (a) { return a.t.trim(); }), startRecords: start }, function (st) { if (st.message) S.gForm = null; });
+    });
+  }
+  /** 目標記録の入れ方をそろえる（1450→14.50、312→3:12、320→3m20） */
+  function fmtTarget(t, race) {
+    t = toHalf(String(t || '')).trim();
+    if (!/^\d{3,4}$/.test(t)) return t;
+    if (higherBetter(race)) return t.slice(0, -2) + 'm' + t.slice(-2);
+    return recKind(race) === 'long' ? t.slice(0, -2) + ':' + t.slice(-2) : t.slice(0, -2) + '.' + t.slice(-2);
+  }
+
   function train() {
     var coachKids = ST.trainShare.kids;
     var others = ST.me.coach || coachKids.length;
@@ -2932,6 +3152,18 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!F.id && F.made !== ST.today) { F.date = ST.today; F.made = ST.today; } // 開いたまま日がかわったときも今日に
     var h = toastHtml();
     if (ST.me.children.length > 1) h += '<div class="tabs" role="group" aria-label="だれの">' + ST.me.children.map(function (k) { return '<button type="button" data-trkid="' + esc(k.name) + '" aria-pressed="' + (k.name === child) + '">' + esc(k.name) + '</button>'; }).join('') + '</div>';
+    // 目標と自主トレの記録を切りかえ（目標があれば目標から）
+    var hasGoal = gList().some(function (g) { return g.child === child && gActive(g); });
+    var tv = S.trView || (hasGoal ? 'goal' : 'log');
+    h += '<div class="tabs seg" role="group" aria-label="表示">' + [['goal', '🎯 目標'], ['log', '🏃 自主トレの記録']].map(function (x) { return '<button type="button" data-trview="' + x[0] + '" aria-pressed="' + (tv === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (tv === 'goal') {
+      view.innerHTML = modeTabs + h + goalView(child);
+      bindCommon(); bindGoals(child);
+      on('[data-trkid]', function () { S.trKid = this.dataset.trkid; S.trForm = null; S.gForm = null; render(); });
+      on('[data-trview]', function () { S.trView = this.dataset.trview; S.gForm = null; render(); });
+      on('[data-trmode]', function () { S.trMode = this.dataset.trmode; render(); });
+      return;
+    }
     var level = ST.trainShare.mine[child] || '';
     var LV = [['', '家族だけ', '家族だけが見られます'], ['coach', 'コーチに見せる', 'コーチが記録とレポートを見て、コメントできます'], ['all', 'みんなに見せる', 'クラブのみんなが記録とレポートを見られます（コメントはコーチと家族だけ）']];
     h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + effortCard(child) + trCalendarCard(child) + trReportCard(child) +
@@ -2948,9 +3180,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-trlv]', function () { if (this.dataset.trlv !== level) call('setTrainShare', { child: child, level: this.dataset.trlv }); });
     if (trUnread(child).length && !serverOld()) rpc('markTrainRead', { child: child }, function () { ST.trainComments.read[child] = '9999'; saveState(ST); }, function () {});
     on('[data-trmode]', function () { S.trMode = this.dataset.trmode; render(); });
+    on('[data-trview]', function () { S.trView = this.dataset.trview; render(); });
   }
   /** コーチ用：見せてもらっている子の一覧（この30日）と、1人ずつのカレンダー・レポート（見るだけ） */
   function trainCoach(kids, modeTabs) {
+    // ミッション（監督・コーチ・役員）：出す画面と、出したミッションの様子
+    if (canMission() && S.gForm) { view.innerHTML = modeTabs + toastHtml() + goalForm(''); bindCommon(); bindGoals(''); on('[data-trmode]', function () { S.trMode = this.dataset.trmode; S.gForm = null; render(); }); return; }
     var h = modeTabs + toastHtml();
     var sel = kids.find(function (k) { return k.name === S.trCoachKid; });
     if (sel) {
@@ -2960,7 +3195,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var from = addDays(ST.today, -29);
       var rows = kids.map(function (k) { var st = trStats(trRows(k.name), from, ST.today); var last = trRows(k.name).map(function (t) { return t.date; }).sort().pop(); return { k: k, st: st, last: last }; })
         .sort(function (a, b) { return b.st.nDays - a.st.nDays || b.k.grade - a.k.grade; });
-      h += '<button class="btn ghost" id="toDash" type="button">📊 記録ダッシュボード（大会・練習の記録）</button>';
+      h += '<button class="btn ghost" id="toDash" type="button">📊 記録ダッシュボード（大会・練習の記録）</button>' + (canMission() ? missionSummary() : '');
       h += '<section class="card"><h2>みんなの自主トレ' + (ST.me.coach ? '（コーチ用）' : '') + '<small>この30日・' + kids.length + '人</small></h2>' + (rows.length ? '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>学年</th><th>日数</th><th>距離</th><th>筋トレ</th><th>最後</th></tr></thead><tbody>' + rows.map(function (r) {
         return '<tr data-trc="' + esc(r.k.name) + '" style="cursor:pointer"><td><button class="link" type="button" data-trc="' + esc(r.k.name) + '">' + esc(r.k.name) + '</button>' + (ST.me.coach && trUnreadCoach(r.k.name) ? ' <span class="newdot" aria-label="新しいコメント"></span>' : '') + '</td><td>' + (r.k.grade || '') + '</td><td><b>' + r.st.nDays + '</b>日</td><td>' + (r.st.km ? round1(r.st.km) + 'km' : '') + '</td><td>' + (r.st.strength ? r.st.strength + '回' : '') + '</td><td class="sub">' + (r.last ? md(r.last) : 'なし') + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="sub">まだ見せている家族はいません。保護者が「自主トレ」のいちばん下で切り替えられます。</div>') +
@@ -2973,6 +3208,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#trcBack', function () { S.trCoachKid = ''; render(); });
     on('#toDash', function () { S.dashFrom = 'train'; go('dash'); });
     if (sel && ST.me.coach) bindTrComments(sel.name);
+    if (canMission()) bindGoals('');
     bindTips();
     on('[data-trm]', function () { var t = new Date(Date.UTC(+S.trMonth.slice(0, 4), +S.trMonth.slice(5, 7) - 1 + +this.dataset.trm, 1)); S.trMonth = t.toISOString().slice(0, 7); render(); });
     on('[data-trp]', function () { S.trPeriod = this.dataset.trp; S.trBar = undefined; render(); });
@@ -4427,7 +4663,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     album: '<rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
     train: '<path d="M3 12h4l3-7 4 14 3-7h4"/>'
   };
-  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['train', '自主トレ'], ['album', '写真'], ['family', 'わが家'], ['admin', '管理']];
+  var NAV = [['home', 'ホーム'], ['events', '予定・大会'], ['train', '目標・自主トレ'], ['album', '写真'], ['family', 'わが家'], ['admin', '管理']];
   function renderNav() {
     var nav = document.getElementById('nav');
     nav.hidden = false; document.getElementById('view').classList.add('navpad');

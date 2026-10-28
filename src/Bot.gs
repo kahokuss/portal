@@ -178,13 +178,21 @@ function handleNews_(ev) {
 
 // ---- 今日・予定 ----
 
+/** 今日の「やること」（目標）の文。なければ空 */
+function goalTodayText_(u, today) {
+  const list = todayGoalActions_(u.kids.map((k) => k.name), today);
+  if (!list.length) return '';
+  return '🎯 今日やること（目標）\n' + list.map((x) => (x.done ? '✓ ' : '□ ') + (u.kids.length > 1 ? x.child + '：' : '') + x.t).join('\n') + '\nできたらポータルの「目標・自主トレ」でチェック';
+}
+
 function handleToday_(ev) {
   const u = botUser_(ev);
   const d = botData_();
   const todays = d.events.filter((e) => e.date === d.today);
+  const goalText = goalTodayText_(u, d.today);
   if (!todays.length) {
     const next = d.events[0];
-    return respond_(ev, botMessages_(['今日の予定はありません。' + (next ? '\n次は ' + whenText_(next) + '（' + dayWord_(next.date, d.today) + '）' : '')]));
+    return respond_(ev, botMessages_(['今日の予定はありません。' + (next ? '\n次は ' + whenText_(next) + '（' + dayWord_(next.date, d.today) + '）' : ''), goalText]));
   }
   const tasks = readRows_(SHEETS.TASKS);
   const entries = readRows_(SHEETS.ENTRIES);
@@ -217,7 +225,8 @@ function handleToday_(ev) {
     }
     return lines.join('\n');
   });
-  respond_(ev, botMessages_(out));
+  if (goalText) out.push(goalText);
+  respond_(ev, botMessages_(out.slice(0, 5)));
 }
 
 function handleSchedule_(ev) {

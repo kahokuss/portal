@@ -1204,7 +1204,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '541dc86bff';
+const SERVER_VERSION = 'e949a810c1';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',

@@ -1221,11 +1221,15 @@ async function openPortal(browser, gas, userId, name) {
       await q.shot('goal-hero');
       await q.click('.ghero [data-gopen]');
       await q.click('[data-gsplit]');
-      await q.click('[data-gunit="3ヶ月"]');
+      await q.click('[data-gunit="auto"]');
       await q.click('[data-gsplitok]');
       await q.idle();
-      assert.ok(gas.rows('目標').filter((r) => r['期間'] === '3ヶ月').length >= 3, '3ヶ月ごとの途中目標');
-      assert.ok((await q.textContent('.ghero')).includes('次の一歩'), '次の一歩（いちばん近い途中目標）');
+      const per = gas.rows('目標').map((r) => r['期間']);
+      assert.ok(per.filter((x) => x === '3ヶ月').length >= 3 && per.includes('月') && per.includes('週'), '近いほど細かく：クオーター・月・週 ' + per.join(','));
+      const hero = await q.textContent('.ghero');
+      assert.ok(hero.includes('▶ 週'), '目標のはしご：いま向かっているのは今週の目標');
+      assert.ok(hero.includes('いまやること') && hero.includes('今日のやること'), '気づき');
+      await q.shot('goal-ladder');
       await q.shot('goal-view');
       await q.close();
       // 役員（監督）からミッション

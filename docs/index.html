@@ -14,6 +14,8 @@
   --warn: #a8660b; --warn-soft: #f8ead2; --viz-line: #2f6fae; --viz-pb: #c4512f;
   /* 学年の色（1年〜6年。色は学年に付いて、並びで変わらない） */
   --g1: #2a78d6; --g2: #eb6834; --g3: #1baf7a; --g4: #eda100; --g5: #e87ba4; --g6: #008300;
+  /* 目標の色（濃い藍に金。ほかの画面と区別する） */
+  --goal-a: #26457f; --goal-b: #172c55; --goal-gold: #ffc94d; --goal-ink: #ffffff; --goal-soft: #e6ecf7;
   --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
   --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
 }
@@ -23,6 +25,7 @@
     --track: #ec8566; --track-soft: #3f2219; --field: #4cc28c; --field-soft: #163527; --sky: #6aa7e3; --sky-soft: #172b3f;
     --warn: #e5a54a; --warn-soft: #3a2a12; --viz-line: #4f8fd1; --viz-pb: #e07050; color-scheme: dark;
     --g1: #3987e5; --g2: #d95926; --g3: #199e70; --g4: #c98500; --g5: #d55181; --g6: #008300;
+    --goal-a: #24395f; --goal-b: #141f38; --goal-gold: #ffd36b; --goal-ink: #f4f7ff; --goal-soft: #1b2640;
   }
 }
 * { box-sizing: border-box; }
@@ -427,23 +430,36 @@ tr.sel td { background: var(--sky-soft); }
 .steps2 li.done .mk { background: var(--field); color: #fff; } .steps2 li.done b { color: var(--muted); font-weight: 500; }
 .steps2 li.cur .mk { background: var(--track); color: #fff; }
 .steps2 .main { flex: 1; display: grid; gap: 4px; } .steps2 .main b { font-size: 13.5px; }
-.ghero { gap: 8px; border: 2px solid var(--sky-soft); }
-.ghero.mission { border-color: var(--track-soft); }
-.ghero.empty { text-align: left; }
-.gh-kind { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; color: var(--sky); }
-.ghero.mission .gh-kind { color: var(--track); }
-.gh-kind span { color: var(--muted); font-weight: 400; }
+.ghero { gap: 10px; border: 0; color: var(--goal-ink); background: linear-gradient(140deg, var(--goal-a), var(--goal-b)); }
+.ghero .sub { color: rgba(255,255,255,.75); }
+.ghero.mission { box-shadow: inset 0 0 0 2px var(--goal-gold); }
+.gh-kind { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; color: var(--goal-gold); }
+.gh-kind span { color: rgba(255,255,255,.7); font-weight: 400; }
 .gh-title { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; line-height: 1.3; }
 .gh-nums { display: flex; align-items: flex-end; gap: 14px; }
 .gh-nums > div { display: grid; }
-.gh-nums small { font-size: 11.5px; color: var(--muted); }
+.gh-nums small { font-size: 11.5px; color: rgba(255,255,255,.7); }
 .gh-nums b { font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.gh-nums .arrow { color: var(--muted); font-size: 1.3rem; padding-bottom: 2px; }
+.gh-nums .tg b { color: var(--goal-gold); }
+.gh-nums .arrow { color: rgba(255,255,255,.6); font-size: 1.3rem; padding-bottom: 2px; }
 .gh-nums .left { margin-left: auto; text-align: right; }
-.gh-nums .left b { color: var(--track); } .gh-nums .left b span { font-size: 1rem; margin-left: 2px; }
-.gh-bar { height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; } .gh-bar i { display: block; height: 100%; background: var(--field); border-radius: 6px; }
-.gh-next { font-size: 13.5px; background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
-.ghero .link { justify-self: start; }
+.gh-nums .left b span { font-size: 1rem; margin-left: 2px; }
+.gh-bar { height: 12px; border-radius: 6px; background: rgba(255,255,255,.18); overflow: hidden; } .gh-bar i { display: block; height: 100%; background: var(--goal-gold); border-radius: 6px; }
+.gh-ladder { display: grid; gap: 2px; background: rgba(255,255,255,.1); border-radius: 12px; padding: 8px 10px; }
+.gh-ladder .rung { display: grid; grid-template-columns: 4.2em 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; color: rgba(255,255,255,.8); }
+.gh-ladder .rung.now { color: #fff; font-weight: 800; font-size: 14.5px; }
+.gh-ladder .rung.now .pl { color: var(--goal-gold); }
+.gh-ladder .pl { font-size: 11.5px; }
+.gh-ladder .lt { font-size: 11.5px; color: rgba(255,255,255,.7); }
+.gh-hint { display: grid; gap: 6px; background: var(--surface); color: var(--fg); border-radius: 12px; padding: 10px 12px; }
+.gh-hint .hd { font-size: 12px; font-weight: 800; color: var(--goal-a); }
+.gh-hint .it { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 0; }
+.gh-hint button.it { cursor: pointer; } .gh-hint .it .ic { flex: none; width: 1.4em; text-align: center; }
+.gh-hint .it b { color: var(--track); } .gh-hint .it .ok { color: var(--field); }
+.ghero .link { justify-self: start; color: #fff; }
+.ghero .gcard { color: var(--fg); }
+.ghero.empty .btn { background: var(--goal-gold); color: #1d2a44; }
+.seg button[aria-pressed="true"][data-trview="goal"] { background: var(--goal-a); }
 .grow { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 10px 0; cursor: pointer; border-top: 1px solid var(--line); }
 .list .grow:first-child { border-top: 0; }
 .grow .main { flex: 1; min-width: 0; display: grid; } .grow .main b { font-size: 14.5px; }
@@ -588,9 +604,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "a170a0b0ab";
+var BUILD = "939f98ecc9";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "e949a810c1";
+var EXPECT_SERVER = "316abf1211";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -3017,7 +3033,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     else h += '<section class="card ghero empty"><div class="gh-title">目標を決めよう</div><div class="sub">「いつまでに・何を」と、そのためにやることを決めると、毎日のやることが出ます。</div>' + (canNew ? '<button class="btn" type="button" id="gNew">＋ 目標を立てる</button>' : '') + '</section>';
     // 今日やること
     var today = gTodo(child, ST.today);
-    if (today.length) h += '<section class="card"><h2>今日やること<small>' + today.filter(function (x) { return x.done; }).length + ' / ' + today.length + '</small></h2><div class="list">' + today.map(function (x) {
+    if (today.length) h += '<section class="card" id="gToday"><h2>今日やること<small>' + today.filter(function (x) { return x.done; }).length + ' / ' + today.length + '</small></h2><div class="list">' + today.map(function (x) {
       return '<button type="button" class="gchk' + (x.done ? ' on' : '') + '"' + (x.g.mine ? ' data-gchk="' + x.g.id + '|' + x.i + '|' + ST.today + '|' + (x.done ? '' : '1') + '"' : ' disabled') + '><span class="mk">' + (x.done ? '✓' : '') + '</span><span class="main"><b>' + esc(x.a.t) + '</b></span></button>';
     }).join('') + '</div></section>';
     // ほかの目標・ミッション（1行ずつ。押すとくわしく）
@@ -3037,18 +3053,74 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (old.length) h += '<section class="card"><h2>おわった目標<small>' + old.length + '件</small></h2><div class="list">' + old.map(function (g) { return goalRow(g, mine); }).join('') + '</div></section>';
     return h;
   }
-  /** いちばん大きい目標：目標の文・いま→目標・あと何日を大きく、次の一歩（途中目標）も */
+  /** いちばん大きい目標：目標の文・いま→目標・あと何日。その下に「目標のはしご」（年→3ヶ月→月→週）と「気づき」 */
   function goalHero(g, all) {
     var pr = gProgress(g), left = diff(ST.today, g.deadline);
-    var next = all.filter(function (x) { return x.parent === g.id && gActive(x); }).sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; })[0];
-    var h = '<section class="card ghero' + (g.kind === 'ミッション' ? ' mission' : '') + '"><div class="gh-kind">' + (g.kind === 'ミッション' ? '📣 ミッション' + (g.by ? '（' + esc(g.by) + 'さんから）' : '') : '🎯 ' + esc(g.period === '大会' ? '大会' : g.period) + 'の目標') + '<span>' + md(g.deadline) + 'まで</span></div>' +
+    var chain = [g], cur = g, guard = 0;
+    while (guard++ < 6) { var nx = all.filter(function (x) { return x.parent === cur.id && gActive(x); }).sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; })[0]; if (!nx) break; chain.push(nx); cur = nx; }
+    var h = '<section class="card ghero' + (g.kind === 'ミッション' ? ' mission' : '') + '"><div class="gh-kind">' + (g.kind === 'ミッション' ? '📣 ミッション' + (g.by ? '（' + esc(g.by) + 'さんから）' : '') : '🎯 ' + esc(g.period) + 'の目標') + '<span>' + md(g.deadline) + 'まで</span></div>' +
       '<div class="gh-title">' + esc(g.title) + '</div>' +
-      '<div class="gh-nums">' + (pr ? '<div><small>いま</small><b>' + esc(pr.cur || '—') + '</b></div><div class="arrow">→</div><div><small>目標</small><b>' + esc(pr.target) + '</b></div>' : '') + '<div class="left"><small>あと</small><b>' + left + '<span>日</span></b></div></div>' +
-      (pr ? '<div class="gh-bar"><i style="width:' + pr.pct + '%"></i></div>' : '') +
-      (next ? '<div class="gh-next">次の一歩：<b>' + md(next.deadline) + 'まで　' + esc(next.title) + '</b></div>' : '') +
-      (g.kind === 'ミッション' && g.note ? '<div class="gh-next">「' + esc(g.note) + '」</div>' : '') +
-      '<button class="link" type="button" data-gopen="' + g.id + '">' + (S.gOpen === g.id ? 'とじる' : 'くわしく・直す ›') + '</button>' + (S.gOpen === g.id ? goalCard(g, all) : '') + '</section>';
-    return h;
+      '<div class="gh-nums">' + (pr ? '<div><small>いま</small><b>' + esc(pr.cur || '—') + '</b></div><div class="arrow">→</div><div class="tg"><small>目標</small><b>' + esc(pr.target) + '</b></div>' : '') + '<div class="left"><small>あと</small><b>' + left + '<span>日</span></b></div></div>' +
+      (pr ? '<div class="gh-bar"><i style="width:' + pr.pct + '%"></i></div>' : '');
+    // 目標のはしご：大きい目標から、いま向かっている小さい目標まで
+    if (chain.length > 1) h += '<div class="gh-ladder">' + chain.map(function (x, k) {
+      return '<div class="rung' + (k === chain.length - 1 ? ' now' : '') + '"><span class="pl">' + (k === chain.length - 1 ? '▶ ' : '') + esc(x.period) + '</span><span>' + esc(x.target || x.title) + '</span><span class="lt">' + md(x.deadline) + '・あと' + diff(ST.today, x.deadline) + '日</span></div>';
+    }).join('') + '</div>';
+    if (g.kind === 'ミッション' && g.note) h += '<div class="gh-ladder">「' + esc(g.note) + '」</div>';
+    h += goalHints(g, chain, all);
+    h += '<button class="link" type="button" data-gopen="' + g.id + '">' + (S.gOpen === g.id ? 'とじる' : 'くわしく・直す・途中目標 ›') + '</button>' + (S.gOpen === g.id ? goalCard(g, all) : '');
+    return h + '</section>';
+  }
+  /** 気づき：いま何をすればいいか（やることが決まっていない・今日のやること・連続・ペース・次のチャンス） */
+  function goalHints(g, chain, all) {
+    var out = [], child = g.child, step = chain[chain.length - 1];
+    var anyActs = chain.some(function (x) { return x.actions.length; });
+    if (!anyActs && g.mine) out.push('<button class="it" type="button" data-gedit="' + g.id + '"><span class="ic">⚠</span><span><b>やることがまだ決まっていません。</b>目標に近づくために、何を何曜日にやるか決めよう ›</span></button>');
+    var today = gTodo(child, ST.today), done = today.filter(function (x) { return x.done; }).length;
+    if (today.length) out.push('<button class="it" type="button" data-gscroll="gToday"><span class="ic">' + (done === today.length ? '✅' : '📝') + '</span><span>今日のやること ' + (done === today.length ? '<span class="ok">ぜんぶできた！</span>' : '<b>あと' + (today.length - done) + 'つ</b>（' + today.filter(function (x) { return !x.done; }).map(function (x) { return esc(x.a.t); }).join('・') + '）') + '</span></button>');
+    // 連続：やることがある日に、ぜんぶできた日が何日つづいているか（今日はまだなら昨日から）
+    var streak = 0;
+    for (var n = 0; n < 60; n++) {
+      var ds = addDays(ST.today, -n), list = gTodo(child, ds);
+      if (!list.length) continue;
+      var all2 = list.every(function (x) { return x.done; });
+      if (n === 0 && !all2) continue;
+      if (!all2) break;
+      streak++;
+    }
+    if (streak >= 2) out.push('<div class="it"><span class="ic">🔥</span><span><b>' + streak + '日連続</b>でやることができています。この調子！</span></div>');
+    // この7日のやること
+    var plan = 0, ok = 0;
+    for (var m = 0; m < 7; m++) { var l2 = gTodo(child, addDays(ST.today, -m)); plan += l2.length; ok += l2.filter(function (x) { return x.done; }).length; }
+    if (plan >= 3) out.push('<div class="it"><span class="ic">📊</span><span>この7日のやること <b' + (ok / plan >= 0.8 ? ' class="ok"' : '') + '>' + ok + '/' + plan + '（' + Math.round(ok * 100 / plan) + '%）</b>' + (ok / plan < 0.5 ? '。できる曜日に変えてもOK' : '') + '</span></div>');
+    // ペース：最近の記録の伸びから、期限の日の記録を予想
+    var pace = goalPace(step.race ? step : g);
+    if (pace) out.push('<div class="it"><span class="ic">' + (pace.ok ? '👍' : '⏱') + '</span><span>' + (pace.ok ? 'このペースなら<b class="ok">届きそう</b>（' + md(pace.at) + 'に ' + esc(pace.pred) + ' の予想）' : 'このままだと ' + md(pace.at) + 'に ' + esc(pace.pred) + '。<b>あと ' + esc(pace.gap) + '</b> 縮めよう') + '</span></div>');
+    // 次のチャンス：期限までにある大会
+    var race = upcoming(isRace).find(function (e) { return e.date <= g.deadline && (!g.race || !e.detail || !(e.detail.races || []).length || (e.detail.races || []).some(function (r) { return canon(r) === canon(g.race); })); });
+    if (race) out.push('<button class="it" type="button" data-ev="' + race.key + '"><span class="ic">🏅</span><span>次のチャンス：<b>' + md(race.date) + ' ' + esc(race.title) + '</b>（あと' + diff(ST.today, race.date) + '日）›</span></button>');
+    if (!out.length) return '';
+    return '<div class="gh-hint"><div class="hd">💡 いまやること</div>' + out.slice(0, 5).join('') + '</div>';
+  }
+  /** 最近（120日）の記録から、期限の日の記録を直線で予想。2日以上の記録がいる */
+  function goalPace(g) {
+    if (!g.race || !g.target || markValue(g.target) === null) return null;
+    var from = addDays(ST.today, -120), pts = {};
+    ST.results.filter(function (r) { return r.child === g.child && canon(r.race) === canon(g.race) && r.date && r.date >= from; }).forEach(function (r) {
+      var v = markValue(r.record); if (v === null) return;
+      var cur = pts[r.date]; if (cur === undefined || isBetter(g.race, r.record, gFmtMark(cur, g.race, r.record))) pts[r.date] = v;
+    });
+    var ds = Object.keys(pts); if (ds.length < 2) return null;
+    var xs = ds.map(function (x) { return diff(from, x); }), ys = ds.map(function (x) { return pts[x]; });
+    var n = xs.length, mx = xs.reduce(function (a, b) { return a + b; }, 0) / n, my = ys.reduce(function (a, b) { return a + b; }, 0) / n;
+    var sxx = 0, sxy = 0; xs.forEach(function (x, i) { sxx += (x - mx) * (x - mx); sxy += (x - mx) * (ys[i] - my); });
+    if (!sxx) return null;
+    var b = sxy / sxx, pred = my + b * (diff(from, g.deadline) - mx), tv = markValue(g.target), hb = higherBetter(g.race) || /回$/.test(g.target);
+    // 予想がいまのベストより悪いときは、いまのベストのまま（記録は下がらない前提）
+    var best = bests(g.child)[canon(g.race)], bv = best ? markValue(best.record) : null;
+    if (bv !== null && (hb ? pred < bv : pred > bv)) pred = bv;
+    var ok = hb ? pred >= tv : pred <= tv, gap = Math.abs(pred - tv);
+    return { at: g.deadline, pred: gFmtMark(pred, g.race, g.target), ok: ok, gap: higherBetter(g.race) ? Math.round(gap * 100) + 'cm' : /回$/.test(g.target) ? Math.round(gap) + '回' : gap.toFixed(2) + '秒' };
   }
   /** 1行の目標（押すとくわしく） */
   function goalRow(g, all) {
@@ -3068,34 +3140,69 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var cnt = wk.filter(function (ds) { return gDone(g, i, ds); }).length, plan = wk.filter(function (ds) { return a.days.indexOf(d(ds).getUTCDay()) >= 0; }).length;
       return '<div class="between"><span>・' + esc(a.t) + ' <span class="sub">' + gDaysText(a.days) + '</span></span><span class="sub">この7日 ' + cnt + (plan ? '/' + plan : '') + '回</span></div>';
     }).join('') + '</div>';
-    if (subs.length) h += '<div class="gsubs"><div class="lbl">途中目標</div>' + subs.map(function (x) { var p2 = gProgress(x), ok = x.done || (p2 && p2.reached); return '<div class="between"><span>' + (ok ? '✓ ' : x.deadline < ST.today ? '— ' : '○ ') + md(x.deadline) + '　' + esc(x.title) + '</span>' + (x.canEdit ? '<button class="link" type="button" data-gedit="' + x.id + '">直す</button>' : '') + '</div>'; }).join('') + '</div>';
+    var subTree = function (list, depth) {
+      return list.map(function (x) {
+        var p2 = gProgress(x), ok = x.done || (p2 && p2.reached), kids2 = all.filter(function (y) { return y.parent === x.id; }).sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; });
+        return '<div class="between" style="padding-left:' + depth * 14 + 'px"><span>' + (ok ? '✓ ' : x.deadline < ST.today ? '— ' : depth ? '└ ' : '○ ') + '<span class="sub">' + esc(x.period) + '</span> ' + md(x.deadline) + '　' + esc(x.target || x.title) + '</span><span class="row nowrap">' +
+          (x.canEdit && !kids2.length && !ok && splitUnits(x).length ? '<button class="link" type="button" data-gsplit="' + x.id + '">分ける</button>' : '') + (x.canEdit ? '<button class="link" type="button" data-gedit="' + x.id + '">直す</button>' : '') + '</span></div>' +
+          (S.gSplit === x.id ? splitBox(x) : '') + subTree(kids2, depth + 1);
+      }).join('');
+    };
+    if (subs.length) h += '<div class="gsubs"><div class="lbl">途中目標</div>' + subTree(subs, 0) + '</div>';
     var acts = [];
     if (g.mine || g.canEdit) acts.push('<button class="btn small' + (g.done ? ' ghost' : '') + '" type="button" data-gdone="' + g.id + '|' + (g.done ? '' : '1') + '">' + (g.done ? '達成をもどす' : '達成にする') + '</button>');
-    if (g.canEdit && !subs.length && !reached && diff(ST.today, g.deadline) >= 45) acts.push('<button class="btn small ghost" type="button" data-gsplit="' + g.id + '">途中目標に分ける</button>');
+    if (g.canEdit && !subs.length && !reached && splitUnits(g).length) acts.push('<button class="btn small ghost" type="button" data-gsplit="' + g.id + '">途中目標に分ける</button>');
     if (g.canEdit) acts.push('<button class="btn small ghost" type="button" data-gedit="' + g.id + '">直す</button><button class="link" type="button" data-gdel="' + g.id + '">消す</button>');
     if (acts.length) h += '<div class="row">' + acts.join('') + '</div>';
     if (S.gSplit === g.id) h += splitBox(g);
     return h + '</div>';
   }
-  /** 途中目標：今日から期限までを区切り、記録の目標なら少しずつ近づける */
-  function splitSteps(g, unit) {
-    var months = { '半年': 6, '3ヶ月': 3, '月': 1 }[unit], out = [], pr = gProgress(g);
-    var sv = pr ? markValue(pr.cur || pr.start) : null, tv = pr ? markValue(g.target) : null;
-    var dl = [];
-    for (var k = 1; k < 13; k++) { var ds = addMonths(ST.today, months * k); if (ds >= g.deadline) break; dl.push(ds); }
-    dl.forEach(function (ds, k) {
-      var tgt = sv !== null && tv !== null ? gFmtMark(sv + (tv - sv) * (k + 1) / (dl.length + 1), g.race, g.target) : '';
-      out.push({ deadline: ds, target: tgt, title: tgt ? g.race + 'で ' + tgt : g.title + '（' + (k + 1) + '／' + (dl.length + 1) + '）' });
-    });
+  /** 途中目標：日にちに合わせて、今の記録から目標記録まで少しずつ近づける */
+  var G_UNIT_LABEL = { '3ヶ月': 'クオーター（3ヶ月）', '月': '月', '週': '週', auto: '近いほど細かく' };
+  function goalLine(g) {
+    var pr = gProgress(g); if (!pr) return null;
+    var sv = markValue(pr.cur || pr.start), tv = markValue(g.target);
+    return sv === null || tv === null ? null : { sv: sv, tv: tv, t0: ST.today, t1: g.deadline };
+  }
+  function stepsBetween(g, unit, from, to, line, n0) {
+    var out = [], k = 1, ds;
+    while (k < 40) {
+      ds = unit === '週' ? addDays(from, 7 * k) : addMonths(from, unit === '3ヶ月' ? 3 * k : unit === '半年' ? 6 * k : k);
+      if (ds >= to) break;
+      var tgt = line ? gFmtMark(line.sv + (line.tv - line.sv) * diff(line.t0, ds) / Math.max(1, diff(line.t0, line.t1)), g.race, g.target) : '';
+      out.push({ deadline: ds, unit: unit, target: tgt, title: tgt ? g.race + 'で ' + tgt : g.title + '（' + unit + ' ' + (k + (n0 || 0)) + '）', children: [] });
+      k++;
+    }
     return out;
   }
+  function splitUnits(g) {
+    var span = diff(ST.today, g.deadline), u = [];
+    if (span >= 60) u.push('auto');
+    if (span >= 120) u.push('3ヶ月');
+    if (span >= 40) u.push('月');
+    if (span >= 10 && span <= 120) u.push('週');
+    return u;
+  }
+  function splitPlan(g, unit) {
+    var line = goalLine(g), span = diff(ST.today, g.deadline);
+    if (unit !== 'auto') return stepsBetween(g, unit, ST.today, g.deadline, line);
+    // 近いほど細かく：全体はクオーター（短ければ月）、いちばん近いところは月、さらに近いところは週
+    var top = stepsBetween(g, span >= 150 ? '3ヶ月' : '月', ST.today, g.deadline, line);
+    var first = top[0];
+    if (first && first.unit === '3ヶ月') { first.children = stepsBetween(g, '月', ST.today, first.deadline, line); if (first.children[0]) first.children[0].children = stepsBetween(g, '週', ST.today, first.children[0].deadline, line); }
+    else if (first) first.children = stepsBetween(g, '週', ST.today, first.deadline, line);
+    return top;
+  }
   function splitBox(g) {
-    var units = ['半年', '3ヶ月', '月'].filter(function (u) { return splitSteps(g, u).length; }), u = S.gUnit && units.indexOf(S.gUnit) >= 0 ? S.gUnit : units[units.length - 1];
+    var units = splitUnits(g), u = S.gUnit && units.indexOf(S.gUnit) >= 0 ? S.gUnit : units[0];
     if (!u) return '<div class="sub">期限までが短いので分けられません。</div>';
-    var steps = splitSteps(g, u);
-    return '<div class="gsplit"><div class="lbl">どの区切りで分けますか</div><div class="choice sm">' + units.map(function (x) { return '<button type="button" data-gunit="' + x + '" aria-pressed="' + (x === u) + '">' + x + 'ごと</button>'; }).join('') + '</div>' +
-      '<div class="list">' + steps.map(function (x) { return '<div class="between"><span>○ ' + md(x.deadline) + 'まで</span><b>' + esc(x.title) + '</b></div>'; }).join('') + '<div class="between"><span>◎ ' + md(g.deadline) + 'まで</span><b>' + esc(g.title) + '</b></div></div>' +
-      '<div class="row"><button class="btn small" type="button" data-gsplitok="' + g.id + '|' + u + '">この' + steps.length + 'つをつくる</button><button class="btn small ghost" type="button" data-gsplit="">やめる</button></div></div>';
+    var plan = splitPlan(g, u), count = 0;
+    var tree = function (list, depth) { return list.map(function (x) { count++; return '<div class="between" style="padding-left:' + depth * 14 + 'px"><span>' + (depth ? '└ ' : '○ ') + esc(x.unit) + '・' + md(x.deadline) + 'まで</span><b>' + esc(x.target || x.title) + '</b></div>' + tree(x.children || [], depth + 1); }).join(''); };
+    var body = tree(plan, 0);
+    return '<div class="gsplit"><div class="lbl">どの区切りで分けますか</div><div class="choice sm">' + units.map(function (x) { return '<button type="button" data-gunit="' + x + '" aria-pressed="' + (x === u) + '">' + G_UNIT_LABEL[x] + (x === 'auto' ? '（おすすめ）' : 'ごと') + '</button>'; }).join('') + '</div>' +
+      (u === 'auto' ? '<div class="sub">遠い先はクオーター、近いところは月・週で細かく。あとで、それぞれの途中目標もさらに分けられます。</div>' : '') +
+      '<div class="list">' + body + '<div class="between"><span>◎ ' + md(g.deadline) + 'まで</span><b>' + esc(g.target || g.title) + '</b></div></div>' +
+      '<div class="row"><button class="btn small" type="button" data-gsplitok="' + g.id + '|' + u + '">この' + count + 'つをつくる</button><button class="btn small ghost" type="button" data-gsplit="">やめる</button></div></div>';
   }
   /** 出したミッションの様子（同じミッションをまとめて、達成した人数） */
   function missionSummary() {
@@ -3151,7 +3258,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-gdel]', function () { if (confirm('この目標を消しますか？')) call('deleteGoal', { id: this.dataset.gdel }); });
     on('[data-gsplit]', function () { S.gSplit = this.dataset.gsplit || null; S.gUnit = null; render(); });
     on('[data-gunit]', function () { S.gUnit = this.dataset.gunit; render(); });
-    on('[data-gsplitok]', function () { var p = this.dataset.gsplitok.split('|'), g = gList().find(function (x) { return x.id === p[0]; }); if (!g) return; call('splitGoal', { id: g.id, unit: p[1], steps: splitSteps(g, p[1]) }, function (st) { if (st.message) S.gSplit = null; }); });
+    on('[data-gsplitok]', function () { var p = this.dataset.gsplitok.split('|'), g = gList().find(function (x) { return x.id === p[0]; }); if (!g) return; call('splitGoal', { id: g.id, unit: p[1] === 'auto' ? '' : p[1], steps: splitPlan(g, p[1]) }, function (st) { if (st.message) S.gSplit = null; }); });
+    on('[data-gscroll]', function () { var el = document.getElementById(this.dataset.gscroll); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     on('[data-gedit]', function () {
       var g = gList().find(function (x) { return x.id === this.dataset.gedit; }, this); if (!g) return;
       S.gForm = { id: g.id, mission: g.kind === 'ミッション', kids: [g.child], child: g.child, period: g.period, deadline: g.deadline, key: g.key || '', race: g.race || '', target: g.target || '', title: g.title, autoTitle: false, note: g.note || '', actions: g.actions.map(function (a) { return { t: a.t, days: a.days.slice() }; }), parent: g.parent || '' };

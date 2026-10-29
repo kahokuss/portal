@@ -5,7 +5,7 @@
  * 見られる人は自主トレと同じ（家族・「コーチに見せる」ならコーチ・「みんなに見せる」ならみんな）。ミッションは出した側（コーチ・役員）も見られる。
  */
 
-const GOAL_PERIODS = ['大会', '年間', '半年', '3ヶ月', '月'];
+const GOAL_PERIODS = ['大会', '年間', '半年', '3ヶ月', '月', '週'];
 
 function canMission_(ctx) { return !!(ctx.admin || ctx.coach); }
 
@@ -121,25 +121,30 @@ function checkGoalActionAction_(ctx, p) {
 }
 
 /**
- * 大きな目標を途中目標に分ける（unit：'半年'|'3ヶ月'|'月'）。今日から期限までを区切り、
- * 記録の目標なら、今の記録から目標記録まで少しずつ近づく目標記録を入れる（targets はその値を画面から渡す）
+ * 大きな目標を途中目標に分ける。steps は画面で計算したもの：{deadline, target, title, unit, children: [...]}（入れ子にすると「近いほど細かく」）。
+ * 記録の目標なら、今の記録から目標記録まで日にちに合わせて少しずつ近づく目標記録が入っている
  */
 function splitGoalAction_(ctx, p) {
-  const months = { '半年': 6, '3ヶ月': 3, '月': 1 }[p.unit];
-  if (!months) throw new Error('分け方を選んでください。');
+  const UNITS = ['半年', '3ヶ月', '月', '週'];
   let n = 0;
   withLock_(() => {
     const g = findGoalFor_(ctx, p.id, true);
-    const steps = (p.steps || []).slice(0, 12).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.deadline || '') && x.deadline <= g['期限']);
-    if (!steps.length) throw new Error('期限までが短いので、分けられません。');
-    steps.forEach((x) => {
-      appendRow_(SHEETS.GOALS, {
-        id: randomKey_().slice(0, 10), '子ども': g['子ども'], '種類': g['種類'], '期間': p.unit, 'タイトル': String(x.title || '').slice(0, 60) || g['タイトル'],
-        '種目': g['種目'], '目標記録': String(x.target || '').slice(0, 20), '開始記録': g['開始記録'], '期限': x.deadline, eventKey: '', 'やること': '[]', '親id': g.id,
-        '状態': '', '達成日': '', 'ひとこと': '', '出した人': g['出した人'], userId: ctx.userId, '日時': now_(), '更新日時': now_(),
+    const make = (steps, parent, limit) => {
+      (steps || []).slice(0, 30).forEach((x) => {
+        const unit = x.unit || p.unit;
+        if (n >= 60 || !/^\d{4}-\d{2}-\d{2}$/.test(x.deadline || '') || x.deadline > limit || UNITS.indexOf(unit) < 0) return;
+        const id = randomKey_().slice(0, 10);
+        appendRow_(SHEETS.GOALS, {
+          id: id, '子ども': g['子ども'], '種類': g['種類'], '期間': unit, 'タイトル': String(x.title || '').slice(0, 60) || g['タイトル'],
+          '種目': g['種目'], '目標記録': String(x.target || '').slice(0, 20), '開始記録': g['開始記録'], '期限': x.deadline, eventKey: '', 'やること': '[]', '親id': parent,
+          '状態': '', '達成日': '', 'ひとこと': '', '出した人': g['出した人'], userId: ctx.userId, '日時': now_(), '更新日時': now_(),
+        });
+        n++;
+        make(x.children, id, x.deadline);
       });
-      n++;
-    });
+    };
+    make(p.steps, g.id, g['期限']);
+    if (!n) throw new Error('期限までが短いので、分けられません。');
   });
   return n + 'つの途中目標をつくりました';
 }

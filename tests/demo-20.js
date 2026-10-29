@@ -50,6 +50,16 @@ SEI.forEach((s, i) => {
   if (g >= 3) recs.push({ child: name, race: '100m', record: (20.5 - g * 0.9 + rnd() * 0.5).toFixed(2), date: '2026-09-27', meet: '県小学生陸上', kind: '公式' });
 });
 api('addRecords', { rows: recs });
+// 監督のミッション（全員）。半分くらいの子は、やることを決めて毎日チェック（止まっている子・決めていない子もいる）
+api('saveGoal', { kind: 'ミッション', children: SEI.map((s, i) => s + MEI[i]), from: '監督', period: '大会', title: '秋季記録会で自己ベスト', deadline: '2026-11-01', note: 'スタートを意識' });
+SEI.forEach((s, i) => {
+  if (i % 4 === 3) return;
+  const name = s + MEI[i];
+  gas.run(`appendRow_(SHEETS.GOALS, { id: 'dg${i}', '子ども': '${name}', '種類': '自分', '期間': '月', 'タイトル': '毎日なわとび', '期限': '2026-11-30', 'やること': JSON.stringify([{ t: '縄跳び 300回', days: [0,1,2,3,4,5,6] }]), '日時': '2026-10-01 10:00' })`);
+  if (i % 3 === 2) return; // やることはあるのに止まっている子
+  for (let n = 1; n <= 1 + (i % 5); n++) gas.run(`appendRow_(SHEETS.GOAL_LOG, { goalId: 'dg${i}', 'やること': '0', '日付': addDays_(today_(), -${n}), '子ども': '${name}' })`);
+});
+if (SEI.length) gas.run("updateRow_(SHEETS.GOALS, Object.assign(readRows_(SHEETS.GOALS).find((g) => g['種類'] === 'ミッション' && g['子ども'] === '" + SEI[0] + MEI[0] + "'), { '状態': '達成' }))");
 // 過去1年の練習（火・木 17:00〜18:30、土 9:00〜11:00）を予定の表に入れる（参加時間の積み上げ用）
 (() => {
   const rows = [];
@@ -139,6 +149,12 @@ api('addRecords', { rows: recs });
   await shot('9d-dash-pc-kid');
   await page.setViewportSize({ width: 375, height: 800 });
   await idle();
+  // みんなのミッション（20人）：色の帯と、ようすごとの名前のチップ
+  await page.click('[data-nav="train"]');
+  if (await page.$('[data-trmode="mine"]')) await page.click('[data-trmode="mine"]');
+  if (await page.$('[data-trview="goal"]')) await page.click('[data-trview="goal"]');
+  await page.locator('.msum').first().scrollIntoViewIfNeeded();
+  await shot('10-missions');
   assert.deepStrictEqual(errors, []);
   await browser.close();
   console.log('tests/screenshots/m20-*.png を作りました（はみ出しなし）');

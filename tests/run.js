@@ -799,15 +799,23 @@ test('目標管理：目標とやること（曜日）・チェック・途中�
   assert.ok(st.message.includes('2つ'));
   assert.strictEqual(st.goals.list.filter((x) => x.parent === g.id).length, 2);
   // 監督（役員）からのミッション：何人でもまとめて
-  assert.throws(() => gas.ctx.api(k2, 'saveGoal', { kind: 'ミッション', children: ['山田たろう'], title: 'x', deadline: '2026-11-01' }), /監督・コーチ・役員/);
-  st = gas.ctx.api(kA, 'saveGoal', { kind: 'ミッション', children: ['鈴木けんた', '佐藤さくら'], period: '大会', title: '次の大会で自己ベスト', race: '100m', deadline: '2026-11-01', note: 'スタートを意識' });
+  // ミッションは監督に言われた目標。ふつうは親がわが家の子に入れる（よその子にはまとめて入れられない）
+  assert.throws(() => gas.ctx.api(k2, 'saveGoal', { kind: 'ミッション', child: '山田たろう', title: 'x', deadline: '2026-11-01' }), /わが家/);
+  st = gas.ctx.api(k2, 'saveGoal', { kind: 'ミッション', child: '鈴木けんた', children: ['山田たろう'], from: '監督', period: '大会', title: 'スタートで出遅れない', deadline: '2026-11-01' });
+  assert.ok(st.message.includes('ミッションを入れました'));
+  assert.ok(!gas.rows('目標').some((r) => r['子ども'] === '山田たろう'), 'まとめては入れられない');
+  // 役員（練習の当番・係も）はまとめて何人にも
+  st = gas.ctx.api(kA, 'saveGoal', { kind: 'ミッション', children: ['鈴木けんた', '佐藤さくら'], from: '監督', period: '大会', title: '次の大会で自己ベスト', race: '100m', deadline: '2026-11-01', note: 'スタートを意識' });
   assert.ok(st.message.includes('2人にミッション'));
-  const m = gas.ctx.api(k2, 'bootstrap').goals.list.find((x) => x.kind === 'ミッション');
-  assert.ok(m && m.by === '山田' && m.note === 'スタートを意識' && !m.canEdit, '家族には見えて、直せない');
-  assert.throws(() => gas.ctx.api(k2, 'deleteGoal', { id: m.id }), /操作できません/);
+  const m = gas.ctx.api(k2, 'bootstrap').goals.list.find((x) => x.kind === 'ミッション' && x.title === '次の大会で自己ベスト');
+  assert.ok(m && m.by === '監督' && m.note === 'スタートを意識' && m.canEdit, '家族にも見えて、わが家の子の分は直せる');
   st = gas.ctx.api(k2, 'setGoalDone', { id: m.id, done: true });
   assert.ok(st.message.includes('達成'), '達成は家族もつけられる');
-  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').goals.list.filter((x) => x.kind === 'ミッション').length, 2, '出した側（役員）は全員分見られる');
+  assert.strictEqual(gas.ctx.api(kA, 'bootstrap').goals.list.filter((x) => x.kind === 'ミッション').length, 3, '役員はみんなの分が見られる');
+  // 練習当番の家は、その日（前後1日）はまとめて入れられる
+  gas.run(`appendRow_(SHEETS.DUTIES, { eventKey: 'p1', '日付': today_(), '種類': '練習', '家族ID': 'U3' })`);
+  st = gas.ctx.api(k3, 'saveGoal', { kind: 'ミッション', children: ['鈴木けんた', '山田たろう'], from: '監督', period: '月', title: '腕ふりを大きく', deadline: '2026-11-30' });
+  assert.ok(st.message.includes('2人にミッション'), st.message);
   // 消すと途中目標は残る（親を付けかえ）
   gas.ctx.api(k2, 'deleteGoal', { id: g.id });
   assert.ok(gas.ctx.api(k2, 'bootstrap').goals.list.filter((x) => x.child === '鈴木けんた' && x.kind === '自分').every((x) => !x.parent));

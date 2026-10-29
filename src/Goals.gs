@@ -1,13 +1,23 @@
 /**
  * 目標管理：目標（いつまでに・何を）と、そのためにやること（曜日つきで毎週のスケジュールに）。
- * 種類は「自分」（家族が立てる）と「ミッション」（監督・コーチ・役員が出す）。
+ * 種類は「自分」（家族が立てる）と「ミッション」（監督から言われた目標）。監督はスマホを使わないので、ミッションはふつう親がわが家の子の分を入れる。
+ * 役員はまとめて何人にも入れられる。
  * 期間は 大会／年間／半年／3ヶ月／月。大きな目標は、途中目標（半年・3ヶ月・月）に分けられる。
  * 見られる人は自主トレと同じ（家族・「コーチに見せる」ならコーチ・「みんなに見せる」ならみんな）。ミッションは出した側（コーチ・役員）も見られる。
  */
 
 const GOAL_PERIODS = ['大会', '年間', '半年', '3ヶ月', '月', '週'];
 
-function canMission_(ctx) { return !!(ctx.admin || ctx.coach); }
+/** ミッションをまとめて何人にも入れられる人：役員・コーチ・「練習」の係の家・その日（前後1日）の練習当番の家 */
+function canMission_(ctx) {
+  if (ctx.admin || ctx.coach) return true;
+  if (ctx.missionOk !== undefined) return ctx.missionOk;
+  const today = today_();
+  const role = readRows_(SHEETS.FAMILIES).some((f) => famIdOf_(f) === ctx.famId && /練習|コーチ/.test(f['係'] || ''));
+  const duty = readRows_(SHEETS.DUTIES).some((d) => d['家族ID'] === ctx.famId && d['種類'] === '練習' && d['日付'] >= addDays_(today, -1) && d['日付'] <= addDays_(today, 1));
+  ctx.missionOk = role || duty;
+  return ctx.missionOk;
+}
 
 function goalsFor_(ctx, children) {
   const own = children.filter((c) => c.parents.indexOf(ctx.userId) >= 0).map((c) => c.name);
@@ -24,7 +34,7 @@ function goalsFor_(ctx, children) {
       return {
         id: g.id, child: g['子ども'], kind: g['種類'] || '自分', period: g['期間'], title: g['タイトル'], race: g['種目'], target: g['目標記録'], start: g['開始記録'],
         deadline: g['期限'], key: g.eventKey, actions: acts, parent: g['親id'], done: g['状態'] === '達成', doneAt: g['達成日'], note: g['ひとこと'], by: g['出した人'], at: String(g['日時']).slice(0, 10),
-        mine: own.indexOf(g['子ども']) >= 0, canEdit: g['種類'] === 'ミッション' ? boss : own.indexOf(g['子ども']) >= 0 || boss,
+        mine: own.indexOf(g['子ども']) >= 0, canEdit: own.indexOf(g['子ども']) >= 0 || boss,
       };
     }),
     log: readRows_(SHEETS.GOAL_LOG).filter((x) => ids[x.goalId] && x['日付'] >= from).map((x) => ({ goal: x.goalId, act: Number(x['やること']) || 0, date: x['日付'] })),
@@ -39,14 +49,14 @@ function cleanActions_(list) {
   })).filter((a) => a.t);
 }
 
-/** 目標を立てる・直す。ミッションは children（何人でも）に同じ目標を出す */
+/** 目標を立てる・直す。ミッションは、家族ならわが家の子に、役員・コーチなら children（何人でも）にまとめて */
 function saveGoalAction_(ctx, p) {
   const mission = p.kind === 'ミッション';
-  if (mission && !canMission_(ctx)) throw new Error('ミッションを出せるのは、監督・コーチ・役員です。');
-  const kids = (mission ? p.children || [] : [p.child]).filter(Boolean);
-  if (!kids.length) throw new Error('だれの目標かを選んでください。');
   const own = myKidNames_(ctx);
-  if (!mission && own.indexOf(kids[0]) < 0 && !canMission_(ctx)) throw new Error('わが家のお子さんを選んでください。');
+  const many = mission && canMission_(ctx) && (p.children || []).length;
+  const kids = (many ? p.children : [p.child]).filter(Boolean);
+  if (!kids.length) throw new Error('だれの目標かを選んでください。');
+  if (!many && own.indexOf(kids[0]) < 0 && !canMission_(ctx)) throw new Error('わが家のお子さんを選んでください。');
   const title = String(p.title || '').trim().slice(0, 60);
   if (!title) throw new Error('目標を書いてください（例：100mで14秒50を切る）。');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(p.deadline || '')) throw new Error('いつまでの目標かを選んでください。');
@@ -54,31 +64,32 @@ function saveGoalAction_(ctx, p) {
     '種類': mission ? 'ミッション' : '自分', '期間': GOAL_PERIODS.indexOf(p.period) >= 0 ? p.period : '月', 'タイトル': title,
     '種目': String(p.race || '').trim().slice(0, 30), '目標記録': String(p.target || '').trim().slice(0, 20), '期限': p.deadline, eventKey: String(p.key || '').slice(0, 40),
     'やること': JSON.stringify(cleanActions_(p.actions)), '親id': String(p.parent || '').slice(0, 20), 'ひとこと': String(p.note || '').slice(0, 200), '更新日時': now_(),
+    '出した人': mission ? String(p.from || '監督').trim().slice(0, 20) || '監督' : '',
   };
   let n = 0;
   withLock_(() => {
     if (p.id) {
       const g = readRows_(SHEETS.GOALS).find((x) => x.id === p.id);
       if (!g) throw new Error('目標が見つかりません。');
-      if (g['種類'] === 'ミッション' ? !canMission_(ctx) : own.indexOf(g['子ども']) < 0 && !canMission_(ctx)) throw new Error('この目標は直せません。');
+      if (own.indexOf(g['子ども']) < 0 && !canMission_(ctx)) throw new Error('この目標は直せません。');
       Object.assign(g, base, { '種類': g['種類'] });
       updateRow_(SHEETS.GOALS, g);
       n = 1;
       return;
     }
     kids.forEach((child) => {
-      appendRow_(SHEETS.GOALS, Object.assign({ id: randomKey_().slice(0, 10), '子ども': child, '開始記録': String(p.startRecords && p.startRecords[child] || p.start || '').slice(0, 20), '状態': '', '出した人': mission ? ctx.name : '', userId: ctx.userId, '日時': now_() }, base));
+      appendRow_(SHEETS.GOALS, Object.assign({ id: randomKey_().slice(0, 10), '子ども': child, '開始記録': String(p.startRecords && p.startRecords[child] || p.start || '').slice(0, 20), '状態': '', userId: ctx.userId, '日時': now_() }, base));
       n++;
     });
   });
-  return p.id ? '目標を直しました' : mission ? n + '人にミッションを出しました' : '目標を立てました：' + title;
+  return p.id ? '目標を直しました' : mission ? (n > 1 ? n + '人にミッションを入れました' : 'ミッションを入れました：' + title) : '目標を立てました：' + title;
 }
 
 function findGoalFor_(ctx, id, needEdit) {
   const g = readRows_(SHEETS.GOALS).find((x) => x.id && x.id === id);
   if (!g) throw new Error('目標が見つかりません。');
   const own = myKidNames_(ctx).indexOf(g['子ども']) >= 0;
-  const ok = needEdit ? (g['種類'] === 'ミッション' ? canMission_(ctx) : own || canMission_(ctx)) : own || canMission_(ctx);
+  const ok = own || canMission_(ctx);
   if (!ok) throw new Error('この目標は操作できません。');
   return g;
 }

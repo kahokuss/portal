@@ -1231,6 +1231,16 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(hero.includes('▶ 週'), '目標のはしご：いま向かっているのは今週の目標');
       assert.ok(hero.includes('いまやること') && hero.includes('今日のやること'), '気づき');
       await q.shot('goal-ladder');
+      // 親が「監督からのミッション」を入れる（監督はスマホを使わない）
+      await q.click('#gNewM');
+      assert.ok((await q.textContent('#view')).includes('だれから'));
+      await q.click('[data-gper^="大会|"]');
+      await q.fill('#g-title', 'スタートで出遅れない');
+      await q.fill('#g-note', '一歩目を低く');
+      await q.click('#gSave');
+      await q.idle();
+      assert.ok(gas.rows('目標').some((r) => r['種類'] === 'ミッション' && r['タイトル'] === 'スタートで出遅れない' && r['出した人'] === '監督' && r['子ども'] === '鈴木けんた'), '親がわが家の子のミッションを入れる');
+      assert.ok((await q.textContent('#view')).includes('監督から'), 'ミッション（監督から）と出る');
       await q.shot('goal-view');
       await q.close();
       // 役員（監督）からミッション

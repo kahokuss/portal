@@ -5,6 +5,8 @@
  */
 function api(key, action, payload) {
   resetMemo_();
+  const t0 = Date.now();
+  prefetchTables_();
   const family = findFamilyByKey_(key);
   if (!family) throw new Error('ログインが切れました。もう一度「LINEでログイン」を押してください。');
   ensureMember_(family);
@@ -18,8 +20,11 @@ function api(key, action, payload) {
   // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
   if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); ctx.owner = isOwner_(fresh); }
+  const t1 = Date.now();
+  prefetchTables_(); // 書きかえた表だけ読み直し、ほかは覚えている分をまとめて
   const state = buildState_(ctx);
   if (message) state.message = message;
+  console.log('api ' + action + '：操作 ' + (t1 - t0) + 'ms・画面 ' + (Date.now() - t1) + 'ms');
   return state;
 }
 

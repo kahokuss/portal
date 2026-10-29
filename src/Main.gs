@@ -113,9 +113,9 @@ function handleEvent_(ev) {
   if (source.type === 'room') return;
   if (!source.userId) return;
 
-  if (ev.type === 'postback') { startLoading_(ev); return handlePostback_(ev); }
+  if (ev.type === 'postback') { startLoading_(ev); prefetchTables_(); return handlePostback_(ev); }
   if (ev.type === 'message' && ev.message.type === 'text') {
-    if (source.type === 'user' && parseCommand_(ev.message.text)) startLoading_(ev);
+    if (source.type === 'user' && parseCommand_(ev.message.text)) { startLoading_(ev); prefetchTables_(); }
     return handleText_(ev);
   }
   if (ev.type === 'message' && ev.message.type === 'image' && source.type === 'group') return handleImage_(ev);

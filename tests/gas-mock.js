@@ -138,6 +138,7 @@ function createGas(options) {
   const fetches = [];
   // Strava のまね：code が 'sv:ok' ならつながる。activities に活動を入れておく
   const strava = { activities: [], deauthorized: 0 };
+  const cacheCalls = { n: 0 };
   const cache = {};
   const profiles = {};
   const members = new Set();
@@ -174,7 +175,7 @@ function createGas(options) {
       create: (name) => { const id = 'ss' + Object.keys(spreadsheets).length; spreadsheets[id] = new Spreadsheet(id, name); return spreadsheets[id]; },
     },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-    CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
+    CacheService: { getScriptCache: () => ({ get: (k) => { cacheCalls.n++; return cache[k] || null; }, getAll: (ks) => { cacheCalls.n++; const o = {}; ks.forEach((k) => { if (cache[k]) o[k] = cache[k]; }); return o; }, put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
     Utilities: {
       formatDate,
       getUuid: () => crypto.randomUUID(),
@@ -261,6 +262,7 @@ function createGas(options) {
     profiles,
     members,
     cache,
+    cacheCalls,
     files,
     notFriends,
     quotaUsed,

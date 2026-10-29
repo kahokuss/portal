@@ -692,6 +692,39 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         render();
       });
   }
+  /**
+   * すぐ画面に出す保存（✓・参加／不参加・アンケートなど）：押したらその場で画面を変え、保存は裏で。
+   * 何回か続けて押したときは、最後の返事だけ使う。失敗したら元にもどして知らせる
+   */
+  var QSEQ = 0, QPEND = 0;
+  function quick(action, payload, apply, done) {
+    var snap = JSON.stringify(ST);
+    try { apply(ST); } catch (x) { console.warn(x); }
+    var seq = ++QSEQ;
+    QPEND++; document.getElementById('busy').hidden = false;
+    S.toast = '';
+    render();
+    rpc(action, payload, function (st) {
+      if (--QPEND <= 0) { QPEND = 0; document.getElementById('busy').hidden = true; }
+      if (seq !== QSEQ) return; // あとから押した分の返事を待つ
+      ST = fillDefaults(st); saveState(st);
+      if (done) done(st);
+      render();
+    }, function (err) {
+      if (--QPEND <= 0) { QPEND = 0; document.getElementById('busy').hidden = true; }
+      var msg = String((err && err.message) || err).replace(/^(Exception|Error):\s*/, '');
+      if (/ログインが切れ|グループのメンバーではない/.test(msg)) { clearKey(); ST = null; showLogin(msg); return; }
+      if (/不明な操作です/.test(msg)) msg = 'サーバー（Apps Script）が古い版のため、この操作はまだ使えません。役員がApps Scriptを「新バージョン」でデプロイすると使えます。';
+      ST = fillDefaults(JSON.parse(snap));
+      S.toast = '⚠ 保存できませんでした：' + msg; S.toastErr = true;
+      render();
+    });
+  }
+  function qEntry(st, key, child, join, races) {
+    var x = st.entries.find(function (y) { return y.key === key && y.child === child; });
+    if (!x) { x = { key: key, child: child, join: '', races: [], paid: false }; st.entries.push(x); }
+    x.join = join; x.races = (races || []).slice();
+  }
   /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
   function fillDefaults(st) {
     ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training'].forEach(function (k) { if (!st[k]) st[k] = []; });
@@ -887,7 +920,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var o = this.dataset.opt, ans;
       if (p.multi) ans = p.mine.indexOf(o) >= 0 ? p.mine.filter(function (x) { return x !== o; }) : p.mine.concat([o]);
       else ans = p.mine.length === 1 && p.mine[0] === o ? [] : [o];
-      call('answerPoll', { id: p.id, answers: ans });
+      quick('answerPoll', { id: p.id, answers: ans }, function (st) {
+        var q = st.polls.find(function (x) { return x.id === p.id; }); if (!q) return;
+        (q.mine || []).forEach(function (o) { q.counts[o] = Math.max(0, (q.counts[o] || 0) - 1); });
+        ans.forEach(function (o) { q.counts[o] = (q.counts[o] || 0) + 1; });
+        if (!(q.mine || []).length && ans.length) q.total = (q.total || 0) + 1;
+        q.mine = ans.slice();
+      });
     });
   }
   function myFeesCard() {
@@ -1324,18 +1363,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       box.querySelectorAll('[data-join]').forEach(function (b) {
         b.addEventListener('click', function () {
           var races = this.dataset.join === '参加' ? (x.races.length ? x.races : det.races.length === 1 ? det.races.slice() : []) : [];
-          call('saveEntry', { key: e.key, child: child, join: this.dataset.join, races: races });
+          var j0 = this.dataset.join;
+          quick('saveEntry', { key: e.key, child: child, join: j0, races: races }, function (st) { qEntry(st, e.key, child, j0, races); });
         });
       });
       box.querySelectorAll('[data-race]').forEach(function (b) {
         b.addEventListener('click', function () {
           var races = x.races.slice(), r = this.dataset.race, i = races.indexOf(r);
           if (i >= 0) races.splice(i, 1); else races.push(r);
-          call('saveEntry', { key: e.key, child: child, join: '参加', races: races });
+          quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); });
         });
       });
     });
-    on('[data-pay]', function () { call('setPaid', { key: e.key, child: this.dataset.pay, paid: !!this.dataset.paid }); });
+    on('[data-pay]', function () { var c = this.dataset.pay, pd = !!this.dataset.paid; quick('setPaid', { key: e.key, child: c, paid: pd }, function (st) { var x = st.entries.find(function (y) { return y.key === e.key && y.child === c; }); if (x) x.paid = pd; }); });
     on('[data-tally]', function () { S.tally = S.tally === this.dataset.tally ? '' : this.dataset.tally; render(); });
   }
 
@@ -1680,7 +1720,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var sync = function () { F.name = document.getElementById('f-name').value; F.amount = document.getElementById('f-amt').value; F.target = document.getElementById('f-target').value; F.deadline = document.getElementById('f-dl').value; F.memo = document.getElementById('f-memo').value; };
     on('[data-fn]', function () { sync(); F.name = this.dataset.fn; render(); });
     document.getElementById('fForm').addEventListener('submit', function (x) { x.preventDefault(); sync(); call('saveFee', F, function (st) { if (st.message) S.feeDraft = null; }); });
-    on('[data-fee]', function () { call('setFeePaid', { id: this.dataset.fee, child: this.dataset.kid, paid: this.getAttribute('aria-pressed') !== 'true' }); });
+    on('[data-fee]', function () {
+      var id = this.dataset.fee, c = this.dataset.kid, pd = this.getAttribute('aria-pressed') !== 'true';
+      quick('setFeePaid', { id: id, child: c, paid: pd }, function (st) { var f = st.fees.find(function (x) { return x.id === id; }); if (!f) return; f.paid = f.paid.filter(function (k) { return k !== c; }); if (pd) f.paid.push(c); });
+    });
     on('[data-fclose]', function () { call('closeFee', { id: this.dataset.fclose }); });
     on('[data-freopen]', function () { call('closeFee', { id: this.dataset.freopen, reopen: true }); });
     on('[data-fdel]', function () { if (confirm('この集金と記録を消しますか？')) call('closeFee', { id: this.dataset.fdel, remove: true }); });
@@ -1833,7 +1876,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }
     return h + '</section>';
   }
-  function bindDuty(e) { on('[data-duty]', function () { call('setDuty', { key: e.key, fam: this.dataset.duty, on: !!this.dataset.on }); }); }
+  function bindDuty(e) {
+    on('[data-duty]', function () {
+      var fam = this.dataset.duty, onn = !!this.dataset.on;
+      quick('setDuty', { key: e.key, fam: fam, on: onn }, function (st) { st.duties = st.duties.filter(function (x) { return !(x.key === e.key && x.fam === fam); }); if (onn) st.duties.push({ key: e.key, date: e.date, type: dutyType(e), fam: fam }); });
+    });
+  }
 
   // ---- 出欠ボタン（大きな ✓ ✕ と、出席・欠席・未回答の人数） ----
   /** 集計の数字の下：お休み・不参加・未回答の子だけ名前を出す（出席はみんななので出さない）。名前は名字を省く */
@@ -1904,14 +1952,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         var det = e.detail || { races: [] }, x = entryOf(e.key, child) || { join: '', races: [] };
         var join = yes ? '参加' : '不参加';
         if (x.join === join) return;
-        call('saveEntry', { key: e.key, child: child, join: join, races: yes ? (x.races.length ? x.races : det.races.length === 1 ? det.races.slice() : []) : [] });
+        var rr = yes ? (x.races.length ? x.races : det.races.length === 1 ? det.races.slice() : []) : [];
+        quick('saveEntry', { key: e.key, child: child, join: join, races: rr }, function (st) { qEntry(st, e.key, child, join, rr); });
         return;
       }
       var a = absentOn(e.date).find(function (z) { return z.child === child; });
       if (yes) {
         S.absPick = null;
         if (!a) { render(); return; } // もともと出席
-        call('setAttend', { key: e.key, child: child, on: true }); // 休みの連絡を取り消す
+        quick('setAttend', { key: e.key, child: child, on: true }, function (st) { st.absences = st.absences.filter(function (a) { return !(a.date === e.date && a.child === child); }); }); // 休みの連絡を取り消す
         return;
       }
       if (a) return;
@@ -1920,7 +1969,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-absr]', function () {
       var e = evByKey(this.dataset.rk);
       S.absPick = null;
-      call('reportAbsence', { child: this.dataset.rc, date: e.date, reason: this.dataset.absr, memo: '' });
+      var rc = this.dataset.rc, rs = this.dataset.absr;
+      quick('reportAbsence', { child: rc, date: e.date, reason: rs, memo: '' }, function (st) { st.absences.push({ id: 'tmp', date: e.date, child: rc, reason: rs, memo: '', by: ST.me.name, mine: true, ack: false }); });
     });
     on('[data-absx]', function () { S.absPick = null; render(); });
   }
@@ -3326,7 +3376,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       S.toast = ''; render(); window.scrollTo(0, 0);
     });
     on('[data-gopen]', function () { S.gOpen = S.gOpen === this.dataset.gopen ? null : this.dataset.gopen; S.gSplit = null; render(); });
-    on('[data-gchk]', function () { var p = this.dataset.gchk.split('|'); call('checkGoalAction', { id: p[0], act: +p[1], date: p[2], on: !!p[3] }); });
+    on('[data-gchk]', function () {
+      var p = this.dataset.gchk.split('|'), onn = !!p[3];
+      quick('checkGoalAction', { id: p[0], act: +p[1], date: p[2], on: onn }, function (st) {
+        st.goals.log = st.goals.log.filter(function (x) { return !(x.goal === p[0] && x.act === +p[1] && x.date === p[2]); });
+        if (onn) st.goals.log.push({ goal: p[0], act: +p[1], date: p[2] });
+      });
+    });
     on('[data-gdone]', function () { var p = this.dataset.gdone.split('|'); call('setGoalDone', { id: p[0], done: !!p[1] }); });
     on('[data-gdel]', function () { if (confirm('この目標を消しますか？')) call('deleteGoal', { id: this.dataset.gdel }); });
     on('[data-gsplit]', function () { S.gSplit = this.dataset.gsplit || null; S.gUnit = null; render(); });

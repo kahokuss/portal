@@ -1282,6 +1282,27 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await q3.textContent('.ghero')).includes('▶'), 'はしごに自分の目標');
       await q3.close();
     });
+    await step('すぐ画面に出す保存：サーバーが遅くても、押したらその場で変わる（失敗したら元にもどす）', async () => {
+      const q = await openPortal(browser, gas, 'U2', 'quick');
+      await q.click('[data-nav="train"]');
+      if (await q.$('[data-trkid="鈴木けんた"]')) await q.click('[data-trkid="鈴木けんた"]');
+      if (!(await q.$('#gToday'))) await q.click('[data-trview="goal"]');
+      // サーバーの返事を2秒おくらせる
+      await q.evaluate(() => { const o = window.__gasApi; window.__gasApi = (...a) => new Promise((r) => setTimeout(() => r(o(...a)), 2000)); });
+      const before = await q.getAttribute('#gToday [data-gchk]', 'class');
+      const t0 = Date.now();
+      await q.click('#gToday [data-gchk]');
+      const after = await q.getAttribute('#gToday .gchk', 'class');
+      assert.ok(Date.now() - t0 < 1500 && after !== before, 'すぐ変わる ' + before + ' → ' + after);
+      await q.idle();
+      // 失敗したら元にもどす
+      await q.evaluate(() => { window.__gasApi = () => Promise.resolve({ err: 'テストの失敗' }); });
+      const b2 = await q.getAttribute('#gToday .gchk', 'class');
+      await q.click('#gToday .gchk');
+      await q.waitForFunction(() => /保存できませんでした/.test(document.querySelector('#view').textContent));
+      assert.strictEqual(await q.getAttribute('#gToday .gchk', 'class'), b2, '元にもどる');
+      await q.close();
+    });
     await step('スマホ：下のメニューはスクロールの途中でも画面の下に出ている', async () => {
       const p = await openPortal(browser, gas, 'U3', 'navchk');
       await p.evaluate(() => window.scrollTo(0, 300));

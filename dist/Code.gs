@@ -1231,7 +1231,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '96476d389d';
+const SERVER_VERSION = 'eb8e7f8e0f';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2117,9 +2117,9 @@ function handleEvent_(ev) {
   if (source.type === 'room') return;
   if (!source.userId) return;
 
-  if (ev.type === 'postback') { startLoading_(ev); return handlePostback_(ev); }
+  if (ev.type === 'postback') { startLoading_(ev); prefetchTables_(); return handlePostback_(ev); }
   if (ev.type === 'message' && ev.message.type === 'text') {
-    if (source.type === 'user' && parseCommand_(ev.message.text)) startLoading_(ev);
+    if (source.type === 'user' && parseCommand_(ev.message.text)) { startLoading_(ev); prefetchTables_(); }
     return handleText_(ev);
   }
   if (ev.type === 'message' && ev.message.type === 'image' && source.type === 'group') return handleImage_(ev);
@@ -2445,6 +2445,8 @@ function photoFolderUrl_() {
  */
 function api(key, action, payload) {
   resetMemo_();
+  const t0 = Date.now();
+  prefetchTables_();
   const family = findFamilyByKey_(key);
   if (!family) throw new Error('ログインが切れました。もう一度「LINEでログイン」を押してください。');
   ensureMember_(family);
@@ -2458,8 +2460,11 @@ function api(key, action, payload) {
   // 家族をまとめた・外れた、コーチになったときなどは、その場で画面に反映する
   const fresh = findFamily_(ctx.userId);
   if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); ctx.owner = isOwner_(fresh); }
+  const t1 = Date.now();
+  prefetchTables_(); // 書きかえた表だけ読み直し、ほかは覚えている分をまとめて
   const state = buildState_(ctx);
   if (message) state.message = message;
+  console.log('api ' + action + '：操作 ' + (t1 - t0) + 'ms・画面 ' + (Date.now() - t1) + 'ms');
   return state;
 }
 
@@ -4822,6 +4827,19 @@ function cellToString_(v, header) {
  * スプレッドシートを手で直したときは、onScheduleSheetEdit（編集のトリガー）が版を上げる。
  * ロックの中（書きこむ前の読みこみ）では、必ずシートから読む。
  */
+/** 覚えている表を、まとめて1回で取り出しておく（1つずつ取り出すと、表の数だけ往復して遅い） */
+let prefetch__ = {};
+function prefetchTables_() {
+  if (!tableCacheOn_() || lockDepth__) return;
+  tableVersion_('', false);
+  const keys = Object.keys(SHEETS).map((k) => SHEETS[k]).filter((def) => !memo__[def.name]).map((def) => 'tbl:' + def.name + ':' + tableVersion_(def.name, false) + ':' + def.headers.length).filter((k) => !(k in prefetch__));
+  if (!keys.length) return;
+  try {
+    const got = CacheService.getScriptCache().getAll(keys) || {};
+    keys.forEach((k) => (prefetch__[k] = got[k] || null));
+  } catch (err) { console.warn(err); }
+}
+
 function readRows_(def) {
   const name = def.name;
   if (!lockDepth__ && memo__[name]) return memo__[name].map((o) => Object.assign({}, o));
@@ -4830,7 +4848,10 @@ function readRows_(def) {
   const key = 'tbl:' + name + ':' + ver + ':' + def.headers.length;
   let rows = null;
   if (useCache && !lockDepth__) {
-    try { const hit = CacheService.getScriptCache().get(key); if (hit) rows = JSON.parse(hit); } catch (err) { rows = null; }
+    try {
+      const hit = key in prefetch__ ? prefetch__[key] : CacheService.getScriptCache().get(key);
+      if (hit) rows = JSON.parse(hit);
+    } catch (err) { rows = null; }
   }
   if (!rows) {
     rows = readSheetRows_(def);
@@ -4864,6 +4885,7 @@ let lockDepth__ = 0;
 function resetMemo_() {
   memo__ = {};
   props__ = null;
+  prefetch__ = {};
 }
 
 function tableCacheOn_() {

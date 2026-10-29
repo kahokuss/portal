@@ -1033,8 +1033,10 @@ test('速さ: 読んだ表を覚えて使い回し、書きこんだら版を上
   gas.sheet('予定').getRange = (...a) => { reads++; return orig(...a); };
   gas.ctx.api(k, 'bootstrap');
   const first = reads;
+  gas.cacheCalls.n = 0;
   gas.ctx.api(k, 'bootstrap');
   assert.strictEqual(reads, first, '2回目はシートを読まない');
+  assert.ok(gas.cacheCalls.n <= 4, '覚えている表はまとめて1回で取り出す（往復 ' + gas.cacheCalls.n + '回）');
   let st = gas.ctx.api(k, 'savePractices', { dates: ['2026-10-28'], start: '17:00', end: '18:30', title: '練習', place: 'A' });
   assert.ok(st.events.some((e) => e.date === '2026-10-28'), '書きこんだら新しい内容');
   gas.sheet('子ども').data[1][1] = '4';

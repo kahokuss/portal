@@ -84,6 +84,19 @@ function cellToString_(v, header) {
  * スプレッドシートを手で直したときは、onScheduleSheetEdit（編集のトリガー）が版を上げる。
  * ロックの中（書きこむ前の読みこみ）では、必ずシートから読む。
  */
+/** 覚えている表を、まとめて1回で取り出しておく（1つずつ取り出すと、表の数だけ往復して遅い） */
+let prefetch__ = {};
+function prefetchTables_() {
+  if (!tableCacheOn_() || lockDepth__) return;
+  tableVersion_('', false);
+  const keys = Object.keys(SHEETS).map((k) => SHEETS[k]).filter((def) => !memo__[def.name]).map((def) => 'tbl:' + def.name + ':' + tableVersion_(def.name, false) + ':' + def.headers.length).filter((k) => !(k in prefetch__));
+  if (!keys.length) return;
+  try {
+    const got = CacheService.getScriptCache().getAll(keys) || {};
+    keys.forEach((k) => (prefetch__[k] = got[k] || null));
+  } catch (err) { console.warn(err); }
+}
+
 function readRows_(def) {
   const name = def.name;
   if (!lockDepth__ && memo__[name]) return memo__[name].map((o) => Object.assign({}, o));
@@ -92,7 +105,10 @@ function readRows_(def) {
   const key = 'tbl:' + name + ':' + ver + ':' + def.headers.length;
   let rows = null;
   if (useCache && !lockDepth__) {
-    try { const hit = CacheService.getScriptCache().get(key); if (hit) rows = JSON.parse(hit); } catch (err) { rows = null; }
+    try {
+      const hit = key in prefetch__ ? prefetch__[key] : CacheService.getScriptCache().get(key);
+      if (hit) rows = JSON.parse(hit);
+    } catch (err) { rows = null; }
   }
   if (!rows) {
     rows = readSheetRows_(def);
@@ -126,6 +142,7 @@ let lockDepth__ = 0;
 function resetMemo_() {
   memo__ = {};
   props__ = null;
+  prefetch__ = {};
 }
 
 function tableCacheOn_() {

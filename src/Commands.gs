@@ -63,7 +63,7 @@ function parseCommand_(text) {
     '登録': 'register',
     'ポータル': 'portal', 'portal': 'portal',
     '新着': 'news', '確認': 'news', 'お知らせ': 'notices', 'メニュー': 'help', 'もっと': 'help',
-    'カレンダー': 'calendar', '月': 'calendar', 'アンケート': 'polls', '集金': 'fees', '自主トレ': 'training', 'トレーニング': 'training',
+    'カレンダー': 'calendar', '月': 'calendar', 'アンケート': 'polls', '集金': 'fees', '自主トレ': 'training', 'トレーニング': 'training', 'ふりかえり': 'review', '振り返り': 'review',
     '今日': 'today', 'きょう': 'today',
     '予定': 'schedule', '次': 'schedule', 'スケジュール': 'schedule',
     '休み': 'absence', '欠席': 'absence', 'やすみ': 'absence',
@@ -112,6 +112,8 @@ function handleText_(ev) {
       return handleFees_(ev);
     case 'training':
       return handleTraining_(ev, cmd.args);
+    case 'review':
+      return handleReview_(ev);
     case 'register':
       return handleRegister_(ev, cmd.args);
     case 'portal':

@@ -813,6 +813,38 @@ test('目標管理：目標とやること（曜日）・チェック・途中�
   assert.ok(gas.ctx.api(k2, 'bootstrap').goals.list.filter((x) => x.child === '鈴木けんた' && x.kind === '自分').every((x) => !x.parent));
 });
 
+test('目標の様子：Botの「今日」に連続日数とペース、週のふりかえり、コーチに「止まっている子」', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  gas.line(dm('U3'), '登録 佐藤さくら 2年');
+  const kA = gas.login('U1').key;
+  gas.login('U2'); gas.login('U3');
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const today = gas.run('today_()');
+  const ago = (n) => gas.run('addDays_(today_(), ' + (-n) + ')');
+  const goal = (id, child, acts) => gas.run(`appendRow_(SHEETS.GOALS, { id: '${id}', '子ども': '${child}', '種類': '自分', '期間': '年間', 'タイトル': '100mで14.50', '種目': '100m', '目標記録': '14.50', '期限': addDays_(today_(), 200), 'やること': JSON.stringify(${JSON.stringify(acts)}), '日時': addDays_(today_(), -10) + ' 10:00' })`);
+  goal('g1', '鈴木けんた', [{ t: '坂ダッシュ', days: [0, 1, 2, 3, 4, 5, 6] }]);
+  goal('g2', '佐藤さくら', [{ t: '縄跳び', days: [0, 1, 2, 3, 4, 5, 6] }]);
+  [1, 2, 3].forEach((n) => gas.run(`appendRow_(SHEETS.GOAL_LOG, { goalId: 'g1', 'やること': '0', '日付': '${ago(n)}', '子ども': '鈴木けんた' })`));
+  gas.ctx.api(kA, 'addRecords', { rows: [{ child: '鈴木けんた', race: '100m', record: '15.20', date: ago(60), kind: '練習' }, { child: '鈴木けんた', race: '100m', record: '14.90', date: ago(10), kind: '練習' }] });
+  const st = gas.run("kidGoalStats_('鈴木けんた', today_())");
+  assert.strictEqual(st.streak, 3, '3日連続（今日はまだなので昨日から）');
+  assert.strictEqual(st.done7, 3);
+  assert.ok(st.pace && st.pace.race === '100m', 'ペース予想');
+  const td = gas.line(dm('U2'), '今日');
+  assert.ok(td.includes('🔥 3日連続') && td.includes('100m：') && td.includes('この7日 3/7'), td);
+  const rv = gas.line(dm('U2'), 'ふりかえり');
+  assert.ok(rv.includes('のふりかえり') && rv.includes('坂ダッシュ'), rv);
+  // ミッション：やることが止まっている子（さくら）と、できている子（けんた）
+  gas.ctx.api(kA, 'saveGoal', { kind: 'ミッション', children: ['鈴木けんた', '佐藤さくら', '山田たろう'], period: '大会', title: '次の大会で自己ベスト', race: '100m', deadline: '2026-11-01' });
+  const mk = gas.ctx.api(kA, 'bootstrap').goals.missionKids;
+  assert.strictEqual(mk['鈴木けんた'].done7, 3);
+  assert.ok(mk['佐藤さくら'].plan7 > 0 && mk['佐藤さくら'].done7 === 0, '止まっている');
+  assert.strictEqual(mk['山田たろう'].hasActs, false, 'やること未定');
+  assert.deepStrictEqual(plain(gas.ctx.api(gas.login('U2').key, 'bootstrap').goals.missionKids), {}, '保護者には出さない');
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

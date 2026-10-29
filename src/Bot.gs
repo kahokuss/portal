@@ -181,8 +181,33 @@ function handleNews_(ev) {
 /** 今日の「やること」（目標）の文。なければ空 */
 function goalTodayText_(u, today) {
   const list = todayGoalActions_(u.kids.map((k) => k.name), today);
-  if (!list.length) return '';
-  return '🎯 今日やること（目標）\n' + list.map((x) => (x.done ? '✓ ' : '□ ') + (u.kids.length > 1 ? x.child + '：' : '') + x.t).join('\n') + '\nできたらポータルの「目標・自主トレ」でチェック';
+  const lines = [];
+  if (list.length) lines.push('🎯 今日やること（目標）', ...list.map((x) => (x.done ? '✓ ' : '□ ') + (u.kids.length > 1 ? x.child + '：' : '') + x.t));
+  // 連続日数・この7日・ペース予想（目標がある子だけ）
+  u.kids.forEach((k) => {
+    const st = kidGoalStats_(k.name, today);
+    if (!st.hero) return;
+    const who = u.kids.length > 1 ? k.name + '：' : '';
+    const bits = [];
+    if (st.streak >= 2) bits.push('🔥 ' + st.streak + '日連続');
+    if (st.plan7 >= 3) bits.push('この7日 ' + st.done7 + '/' + st.plan7);
+    if (bits.length) lines.push(who + bits.join('・'));
+    if (st.pace) lines.push(who + (st.pace.ok ? '👍 ' + st.pace.race + '：このペースなら届きそう（' + formatDate_(st.pace.at) + 'に ' + st.pace.pred + ' の予想）' : '⏱ ' + st.pace.race + '：このままだと ' + formatDate_(st.pace.at) + 'に ' + st.pace.pred + '（あと ' + st.pace.gap + '）'));
+    if (!st.hasActs) lines.push(who + '⚠ 目標に向けた「やること」がまだ決まっていません');
+  });
+  if (!lines.length) return '';
+  if (list.length) lines.push('できたらポータルの「目標・自主トレ」でチェック');
+  // 土・日は週のふりかえりも
+  const wd = new Date(today + 'T00:00:00Z').getUTCDay();
+  if (wd === 0 || wd === 6) u.kids.forEach((k) => { if (kidGoalStats_(k.name, today).hero) lines.push('', weekReviewText_(k.name, today)); });
+  return lines.join('\n');
+}
+
+/** 「ふりかえり」：今週（月曜は先週）のできた・できなかった */
+function handleReview_(ev) {
+  const u = botUser_(ev);
+  if (!u.kids.length) return needRegister_(ev);
+  respond_(ev, botMessages_(u.kids.slice(0, 4).map((k) => weekReviewText_(k.name, today_()))));
 }
 
 function handleToday_(ev) {

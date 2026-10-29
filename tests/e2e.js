@@ -1213,6 +1213,7 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(gas.rows('目標').some((r) => r['タイトル'] === '100mで 14.50' && r['期間'] === '年間'));
       let t = await q.textContent('#view');
       assert.ok(t.includes('今日やること') && t.includes('坂ダッシュ 10本') && t.includes('1週間のスケジュール'), t.slice(0, 300));
+      assert.ok((await q.textContent('#view')).includes('今週のふりかえり') || (await q.textContent('#view')).includes('先週のふりかえり'), '週のふりかえり');
       await q.click('[data-gchk]');
       await q.idle();
       assert.strictEqual(gas.rows('目標のやること').filter((r) => r.goalId).length, 1, '今日やることにチェック');
@@ -1245,6 +1246,10 @@ async function openPortal(browser, gas, userId, name) {
       await a2.click('#gSave');
       await a2.idle();
       assert.ok(gas.rows('目標').filter((r) => r['種類'] === 'ミッション').length >= 2, '全員にミッション');
+      const ms = await a2.textContent('.msum');
+      assert.ok(ms.includes('達成') && /やること未定|止まっている|この7日/.test(ms), 'ミッションごとに子どもの様子 ' + ms);
+      await a2.click('.msum summary');
+      await a2.shot('mission-summary');
       await a2.close();
       const q2 = await openPortal(browser, gas, 'U2', 'goal2');
       await q2.click('[data-nav="train"]');
@@ -1252,6 +1257,20 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(t.includes('📣') && t.includes('ミッション') && t.includes('スタートを意識しよう'), '保護者の画面にミッション');
       await q2.shot('goal-parent');
       await q2.close();
+      // 自分の目標がない子：いちばん上がミッション →「やることを決めよう」で、ミッションの下に自分の目標をつくる
+      const q3 = await openPortal(browser, gas, 'U3', 'goal3');
+      await q3.click('[data-nav="train"]');
+      if (await q3.$('[data-trkid="佐藤さくら"]')) await q3.click('[data-trkid="佐藤さくら"]');
+      if (!(await q3.$('.ghero'))) await q3.click('[data-trview="goal"]');
+      await q3.click('.ghero [data-gfrom]');
+      await q3.click('[data-gsug="縄跳び 300回"]');
+      await q3.click('[data-gday="0|all"]');
+      await q3.click('#gSave');
+      await q3.idle();
+      const mid = gas.rows('目標').find((r) => r['種類'] === 'ミッション' && r['子ども'] === '佐藤さくら').id;
+      assert.ok(gas.rows('目標').some((r) => r['種類'] === '自分' && r['子ども'] === '佐藤さくら' && r['親id'] === mid && /縄跳び/.test(r['やること'])), 'ミッションの下に自分の目標とやること');
+      assert.ok((await q3.textContent('.ghero')).includes('▶'), 'はしごに自分の目標');
+      await q3.close();
     });
     await step('スマホ：下のメニューはスクロールの途中でも画面の下に出ている', async () => {
       const p = await openPortal(browser, gas, 'U3', 'navchk');

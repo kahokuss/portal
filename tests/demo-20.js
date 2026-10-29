@@ -154,6 +154,7 @@ if (SEI.length) gas.run("updateRow_(SHEETS.GOALS, Object.assign(readRows_(SHEETS
   if (await page.$('[data-trmode="mine"]')) await page.click('[data-trmode="mine"]');
   if (await page.$('[data-trview="goal"]')) await page.click('[data-trview="goal"]');
   await page.locator('.msum').first().scrollIntoViewIfNeeded();
+  await page.click('.msum summary');
   await shot('10-missions');
   assert.deepStrictEqual(errors, []);
   await browser.close();

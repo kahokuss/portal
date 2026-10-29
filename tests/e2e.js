@@ -1257,7 +1257,7 @@ async function openPortal(browser, gas, userId, name) {
       await a2.idle();
       assert.ok(gas.rows('目標').filter((r) => r['種類'] === 'ミッション').length >= 2, '全員にミッション');
       const ms = await a2.textContent('.msum');
-      assert.ok(/がんばり中|やること未定|止まっている|達成/.test(ms) && (await a2.$('.msum .mbar')), 'ミッションごとに色の帯と子どもの様子 ' + ms);
+      assert.ok(/がんばり中|これから|達成/.test(ms) && !/止まっている|未定/.test(ms) && (await a2.$('.msum .mbar')), 'ミッションごとに色の帯（前向きなことだけ） ' + ms);
       await a2.click('.msum summary');
       await a2.shot('mission-summary');
       await a2.close();

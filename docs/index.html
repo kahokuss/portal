@@ -499,16 +499,16 @@ tr.sel td { background: var(--sky-soft); }
 .mttl { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .mbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2); gap: 2px; }
 .mbar i { display: block; }
-.mbar .won, .mchip.won { background: var(--field); } .mbar .doing { background: var(--sky); } .mbar .none { background: var(--line); } .mbar .stop { background: var(--track); }
+.mbar .won, .mchip.won { background: var(--field); } .mbar .doing { background: var(--sky); } .mbar .next { background: var(--line); }
 .mcnt { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; font-weight: 700; }
-.mcnt .won { color: var(--field); } .mcnt .doing { color: var(--sky); } .mcnt .none { color: var(--muted); } .mcnt .stop { color: var(--track); }
+.mcnt .won { color: var(--field); } .mcnt .doing { color: var(--sky); }
 .mg { display: grid; gap: 4px; margin-top: 8px; }
 .mgh { font-size: 12.5px; font-weight: 800; } .mgh small { font-weight: 400; color: var(--muted); margin-left: 6px; }
-.mgh.stop { color: var(--track); } .mgh.won { color: var(--field); } .mgh.doing { color: var(--sky); } .mgh.none { color: var(--muted); }
+.mgh.won { color: var(--field); } .mgh.doing { color: var(--sky); } .mgh.next { color: var(--muted); }
 .mchips { display: flex; flex-wrap: wrap; gap: 4px; }
 .mchip { display: inline-grid; padding: 3px 9px; border-radius: 999px; font-size: 12.5px; line-height: 1.3; background: var(--surface-2); color: var(--fg); }
 .mchip small { font-size: 10.5px; opacity: .85; }
-.mchip.won { color: #fff; } .mchip.stop { background: var(--track-soft); color: var(--track); font-weight: 700; } .mchip.doing { background: var(--sky-soft); color: var(--sky); }
+.mchip.won { color: #fff; } .mchip.doing { background: var(--sky-soft); color: var(--sky); }
 
 .gactf { display: grid; gap: 6px; padding: 8px; border-radius: 10px; background: var(--surface-2); }
 .gactf input { background: var(--surface); }
@@ -628,7 +628,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "89374dd5d1";
+var BUILD = "719ff9d383";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "96476d389d";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -3259,28 +3259,28 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var k = g.title + '|' + g.deadline; if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(g);
     });
     var h = '<section class="card"><h2>📣 みんなのミッション<small>' + order.length + '件</small></h2>';
-    // 1つのミッションに1行：色の帯（達成・できている・未定・止まっている）と人数。開くと、ようすごとに名前のチップ
-    var LV = [{ c: 'stop', t: '⚠ 止まっている', d: 'この7日、やることが0回' }, { c: 'none', t: 'やること未定', d: '何をやるか決めていない' }, { c: 'doing', t: 'がんばり中', d: 'この7日にできている' }, { c: 'won', t: '🎉 達成', d: '' }];
+    // 1つのミッションに1行：色の帯（達成・がんばり中・これから）と人数。開くと名前のチップ。
+    // ほかの家の子も見えるので、前向きなことだけ（できていない理由や日付は出さない）
+    var LV = [{ c: 'next', t: 'これから' }, { c: 'doing', t: 'がんばり中', d: 'この7日にやることができている' }, { c: 'won', t: '🎉 達成' }];
     h += order.length ? '<div class="list">' + order.map(function (k) {
       var list = groups[k], MK = (ST.goals && ST.goals.missionKids) || {};
       var stat = function (g) {
         var m = MK[g.child], p = gProgress(g);
-        if (g.done || (p && p.reached)) return { lv: 3, x: p && p.cur ? p.cur : '' };
-        if (!m || !m.hasActs) return { lv: 1, x: '' };
-        if (m.plan7 && !m.done7) return { lv: 0, x: m.last ? '最後 ' + md(m.last) : 'まだ0回' };
-        return { lv: 2, x: m.done7 + '/' + m.plan7 + (m.streak >= 2 ? ' 🔥' + m.streak : '') };
+        if (g.done || (p && p.reached)) return { lv: 2, x: p && p.cur ? p.cur : '' };
+        if (m && m.done7) return { lv: 1, x: m.streak >= 2 ? '🔥' + m.streak + '日' : '' };
+        return { lv: 0, x: '' };
       };
-      var rows = list.map(function (g) { return { g: g, s: stat(g) }; }), cnt = [0, 0, 0, 0];
+      var rows = list.map(function (g) { return { g: g, s: stat(g) }; }), cnt = [0, 0, 0];
       rows.forEach(function (r) { cnt[r.s.lv]++; });
-      var bar = '<span class="mbar">' + [3, 2, 1, 0].map(function (lv) { return cnt[lv] ? '<i class="' + LV[lv].c + '" style="flex:' + cnt[lv] + '"></i>' : ''; }).join('') + '</span>';
-      var chipsOf = function (lv) { return rows.filter(function (r) { return r.s.lv === lv; }).sort(function (a, b) { return byGrade({ grade: kidGrade(b.g.child), name: b.g.child }, { grade: kidGrade(a.g.child), name: a.g.child }); }); };
-      var body = [0, 1, 2, 3].map(function (lv) {
-        var rs = chipsOf(lv); if (!rs.length) return '';
+      var bar = '<span class="mbar">' + [2, 1, 0].map(function (lv) { return cnt[lv] ? '<i class="' + LV[lv].c + '" style="flex:' + cnt[lv] + '"></i>' : ''; }).join('') + '</span>';
+      var body = [2, 1, 0].map(function (lv) {
+        var rs = rows.filter(function (r) { return r.s.lv === lv; }).sort(function (a, b) { return kidGrade(b.g.child) - kidGrade(a.g.child) || (a.g.child < b.g.child ? -1 : 1); });
+        if (!rs.length) return '';
         return '<div class="mg"><div class="mgh ' + LV[lv].c + '">' + LV[lv].t + ' ' + rs.length + '人' + (LV[lv].d ? '<small>' + LV[lv].d + '</small>' : '') + '</div><div class="mchips">' +
           rs.map(function (r) { return '<span class="mchip ' + LV[lv].c + '">' + esc(r.g.child) + (r.s.x ? '<small>' + esc(r.s.x) + '</small>' : '') + '</span>'; }).join('') + '</div></div>';
       }).join('');
-      return '<details class="msum"' + (cnt[0] ? ' open' : '') + '><summary><span class="mttl"><b>' + esc(list[0].title) + '</b><span class="sub">' + md(list[0].deadline) + 'まで・' + list.length + '人</span></span>' + bar +
-        '<span class="mcnt">' + [3, 2, 1, 0].map(function (lv) { return cnt[lv] ? '<span class="' + LV[lv].c + '">' + LV[lv].t.replace(/^\S+ /, '') + ' ' + cnt[lv] + '</span>' : ''; }).join('') + '</span></summary>' + body + '</details>';
+      return '<details class="msum"><summary><span class="mttl"><b>' + esc(list[0].title) + '</b><span class="sub">' + md(list[0].deadline) + 'まで・' + list.length + '人</span></span>' + bar +
+        '<span class="mcnt">' + [2, 1].map(function (lv) { return cnt[lv] ? '<span class="' + LV[lv].c + '">' + LV[lv].t.replace(/^\S+ /, '') + ' ' + cnt[lv] + '人</span>' : ''; }).join('') + '</span></summary>' + body + '</details>';
     }).join('') + '</div>' : '<div class="sub">まだミッションはありません。</div>';
     return h + '<div class="sub">監督のミッションは、ふつうは各家庭で入れます。練習で全員に同じミッションが出たときは、練習の当番や係の人・役員がまとめて入れられます。</div><button class="btn ghost" type="button" id="gMission">まとめて入れる</button></section>';
   }

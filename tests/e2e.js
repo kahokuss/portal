@@ -1216,11 +1216,16 @@ async function openPortal(browser, gas, userId, name) {
       await q.click('[data-gchk]');
       await q.idle();
       assert.strictEqual(gas.rows('目標のやること').filter((r) => r.goalId).length, 1, '今日やることにチェック');
+      assert.ok((await q.textContent('.ghero .gh-title')).includes('100mで 14.50'), 'いちばん大きい目標を大きく');
+      assert.ok((await q.textContent('.ghero .gh-nums')).includes('あと'), 'あと何日');
+      await q.shot('goal-hero');
+      await q.click('.ghero [data-gopen]');
       await q.click('[data-gsplit]');
       await q.click('[data-gunit="3ヶ月"]');
       await q.click('[data-gsplitok]');
       await q.idle();
       assert.ok(gas.rows('目標').filter((r) => r['期間'] === '3ヶ月').length >= 3, '3ヶ月ごとの途中目標');
+      assert.ok((await q.textContent('.ghero')).includes('次の一歩'), '次の一歩（いちばん近い途中目標）');
       await q.shot('goal-view');
       await q.close();
       // 役員（監督）からミッション
@@ -1240,7 +1245,8 @@ async function openPortal(browser, gas, userId, name) {
       const q2 = await openPortal(browser, gas, 'U2', 'goal2');
       await q2.click('[data-nav="train"]');
       t = await q2.textContent('#view');
-      assert.ok(t.includes('📣 ミッション') && t.includes('スタートを意識しよう'), '保護者の画面にミッション');
+      assert.ok(t.includes('📣') && t.includes('ミッション') && t.includes('スタートを意識しよう'), '保護者の画面にミッション');
+      await q2.shot('goal-parent');
       await q2.close();
     });
     await step('スマホ：下のメニューはスクロールの途中でも画面の下に出ている', async () => {

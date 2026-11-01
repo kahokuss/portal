@@ -43,10 +43,11 @@ function goalsFor_(ctx, children) {
 }
 
 function cleanActions_(list) {
-  return (list || []).slice(0, 8).map((a) => ({
-    t: String((a && a.t) || '').trim().slice(0, 40),
-    days: ((a && a.days) || []).map(Number).filter((d, i, arr) => d >= 0 && d <= 6 && arr.indexOf(d) === i).sort(),
-  })).filter((a) => a.t);
+  return (list || []).slice(0, 8).map((a) => {
+    const x = { t: String((a && a.t) || '').trim().slice(0, 40), days: ((a && a.days) || []).map(Number).filter((d, i, arr) => d >= 0 && d <= 6 && arr.indexOf(d) === i).sort() };
+    if (a && /^[A-Za-z0-9]{6,12}$/.test(a.v || '')) x.v = a.v; // 参考動画
+    return x;
+  }).filter((a) => a.t);
 }
 
 /** 目標を立てる・直す。ミッションは、家族ならわが家の子に、役員・コーチなら children（何人でも）にまとめて */

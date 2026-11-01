@@ -213,6 +213,7 @@ function createGas(options) {
           const u = String(payload.id_token).replace('idtoken:', '');
           return res(200, { sub: u, name: profiles[u] || '保護者' });
         }
+        if (/youtube\.com\/oembed/.test(url)) return res(200, { title: 'スタートのコツ（テスト）', author_name: 'テスト' });
         if (/\/v2\/bot\/info$/.test(url)) return res(200, { basicId: '@kahoku-test', displayName: 'テストBot' });
         if (/\/message\/quota$/.test(url)) return res(200, { type: 'limited', value: 200 });
         if (/\/message\/quota\/consumption$/.test(url)) return res(200, { totalUsage: quotaUsed.n });

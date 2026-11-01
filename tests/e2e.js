@@ -1282,6 +1282,26 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await q3.textContent('.ghero')).includes('▶'), 'はしごに自分の目標');
       await q3.close();
     });
+    await step('参考動画：リンクを貼って足す → 一覧（サムネイル）・自主トレの記録のそばにも出る', async () => {
+      const q = await openPortal(browser, gas, 'U2', 'video');
+      await q.route('https://i.ytimg.com/**', (r) => r.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }));
+      await q.click('[data-nav="train"]');
+      await q.click('[data-trview="video"]');
+      await q.click('#vNew');
+      await q.fill('#v-url', 'https://youtu.be/abcdefghijk');
+      await q.click('[data-vk="なわとび"]');
+      await q.fill('#v-memo', '二重跳びのコツ');
+      await q.click('#vSave');
+      await q.idle();
+      assert.ok(gas.rows('参考動画').some((r) => r['種類'] === 'なわとび' && r['タイトル'] === 'スタートのコツ（テスト）'), '題名は自動');
+      assert.ok(await q.$('.vlist img[src*="abcdefghijk"]'), 'サムネイル');
+      assert.strictEqual(await q.getAttribute('.vlist a.vlink', 'target'), '_blank');
+      await q.shot('videos');
+      await q.click('[data-trview="log"]');
+      await q.click('[data-trk="縄跳び"]');
+      assert.ok((await q.textContent('.vstrip')).includes('縄跳びの参考動画'), '自主トレの記録のそばに');
+      await q.close();
+    });
     await step('すぐ画面に出す保存：サーバーが遅くても、押したらその場で変わる（失敗したら元にもどす）', async () => {
       const q = await openPortal(browser, gas, 'U2', 'quick');
       await q.click('[data-nav="train"]');

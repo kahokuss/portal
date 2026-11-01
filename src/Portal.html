@@ -462,6 +462,17 @@ tr.sel td { background: var(--sky-soft); }
 .grow .main { flex: 1; min-width: 0; display: grid; } .grow .main b { font-size: 14.5px; }
 .grow .go { color: var(--muted); }
 .seg button { flex: 1; }
+.vlist { display: grid; gap: 10px; }
+.vitem { display: grid; gap: 4px; }
+.vlink { display: flex; gap: 10px; align-items: flex-start; text-decoration: none; color: var(--fg); }
+.vlink img, .vnoimg { flex: none; width: 128px; height: 72px; border-radius: 8px; object-fit: cover; background: var(--surface-2); display: grid; place-items: center; color: var(--muted); font-size: 22px; }
+.vlink .main { display: grid; gap: 2px; min-width: 0; } .vlink .main b { font-size: 13.5px; line-height: 1.4; }
+.vitem.sm .vlink img, .vitem.sm .vnoimg { width: 80px; height: 45px; border-radius: 6px; font-size: 16px; }
+.vitem.sm .vlink .main b { font-size: 12.5px; }
+.vitem .link { justify-self: end; }
+.vstrip { display: grid; gap: 6px; background: var(--surface-2); border-radius: 10px; padding: 8px; }
+.list .vitem.sm { margin: 0 0 6px 38px; }
+
 .gchk { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; padding: 8px 0; cursor: pointer; border-top: 1px solid var(--line); }
 .list .gchk:first-child { border-top: 0; }
 .gchk .mk { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 800; color: #fff; }
@@ -727,7 +738,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** サーバー（Apps Script）が古い版のままでも画面がこわれないよう、足りない項目をうめる */
   function fillDefaults(st) {
-    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.trainShare) st.trainShare = { mine: {}, kids: [] };
     if (Array.isArray(st.trainShare.mine)) { var m0 = {}; st.trainShare.mine.forEach(function (k) { m0[k] = 'coach'; }); st.trainShare.mine = m0; }
@@ -3052,6 +3063,53 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       call('stravaDisconnect', { remove: confirm('Strava から取り込んだ記録も消しますか？（「キャンセル」で記録は残します）') });
     });
   }
+  // ---- 参考動画：トレーニングの参考になる動画（YouTube など）をみんなで集める ----
+  var V_KINDS_DEFAULT = ['走り方', 'スタート', 'ダッシュ', '跳躍', '投てき', '筋トレ・体幹', 'ストレッチ', 'なわとび', 'その他'];
+  function vKinds() { return (ST.choices && ST.choices.videoKinds) || V_KINDS_DEFAULT; }
+  /** 自主トレの種類 → 動画の種類 */
+  function vKindOf(trKindName) { return ({ 'ランニング': '走り方', 'ダッシュ': 'ダッシュ', '坂道・階段': 'ダッシュ', '縄跳び': 'なわとび', '腹筋': '筋トレ・体幹', '背筋': '筋トレ・体幹', '腕立て': '筋トレ・体幹', 'スクワット': '筋トレ・体幹', '体幹': '筋トレ・体幹', 'ストレッチ': 'ストレッチ' })[trKindName] || ''; }
+  function vById(id) { return ST.videos.find(function (v) { return v.id === id; }); }
+  function vThumb(v) { return v.yt ? '<img src="https://i.ytimg.com/vi/' + esc(v.yt) + '/mqdefault.jpg" alt="" loading="lazy">' : '<span class="vnoimg">▶</span>'; }
+  function vItem(v, small) {
+    return '<div class="vitem' + (small ? ' sm' : '') + '"><a class="vlink" href="' + esc(v.url) + '" target="_blank" rel="noopener">' + vThumb(v) + '<span class="main"><b>' + esc(v.title) + '</b><span class="sub">' + esc(v.kind) + (v.memo ? '・' + esc(v.memo) : '') + '</span>' + (small ? '' : '<span class="sub">' + esc(v.by) + 'さん・' + md(v.at) + '</span>') + '</span></a>' +
+      (!small && (v.mine || ST.me.admin) ? '<button class="link" type="button" data-vdel="' + v.id + '">消す</button>' : '') + '</div>';
+  }
+  /** 小さく並べる（自主トレの記録・今日やることのそばに） */
+  function vStrip(list, title) {
+    if (!list.length) return '';
+    return '<div class="vstrip"><div class="lbl">📺 ' + esc(title || '参考動画') + '</div>' + list.slice(0, 3).map(function (v) { return vItem(v, true); }).join('') + '</div>';
+  }
+  function videoView() {
+    var k = S.vKind || '', list = ST.videos.filter(function (v) { return !k || v.kind === k; });
+    var h = '<section class="card"><h2>📺 参考動画<small>' + ST.videos.length + '本</small></h2><div class="sub">練習の参考になる動画を、みんなで集めます。押すと動画が開きます。目標の「やること」に付けることもできます。</div>';
+    if (S.vForm) {
+      var F = S.vForm;
+      h += '<div class="f vform"><label class="fld"><span class="fl">動画のリンク<b class="req">必須</b></span><input id="v-url" inputmode="url" value="' + esc(F.url) + '" placeholder="https://youtu.be/…"><span class="fh">YouTube の「共有」→「コピー」で取ったリンクを貼ってください。題名は自動で入ります。</span></label>' +
+        '<div class="fl">種類</div><div class="choice sm">' + vKinds().map(function (x) { return '<button type="button" data-vk="' + esc(x) + '" aria-pressed="' + (F.kind === x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+        '<label class="fld"><span class="fl">題名<span class="opt">なくてもOK（YouTubeは自動）</span></span><input id="v-title" value="' + esc(F.title) + '"></label>' +
+        '<label class="fld"><span class="fl">ひとこと<span class="opt">なくてもOK</span></span><input id="v-memo" value="' + esc(F.memo) + '" placeholder="例：腕ふりのところ（2分ごろ）が参考になる"></label>' +
+        '<div class="row"><button class="btn" type="button" id="vSave">足す</button><button class="btn ghost" type="button" id="vCancel">やめる</button></div></div>';
+    } else h += '<button class="btn" type="button" id="vNew">＋ 動画を足す</button>';
+    h += '</section>';
+    if (ST.videos.length) {
+      var kinds = vKinds().filter(function (x) { return ST.videos.some(function (v) { return v.kind === x; }); });
+      h += '<div class="choice sm">' + [''].concat(kinds).map(function (x) { return '<button type="button" data-vf="' + esc(x) + '" aria-pressed="' + (k === x) + '">' + (x || 'ぜんぶ') + '</button>'; }).join('') + '</div>';
+      h += '<section class="card"><div class="vlist">' + (list.length ? list.map(function (v) { return vItem(v); }).join('') : '<div class="sub">この種類の動画はまだありません。</div>') + '</div></section>';
+    }
+    return h;
+  }
+  function bindVideos() {
+    var F = S.vForm;
+    on('#vNew', function () { S.vForm = { url: '', kind: '走り方', title: '', memo: '' }; S.toast = ''; render(); var el = document.getElementById('v-url'); if (el) el.focus(); });
+    on('#vCancel', function () { S.vForm = null; render(); });
+    on('[data-vf]', function () { S.vKind = this.dataset.vf; render(); });
+    on('[data-vdel]', function () { if (confirm('この動画を消しますか？')) call('deleteVideo', { id: this.dataset.vdel }); });
+    if (!F) return;
+    var keep = function () { ['url', 'title', 'memo'].forEach(function (k) { var el = document.getElementById('v-' + k); if (el) F[k] = el.value; }); };
+    on('[data-vk]', function () { keep(); F.kind = this.dataset.vk; render(); });
+    on('#vSave', function () { keep(); call('addVideo', { url: F.url, kind: F.kind, title: F.title, memo: F.memo }, function (st) { if (st.message) S.vForm = null; }); });
+  }
+
   // ---- 目標管理：いつまでに・何を・そのためにやること（曜日でスケジュールに）。監督からのミッションも ----
   var G_PERIODS = ['大会', '年間', '半年', '3ヶ月', '月'];
   var G_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -3111,7 +3169,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     // 今日やること
     var today = gTodo(child, ST.today);
     if (today.length) h += '<section class="card" id="gToday"><h2>今日やること<small>' + today.filter(function (x) { return x.done; }).length + ' / ' + today.length + '</small></h2><div class="list">' + today.map(function (x) {
-      return '<button type="button" class="gchk' + (x.done ? ' on' : '') + '"' + (x.g.mine ? ' data-gchk="' + x.g.id + '|' + x.i + '|' + ST.today + '|' + (x.done ? '' : '1') + '"' : ' disabled') + '><span class="mk">' + (x.done ? '✓' : '') + '</span><span class="main"><b>' + esc(x.a.t) + '</b></span></button>';
+      return '<button type="button" class="gchk' + (x.done ? ' on' : '') + '"' + (x.g.mine ? ' data-gchk="' + x.g.id + '|' + x.i + '|' + ST.today + '|' + (x.done ? '' : '1') + '"' : ' disabled') + '><span class="mk">' + (x.done ? '✓' : '') + '</span><span class="main"><b>' + esc(x.a.t) + '</b></span></button>' + (x.a.v && vById(x.a.v) ? vItem(vById(x.a.v), true) : '');
     }).join('') + '</div></section>';
     h += weekReviewCard(child);
     // ほかの目標・ミッション（1行ずつ。押すとくわしく）
@@ -3357,7 +3415,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<label class="fld"><span class="fl">目標<b class="req">必須</b></span><input id="g-title" value="' + esc(F.title) + '" placeholder="例：100mで14秒50を切る／毎日なわとび"></label>';
     h += '<div class="fl">そのためにやること<span class="opt">曜日を選ぶと、毎週のスケジュールに入ります</span></div>' + F.actions.map(function (a, i) {
       return '<div class="gactf"><div class="row"><input data-gat="' + i + '" value="' + esc(a.t) + '" placeholder="例：坂ダッシュ 10本" style="flex:1"><button class="icon-btn" type="button" data-gadel="' + i + '" aria-label="消す">×</button></div>' +
-        '<div class="choice sm">' + G_DAYS.map(function (x, k) { return '<button type="button" data-gday="' + i + '|' + k + '" aria-pressed="' + (a.days.indexOf(k) >= 0) + '">' + x + '</button>'; }).join('') + '<button type="button" data-gday="' + i + '|all">毎日</button></div></div>';
+        '<div class="choice sm">' + G_DAYS.map(function (x, k) { return '<button type="button" data-gday="' + i + '|' + k + '" aria-pressed="' + (a.days.indexOf(k) >= 0) + '">' + x + '</button>'; }).join('') + '<button type="button" data-gday="' + i + '|all">毎日</button></div>' +
+        (ST.videos.length ? '<label class="fld"><span class="fl">📺 参考動画<span class="opt">なくてもOK</span></span><select data-gav="' + i + '"><option value="">なし</option>' + ST.videos.map(function (v) { return '<option value="' + v.id + '"' + (a.v === v.id ? ' selected' : '') + '>' + esc('[' + v.kind + '] ' + v.title).slice(0, 40) + '</option>'; }).join('') + '</select></label>' : '') + '</div>';
     }).join('') + '<div class="quick">' + G_SUGGEST.map(function (x) { return '<button type="button" data-gsug="' + esc(x) + '">＋' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<button class="btn small ghost" type="button" id="gAddAct" style="justify-self:start">＋ やることを足す</button>' +
       '<label class="fld"><span class="fl">' + (F.mission ? '監督のことば' : 'メモ') + '</span><input id="g-note" value="' + esc(F.note) + '" placeholder="' + (F.mission ? '例：スタートの一歩目を意識しよう' : '') + '"></label>' +
@@ -3391,13 +3450,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-gscroll]', function () { var el = document.getElementById(this.dataset.gscroll); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     on('[data-gedit]', function () {
       var g = gList().find(function (x) { return x.id === this.dataset.gedit; }, this); if (!g) return;
-      S.gForm = { id: g.id, mission: g.kind === 'ミッション', multi: false, from: g.by || '監督', kids: [g.child], child: g.child, period: g.period, deadline: g.deadline, key: g.key || '', race: g.race || '', target: g.target || '', title: g.title, autoTitle: false, note: g.note || '', actions: g.actions.map(function (a) { return { t: a.t, days: a.days.slice() }; }), parent: g.parent || '' };
+      S.gForm = { id: g.id, mission: g.kind === 'ミッション', multi: false, from: g.by || '監督', kids: [g.child], child: g.child, period: g.period, deadline: g.deadline, key: g.key || '', race: g.race || '', target: g.target || '', title: g.title, autoTitle: false, note: g.note || '', actions: g.actions.map(function (a) { return { t: a.t, days: a.days.slice(), v: a.v || '' }; }), parent: g.parent || '' };
       S.toast = ''; render(); window.scrollTo(0, 0);
     });
     if (!F) return;
     var keep = function () {
       ['deadline', 'target', 'title', 'note'].forEach(function (k) { var el = document.getElementById('g-' + k); if (el) F[k] = el.value; });
       view.querySelectorAll('[data-gat]').forEach(function (el) { F.actions[+el.dataset.gat].t = el.value; });
+      view.querySelectorAll('[data-gav]').forEach(function (el) { F.actions[+el.dataset.gav].v = el.value; });
     };
     var auto = function () { if (F.autoTitle && F.race) F.title = F.race + (F.target ? 'で ' + fmtTarget(F.target, F.race) : 'で自己ベスト更新'); };
     on('#gBack', function () { S.gForm = null; S.toast = ''; render(); });
@@ -3444,7 +3504,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     // 目標と自主トレの記録を切りかえ（目標があれば目標から）
     var hasGoal = gList().some(function (g) { return g.child === child && gActive(g); });
     var tv = S.trView || (hasGoal ? 'goal' : 'log');
-    h += '<div class="tabs seg" role="group" aria-label="表示">' + [['goal', '🎯 目標'], ['log', '🏃 自主トレの記録']].map(function (x) { return '<button type="button" data-trview="' + x[0] + '" aria-pressed="' + (tv === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    h += '<div class="tabs seg" role="group" aria-label="表示">' + [['goal', '🎯 目標'], ['log', '🏃 記録'], ['video', '📺 参考動画']].map(function (x) { return '<button type="button" data-trview="' + x[0] + '" aria-pressed="' + (tv === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (tv === 'video') {
+      view.innerHTML = modeTabs + h + videoView();
+      bindCommon(); bindVideos();
+      on('[data-trkid]', function () { S.trKid = this.dataset.trkid; S.trForm = null; render(); });
+      on('[data-trview]', function () { S.trView = this.dataset.trview; S.vForm = null; render(); });
+      on('[data-trmode]', function () { S.trMode = this.dataset.trmode; render(); });
+      return;
+    }
     if (tv === 'goal') {
       view.innerHTML = modeTabs + h + goalView(child);
       bindCommon(); bindGoals(child);
@@ -3539,6 +3607,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="row"><div class="choice">' + [[ST.today, '今日'], [addDays(ST.today, -1), '昨日']].map(function (d) { return '<button type="button" data-trd="' + d[0] + '" aria-pressed="' + (F.date === d[0]) + '">' + d[1] + '</button>'; }).join('') + '</div>' +
       '<input type="date" id="tr-date" class="tmsel" value="' + F.date + '" max="' + ST.today + '"><span class="sub">' + md(F.date) + '</span></div>' +
       '<div class="trk" role="group" aria-label="何をした">' + TR_KINDS.map(function (x) { return '<button type="button" data-trk="' + x.n + '" aria-pressed="' + (F.kind === x.n) + '"><span class="i" aria-hidden="true">' + x.i + '</span>' + x.n + '</button>'; }).join('') + '</div>';
+    var vk = vKindOf(F.kind), rel = vk ? ST.videos.filter(function (v) { return v.kind === vk; }) : [];
+    if (rel.length) h += vStrip(rel, F.kind + 'の参考動画');
     if (F.kind === 'その他') h += '<div class="f"><label>何をした？<input id="tr-other" value="' + esc(F.other) + '" placeholder="例：水泳、サッカー、ボール投げ"></label></div>';
     var lab = { km: '距離（km）', min: '時間（分）', count: '回数（' + (k.u || '回') + '）' }, ph = { km: '3.5', min: '30', count: k.u === '本' ? '10' : '30' };
     h += '<div class="trnum">' + k.f.map(function (f) { return '<label>' + lab[f] + '<input id="tr-' + f + '" inputmode="decimal" value="' + esc(F[f]) + '" placeholder="' + ph[f] + '"></label>'; }).join('') + '</div>';

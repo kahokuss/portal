@@ -853,6 +853,29 @@ test('目標の様子：Botの「今日」に連続日数とペース、週の�
   assert.deepStrictEqual(plain(gas.ctx.api(gas.login('U2').key, 'bootstrap').goals.missionKids), {}, '保護者には出さない');
 });
 
+test('参考動画：だれでも足せる（YouTubeは題名を自動で）・同じ動画は2重にしない・消せるのは足した人と役員・やることに付けられる', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  gas.line(dm('U2'), '登録 鈴木けんた 5年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(k2, 'addVideo', { url: 'https://youtu.be/abcdefghijk?si=xyz', kind: 'スタート', memo: '一歩目' });
+  assert.ok(st.message.includes('スタートのコツ（テスト）'), st.message);
+  const v = st.videos[0];
+  assert.ok(v.yt === 'abcdefghijk' && v.kind === 'スタート' && v.mine && v.by === '鈴木');
+  assert.throws(() => gas.ctx.api(k3, 'addVideo', { url: 'https://www.youtube.com/watch?v=abcdefghijk' }), /もう入っています/);
+  assert.throws(() => gas.ctx.api(k3, 'addVideo', { url: 'javascript:alert(1)' }), /https/);
+  st = gas.ctx.api(k3, 'addVideo', { url: 'https://example.com/drill', title: '縄跳びの練習', kind: 'なわとび' });
+  assert.strictEqual(st.videos.length, 2);
+  assert.ok(!gas.ctx.api(k3, 'bootstrap').videos.find((x) => x.id === v.id).mine, 'ほかの人のは自分のではない');
+  assert.throws(() => gas.ctx.api(k3, 'deleteVideo', { id: v.id }), /足した人と役員/);
+  // やることに動画を付ける
+  st = gas.ctx.api(k2, 'saveGoal', { kind: '自分', child: '鈴木けんた', period: '月', title: 'スタート', deadline: '2026-11-30', actions: [{ t: 'スタート練習', days: [1], v: v.id }] });
+  assert.strictEqual(st.goals.list.find((g) => g.title === 'スタート').actions[0].v, v.id);
+  st = gas.ctx.api(kA, 'deleteVideo', { id: v.id });
+  assert.strictEqual(st.videos.length, 1, '役員は消せる');
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

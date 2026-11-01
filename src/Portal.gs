@@ -89,6 +89,8 @@ const API_ACTIONS = {
   setAttend: { run: setAttendAction_ },
   saveTraining: { run: saveTrainingAction_ },
   saveGoal: { run: saveGoalAction_ },
+  addVideo: { run: addVideoAction_ },
+  deleteVideo: { run: deleteVideoAction_ },
   deleteGoal: { run: deleteGoalAction_ },
   setGoalDone: { run: setGoalDoneAction_ },
   checkGoalAction: { run: checkGoalActionAction_ },
@@ -286,6 +288,7 @@ function buildState_(ctx) {
     absences: absences,
     training: trainingFor_(ctx, children),
     goals: goalsFor_(ctx, children),
+    videos: videosFor_(ctx),
     strava: stravaStateFor_(ctx),
     appRequests: appRequestsFor_(ctx),
     trainShare: trainShareFor_(ctx, children),
@@ -304,7 +307,7 @@ function buildState_(ctx) {
     fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], botId: botBasicId_(), absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], videoKinds: VIDEO_KINDS, botId: botBasicId_(), absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
   };
 }
 

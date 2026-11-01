@@ -1231,7 +1231,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'eb8e7f8e0f';
+const SERVER_VERSION = 'e314ccdb1d';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1476,10 +1476,11 @@ function goalsFor_(ctx, children) {
 }
 
 function cleanActions_(list) {
-  return (list || []).slice(0, 8).map((a) => ({
-    t: String((a && a.t) || '').trim().slice(0, 40),
-    days: ((a && a.days) || []).map(Number).filter((d, i, arr) => d >= 0 && d <= 6 && arr.indexOf(d) === i).sort(),
-  })).filter((a) => a.t);
+  return (list || []).slice(0, 8).map((a) => {
+    const x = { t: String((a && a.t) || '').trim().slice(0, 40), days: ((a && a.days) || []).map(Number).filter((d, i, arr) => d >= 0 && d <= 6 && arr.indexOf(d) === i).sort() };
+    if (a && /^[A-Za-z0-9]{6,12}$/.test(a.v || '')) x.v = a.v; // 参考動画
+    return x;
+  }).filter((a) => a.t);
 }
 
 /** 目標を立てる・直す。ミッションは、家族ならわが家の子に、役員・コーチなら children（何人でも）にまとめて */
@@ -2529,6 +2530,8 @@ const API_ACTIONS = {
   setAttend: { run: setAttendAction_ },
   saveTraining: { run: saveTrainingAction_ },
   saveGoal: { run: saveGoalAction_ },
+  addVideo: { run: addVideoAction_ },
+  deleteVideo: { run: deleteVideoAction_ },
   deleteGoal: { run: deleteGoalAction_ },
   setGoalDone: { run: setGoalDoneAction_ },
   checkGoalAction: { run: checkGoalActionAction_ },
@@ -2726,6 +2729,7 @@ function buildState_(ctx) {
     absences: absences,
     training: trainingFor_(ctx, children),
     goals: goalsFor_(ctx, children),
+    videos: videosFor_(ctx),
     strava: stravaStateFor_(ctx),
     appRequests: appRequestsFor_(ctx),
     trainShare: trainShareFor_(ctx, children),
@@ -2744,7 +2748,7 @@ function buildState_(ctx) {
     fees: feesFor_(ctx, children),
     docs: readRows_(SHEETS.DOCS).filter((x) => x.id && raceKeys[x.eventKey]).map((x) => ({ id: x.id, key: x.eventKey, kind: x['種類'], name: x['名前'], url: x.URL, file: x['ファイルID'], type: x['形式'], by: x['追加者'], at: x['日時'] })),
     history: readRows_(SHEETS.HISTORY).filter((x) => raceKeys[x.eventKey]).map((x) => ({ key: x.eventKey, at: x['日時'], by: x['表示名'], text: x['内容'] })).reverse(),
-    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], botId: botBasicId_(), absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
+    choices: { races: CHOICES.RACES, items: CHOICES.ITEMS, targets: CHOICES.TARGETS, reasons: CHOICES.ABSENCE_REASONS, deadlineDays: CONFIG.DEADLINE_DAYS_BEFORE, practiceTimes: CONFIG.PRACTICE_TIMES, rounds: CHOICES.ROUNDS, applyHow: CHOICES.APPLY_HOW, docKinds: CHOICES.DOC_KINDS, warmMinutes: CONFIG.WARM_UP_MINUTES_BEFORE_CALL, dutyGuide: CONFIG.DUTY_GUIDE || [], videoKinds: VIDEO_KINDS, botId: botBasicId_(), absencePush: CONFIG.ABSENCE_PUSH_TO_ADMINS },
   };
 }
 
@@ -4774,6 +4778,7 @@ const SHEETS = {
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
   GOALS: { name: '目標', headers: ['id', '子ども', '種類', '期間', 'タイトル', '種目', '目標記録', '開始記録', '期限', 'eventKey', 'やること', '親id', '状態', '達成日', 'ひとこと', '出した人', 'userId', '日時', '更新日時'] },
   GOAL_LOG: { name: '目標のやること', headers: ['goalId', 'やること', '日付', '子ども', 'userId', '日時'] },
+  VIDEOS: { name: '参考動画', headers: ['id', 'URL', 'タイトル', '種類', 'メモ', '追加者', 'userId', '日時'] },
   SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };
 
@@ -5560,4 +5565,51 @@ function parseChildrenArgs_(s) {
     else out.push({ name: token, grade: 0 });
   });
   return out;
+}
+
+// ===== Videos.gs =====
+/**
+ * 参考動画：トレーニングの参考になる動画のリンク（YouTube など）を、クラブのみんなで集める。
+ * だれでも足せる。消せるのは足した人と役員。目標の「やること」に動画を付けると、今日やることから開ける。
+ */
+
+const VIDEO_KINDS = ['走り方', 'スタート', 'ダッシュ', '跳躍', '投てき', '筋トレ・体幹', 'ストレッチ', 'なわとび', 'その他'];
+
+/** YouTube の動画ID（watch?v= / youtu.be / shorts / live / embed）。なければ空 */
+function youtubeId_(url) {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+
+function videosFor_(ctx) {
+  return readRows_(SHEETS.VIDEOS).filter((v) => v.id && v.URL).reverse().map((v) => ({ id: v.id, url: v.URL, yt: youtubeId_(v.URL), title: v['タイトル'], kind: v['種類'], memo: v['メモ'], by: v['追加者'], mine: v.userId === ctx.userId, at: String(v['日時']).slice(0, 10) }));
+}
+
+function addVideoAction_(ctx, p) {
+  const url = String(p.url || '').trim().replace(/\s.*$/, '');
+  if (!/^https?:\/\/[^\s]+$/.test(url)) throw new Error('動画のリンク（https:// から始まるURL）を貼ってください。');
+  if (readRows_(SHEETS.VIDEOS).some((v) => v.id && (v.URL === url || (youtubeId_(url) && youtubeId_(v.URL) === youtubeId_(url))))) throw new Error('この動画はもう入っています。');
+  let title = String(p.title || '').trim().slice(0, 80);
+  if (!title && youtubeId_(url)) {
+    // YouTube の題名を取ってくる（取れなければ「YouTube の動画」）
+    try {
+      const res = UrlFetchApp.fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url), { muteHttpExceptions: true });
+      if (res.getResponseCode() === 200) title = String(JSON.parse(res.getContentText()).title || '').slice(0, 80);
+    } catch (err) { console.warn(err); }
+  }
+  withLock_(() => appendRow_(SHEETS.VIDEOS, {
+    id: randomKey_().slice(0, 10), URL: url.slice(0, 300), 'タイトル': title || (youtubeId_(url) ? 'YouTube の動画' : '参考動画'),
+    '種類': VIDEO_KINDS.indexOf(p.kind) >= 0 ? p.kind : 'その他', 'メモ': String(p.memo || '').slice(0, 200), '追加者': ctx.name, userId: ctx.userId, '日時': now_(),
+  }));
+  return '参考動画を足しました' + (title ? '：' + title : '');
+}
+
+function deleteVideoAction_(ctx, p) {
+  withLock_(() => {
+    const v = readRows_(SHEETS.VIDEOS).find((x) => x.id && x.id === p.id);
+    if (!v) throw new Error('動画が見つかりません。');
+    if (v.userId !== ctx.userId && !ctx.admin) throw new Error('消せるのは、足した人と役員です。');
+    clearRow_(SHEETS.VIDEOS, v);
+  });
+  return '参考動画を消しました';
 }

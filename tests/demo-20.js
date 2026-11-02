@@ -140,6 +140,12 @@ if (SEI.length) gas.run("updateRow_(SHEETS.GOALS, Object.assign(readRows_(SHEETS
   await page.click('#aBack');
   await page.click('[data-go="dash"]');
   await shot('9-dash');
+  if (await page.$('#dCmp')) {
+    await page.locator('#dCmp').screenshot({ path: path.join(shotDir, 'm20-9e-cmp.png') });
+    // スマホで「前 → 後」と伸びが重ならない
+    const overlap = await page.evaluate(() => [...document.querySelectorAll('#dCmp .hr.cmp')].some((r) => { const a = r.querySelector('.rv').getBoundingClientRect(), b = r.querySelector('.gap').getBoundingClientRect(); return a.right > b.left + 1 && a.bottom > b.top && a.top < b.bottom; }));
+    assert.ok(!overlap, '期間で比べるの文字が重ならない');
+  }
   await page.click('[data-dk="練習"]');
   await page.click('button[data-dr="走幅跳"]');
   await shot('9b-dash-long');

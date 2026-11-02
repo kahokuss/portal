@@ -297,6 +297,7 @@ form.f, .f { display: grid; gap: 8px; }
 .cmpbox { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--surface); }
 .kid .cmpbox { background: var(--surface); }
 .cmprow { display: grid; grid-template-columns: minmax(3.5em, auto) minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.cmprow .rv { min-width: 0; overflow-wrap: anywhere; }
 .cmprow .nm { font-weight: 700; }
 .cmprow .gp { text-align: right; white-space: nowrap; }
 .cmpdet summary { cursor: pointer; }
@@ -342,7 +343,12 @@ form.f, .f { display: grid; gap: 8px; }
 .hr.cmp { grid-template-columns: minmax(5em, 9em) minmax(7em, 11em) minmax(30px, 1fr) 5.2em; cursor: default; }
 .hr.cmp .rv { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hr .bar i.neg { background: var(--muted); opacity: .5; }
-@media (max-width: 899px) { .hr.cmp { grid-template-columns: minmax(4.5em, 7em) minmax(0, 1fr) 4.6em; } .hr.cmp .bar { display: none; } .hr.cmp .gap { display: block; } }
+/* スマホ：名前の下に「前 → 後」、右に伸び（文字が重ならないよう2行に） */
+@media (max-width: 899px) {
+  .hr.cmp { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nm gap" "rv gap"; row-gap: 0; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .hr.cmp .nm { grid-area: nm; } .hr.cmp .rv { grid-area: rv; font-size: 12.5px; color: var(--muted); } .hr.cmp .rv b { color: var(--fg); }
+  .hr.cmp .bar { display: none; } .hr.cmp .gap { display: block; grid-area: gap; align-self: center; font-size: 14px; font-weight: 800; text-align: right; }
+}
 .hr.sm2 { grid-template-columns: 1.6em minmax(5em, 9em) minmax(30px, 1fr) 4.6em 3.6em; }
 .hr.sm { grid-template-columns: 1.6em minmax(5em, 8em) minmax(30px, 1fr) 3em; }
 .vtip { position: fixed; z-index: 30; background: var(--fg); color: var(--surface); font-size: 12px; padding: 6px 9px; border-radius: 8px; pointer-events: none; max-width: 320px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,.18); }

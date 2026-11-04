@@ -214,7 +214,9 @@ form.f, .f { display: grid; gap: 8px; }
 .viewer.pdfv .vcap { position: static; padding: 8px 0 16px; }
 .viewer.pdfv .vbar { position: sticky; top: 0; z-index: 1; display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: rgba(0,0,0,.75); }
 .viewer.pdfv .pages { display: grid; gap: 10px; padding: 10px; justify-items: center; }
-.viewer.pdfv .pages img { max-height: none; width: 100%; max-width: 1000px; background: #fff; border-radius: 4px; }
+.viewer.pdfv .pages img { max-height: none; width: var(--vw, 100%); max-width: none; background: #fff; border-radius: 4px; }
+.viewer.pdfv .pages { overflow-x: auto; justify-items: start; } .viewer.pdfv .pages img { margin: 0 auto; }
+.dtile.loading { opacity: .6; }
 .viewer .vbar { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; display: flex; gap: 8px; justify-content: flex-end; }
 .viewer .vbar a { text-decoration: none; }
 .viewer .vcap { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; color: #fff; font-size: 12px; text-align: center; }
@@ -3083,12 +3085,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (f) f.addEventListener('submit', function (x) { x.preventDefault(); keep(); call('addDoc', { key: e.key, kind: Dc.kind, name: Dc.name, url: Dc.url, data: Dc.data || '' }, function () { S.doc = null; }); });
     on('[data-ddel]', function () { if (confirm('この資料を消しますか？')) call('deleteDoc', { id: this.dataset.ddel }); });
     on('[data-doc]', function () {
-      var b = this, x = ST.docs.find(function (d) { return d.id === b.dataset.doc; }); b.textContent = '読み込み中…';
+      var b = this, x = ST.docs.find(function (d) { return d.id === b.dataset.doc; });
+      var busy = document.getElementById('busy'); busy.textContent = '資料を読み込んでいます…'; busy.hidden = false; b.classList.add('loading');
+      var done = function () { busy.hidden = true; busy.textContent = '保存しています…'; b.classList.remove('loading'); };
       rpc('doc', { id: x.id }, function (r) {
-        b.textContent = '開く';
-        if (x.type === 'image') { PHOTO['f' + x.id] = r.data; showPhoto(x.id); return; }
+        done();
+        if (x.type === 'image') return showDocImage(r.name || x.name || '資料', r.data);
         showPdf(r.name || x.name || '資料', r.data);
-      }, function (err) { b.textContent = '開く'; S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
+      }, function (err) { done(); S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
     });
   }
 
@@ -3103,13 +3107,37 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     sc.onerror = fail;
     document.head.appendChild(sc);
   }
+  /** 資料を大きく見る画面（PDF・写真）。＋／−で大きさを変えられる（PCでは横幅いっぱいに近く） */
+  var DOC_W = 0, DOC_F = 1; // DOC_F：ふだんの大きさに対する倍率（開くたびに画面の幅から計算しなおす）
+  function docZoom(box, step) {
+    var full = Math.max(320, window.innerWidth - 24), base = window.innerWidth >= 900 ? Math.min(1400, full) : full;
+    if (step === 0) DOC_F = full / base; else if (step) DOC_F = Math.max(0.4, Math.min(3, DOC_F * (step > 0 ? 1.25 : 0.8)));
+    DOC_W = Math.max(320, Math.round(base * DOC_F));
+    box.style.setProperty('--vw', DOC_W + 'px');
+  }
+  function zoomBar(box) {
+    docZoom(box);
+    box.querySelectorAll('[data-zoom]').forEach(function (b) { b.addEventListener('click', function () { docZoom(box, +this.dataset.zoom); }); });
+  }
+  var ZOOM_BTNS = '<button class="btn small ghost" type="button" data-zoom="-1" aria-label="小さく">−</button><button class="btn small ghost" type="button" data-zoom="1" aria-label="大きく">＋</button><button class="btn small ghost" type="button" data-zoom="0">幅に合わせる</button>';
+  function showDocImage(name, dataUrl) {
+    var box = document.createElement('div');
+    box.className = 'viewer pdfv';
+    box.innerHTML = '<div class="vbar"><b style="color:#fff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(name) + '</b>' + ZOOM_BTNS + '<a class="btn small ghost" id="imgDl" download="' + esc(name) + '">保存</a><button class="btn small" type="button" id="vClose">閉じる</button></div>' +
+      '<div class="pages"><img alt="' + esc(name) + '"></div>';
+    document.body.appendChild(box);
+    box.querySelector('img').src = dataUrl; box.querySelector('#imgDl').href = dataUrl;
+    box.querySelector('#vClose').addEventListener('click', function () { box.remove(); });
+    zoomBar(box);
+  }
   function showPdf(name, dataUrl) {
     var box = document.createElement('div');
     box.className = 'viewer pdfv';
-    box.innerHTML = '<div class="vbar"><b style="color:#fff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(name) + '</b><a class="btn small ghost" id="pdfDl" download="' + esc(name) + '.pdf">PDF</a><button class="btn small ghost" type="button" id="vClose">閉じる</button></div>' +
+    box.innerHTML = '<div class="vbar"><b style="color:#fff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(name) + '</b>' + ZOOM_BTNS + '<a class="btn small ghost" id="pdfDl" download="' + esc(name) + '.pdf">PDF</a><button class="btn small ghost" type="button" id="vClose">閉じる</button></div>' +
       '<div class="pages"><div class="vcap">読み込み中…</div></div>';
     document.body.appendChild(box);
     box.querySelector('#vClose').addEventListener('click', function () { box.remove(); });
+    zoomBar(box);
     var dl = box.querySelector('#pdfDl'); dl.href = dataUrl;
     var pages = box.querySelector('.pages');
     var bin = atob(dataUrl.split(',')[1]), arr = new Uint8Array(bin.length);
@@ -3117,7 +3145,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     loadPdfJs(function () {
       window.pdfjsLib.getDocument({ data: arr }).promise.then(function (pdf) {
         pages.innerHTML = '';
-        var n = 1, width = Math.min(1200, Math.max(320, pages.clientWidth || window.innerWidth)) * Math.min(2, window.devicePixelRatio || 1);
+        var n = 1, width = Math.min(2400, Math.max(320, Math.max(DOC_W, pages.clientWidth || window.innerWidth)) * Math.min(2, window.devicePixelRatio || 1));
         (function next() {
           if (n > pdf.numPages) { pages.insertAdjacentHTML('beforeend', '<div class="vcap">全' + pdf.numPages + 'ページ。画像を長押しすると保存できます</div>'); return; }
           pdf.getPage(n).then(function (page) {

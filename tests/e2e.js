@@ -1103,6 +1103,18 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await a.getAttribute('.pdfv .pages img', 'src')).startsWith('data:image/jpeg'), 'ページが画像になる');
       await a.shot('29-pdf');
       await a.click('#vClose');
+      // PCの広い画面では大きく出る（＋で、さらに大きく）
+      await a.setViewportSize({ width: 1280, height: 900 });
+      await a.click('.dcell:has-text("テスト要項") [data-doc]');
+      await a.waitForSelector('.pdfv .pages img', { timeout: 20000 });
+      const w1 = await a.evaluate(() => document.querySelector('.pdfv .pages img').getBoundingClientRect().width);
+      assert.ok(w1 >= 1100, 'PCでは大きく ' + w1);
+      await a.click('.pdfv [data-zoom="-1"]');
+      const w2 = await a.evaluate(() => document.querySelector('.pdfv .pages img').getBoundingClientRect().width);
+      assert.ok(w2 < w1, '−で小さく ' + w2);
+      if (SHOTS) await a.screenshot({ path: path.join(shotDir, 'admin-29b-pdf-pc.png') });
+      await a.click('#vClose');
+      await a.setViewportSize({ width: 420, height: 900 });
     });
     await step('Strava：管理者が鍵を入れる → 「Stravaとつなぐ」→ 戻ってくると、名前の入った活動が自主トレに入る', async () => {
       await a.click('[data-nav="train"]');

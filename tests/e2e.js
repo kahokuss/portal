@@ -462,8 +462,12 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-et="種目"]');
       let text = await a.textContent('#view');
       assert.ok(text.includes('100m') && text.includes('走幅跳') && text.includes('オーダー提出'), text);
-      a.once('dialog', (d) => d.accept('10:00'));
+      // 締切はカレンダーで（大会の日 → 時刻のボタン → 保存）
       await a.click('[data-dl="リレー予選"]');
+      await a.click('[data-dld]');
+      await a.click('[data-dlt="10:00"]');
+      if (SHOTS) await a.locator('.dledit').screenshot({ path: path.join(shotDir, 'admin-dl-edit.png') });
+      await a.click('[data-dlsave]');
       await a.idle();
       assert.ok(JSON.parse(gas.rows('大会').find((r) => r['集合場所'] === '正面スタンド下')['手続き期限'])['リレー予選'] === '2026-11-01 10:00');
       await a.click('[data-relayadd]');
@@ -1316,6 +1320,7 @@ async function openPortal(browser, gas, userId, name) {
       const q = await openPortal(browser, gas, 'U2', 'goto');
       await q.click('[data-nav="events"]');
       await q.click('.ev:has-text("秋季記録会")');
+      if (SHOTS) await q.locator('#secStatus').screenshot({ path: path.join(shotDir, 'parent-status-flow.png') });
       const items = await q.$$eval('.rtodo [data-goto]', (els) => els.map((x) => x.dataset.goto.split('|')[1]));
       assert.ok(items.length, 'やることに飛び先がある ' + JSON.stringify(items));
       const sec = items[items.length - 1];

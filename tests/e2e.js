@@ -1315,6 +1315,33 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(ok, sec + ' が開いて見えている');
       await q.close();
     });
+    await step('ホームのやること：押すとその場所・その画面へ（集金・アンケート・お知らせ・当番）／自主トレの最近の記録を直す', async () => {
+      const q = await openPortal(browser, gas, 'U2', 'todo2');
+      await q.click('[data-nav="home"]');
+      const items = await q.$$eval('.todo button', (els) => els.map((x) => [x.getAttribute('data-todo'), x.getAttribute('data-goto'), x.getAttribute('data-entry')]));
+      assert.ok(items.length, 'やることがある');
+      const t = items.find((x) => x[0]);
+      const g = items.find((x) => x[1]);
+      if (g) {
+        await q.click('.todo [data-goto="' + g[1] + '"]');
+        await q.waitForTimeout(600);
+        assert.ok(await q.evaluate(() => { const el = document.getElementById('secDuty'); return el && el.classList.contains('flash') && !el.classList.contains('folded'); }), '当番 → 大会のページの当番のカード');
+        await q.click('[data-nav="home"]');
+      }
+      if (t) {
+        await q.click('.todo [data-todo="' + t[0] + '"]');
+        await q.waitForTimeout(600);
+        assert.ok(await q.evaluate((id) => document.getElementById(id).classList.contains('flash'), t[0]), t[0] + ' へ動いて光る');
+      }
+      // 自主トレの「最近の記録」から過去の記録を直す
+      await q.click('[data-nav="train"]');
+      if (await q.$('[data-trview="log"]')) await q.click('[data-trview="log"]');
+      if (await q.$('#trRecent [data-tredit]')) {
+        await q.click('#trRecent [data-tredit]');
+        assert.ok((await q.textContent('#trForm')).includes('記録を直す'), '直す欄に入る');
+      }
+      await q.close();
+    });
     await step('すぐ画面に出す保存：サーバーが遅くても、押したらその場で変わる（失敗したら元にもどす）', async () => {
       const q = await openPortal(browser, gas, 'U2', 'quick');
       await q.click('[data-nav="train"]');

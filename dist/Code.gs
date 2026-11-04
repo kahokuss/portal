@@ -648,6 +648,16 @@ function handlePostback_(ev) {
       case 'race': return doRaceToggle_(ev, p.k, p.c, p.r);
       case 'poll': return doPoll_(ev, p.id, p.o);
       case 'tr': return handleTraining_(ev, p.t || '');
+      case 'trc': { const u = botUser_(ev); return p.c ? askTrainKind_(ev, u, p.c) : askTrainKid_(ev, u); }
+      case 'trk': return askTrainAmount_(ev, p.c, p.k);
+      case 'trs': {
+        const v = toHalfWidth_(p.v || ''), m = v.match(/^(\d+(?:\.\d+)?)(km|分|回|本)$/);
+        if (!m) throw new Error('量が読めませんでした。');
+        return saveTrainingBot_(ev, p.c, { kind: p.k, km: m[2] === 'km' ? m[1] : '', min: m[2] === '分' ? m[1] : '', count: m[2] === '回' || m[2] === '本' ? m[1] : '' });
+      }
+      case 'trmv': return moveTrainingBot_(ev, p.id);
+      case 'trdel': return deleteTrainingBot_(ev, p.id);
+      case 'trlog': return showTrainingLog_(ev, botUser_(ev));
       case 'menu': return respond_(ev, [p.g ? subMenuBubble_(p.g) : helpBubble_()]);
     }
   } catch (err) {
@@ -789,10 +799,18 @@ function handleNotices_(ev) {
 
 const BOT_TRAIN_KINDS = ['ランニング', 'ダッシュ', '坂道・階段', '縄跳び', '筋トレ', 'ストレッチ', '体幹'];
 
-/** 「自主トレ ランニング 3km 20分」「自主トレ たろう 縄跳び 300回」 */
+/** ボタンで選ぶ自主トレの量（種類ごと） */
+const BOT_TRAIN_AMOUNTS = {
+  'ランニング': ['1km', '2km', '3km', '5km', '15分', '30分'], 'ダッシュ': ['5本', '10本', '15本', '20本'], '坂道・階段': ['5本', '10本', '15本', '20本'],
+  '縄跳び': ['100回', '200回', '300回', '500回', '1000回'], '筋トレ': ['10分', '15分', '20分', '30分'], 'ストレッチ': ['5分', '10分', '15分'], '体幹': ['3分', '5分', '10分'],
+};
+function botKid_(u, name) { return u.kids.find((k) => k.name === name) || (u.kids.length === 1 ? u.kids[0] : null); }
+
+/** 「自主トレ ランニング 3km 20分」「自主トレ たろう 縄跳び 300回」「自主トレ 記録」。何も書かなければボタンで選ぶ */
 function handleTraining_(ev, args) {
   const u = botUser_(ev);
   if (!u.kids.length) return needRegister_(ev);
+  if (/^(記録|きろく|一覧|見る)$/.test(String(args || '').trim())) return showTrainingLog_(ev, u);
   const tokens = toHalfWidth_(args || '').trim().split(/\s+/).filter(Boolean);
   let child = u.kids.length === 1 ? u.kids[0].name : '', kind = '', km = '', min = '', count = '';
   const memo = [];
@@ -807,14 +825,67 @@ function handleTraining_(ev, args) {
     if (!kind && /^ラン|^走/.test(t)) { kind = 'ランニング'; return; }
     memo.push(t);
   });
-  if (!kind || (!km && !min && !count)) {
-    return respond_(ev, [Object.assign(text_('🏃 自主トレを記録します。\n「自主トレ ランニング 3km 20分」「自主トレ 縄跳び 300回」のように送ってください。' + (u.kids.length > 1 ? '\n子どもが2人以上なら名前も（例：自主トレ ' + short_(u.kids[0].name) + ' ランニング 2km）' : '') + '\n記録はポータルの「自主トレ」でグラフになります。'),
-      { quickReply: quickPb_([['ランニング 2km', '自主トレ ランニング 2km 15分'], ['縄跳び 300回', '自主トレ 縄跳び 300回'], ['筋トレ 15分', '自主トレ 筋トレ 15分'], ['ダッシュ 10本', '自主トレ ダッシュ 10本']]) })]);
-  }
-  if (!child) return respond_(ev, botMessages_(['だれの記録か、名前も書いてください。例：自主トレ ' + short_(u.kids[0].name) + ' ' + args]));
+  if (!tokens.length) return askTrainKid_(ev, u);
+  if (!kind || (!km && !min && !count)) return askTrainKind_(ev, u, child);
+  if (!child) return askTrainKid_(ev, u);
+  return saveTrainingBot_(ev, child, { kind: kind, km: km, min: min, count: count, memo: memo.join(' ') });
+}
+
+function askTrainKid_(ev, u) {
+  if (u.kids.length === 1) return askTrainKind_(ev, u, u.kids[0].name);
+  respond_(ev, [Object.assign(text_('🏃 だれの自主トレですか？'), { quickReply: quickPb_(u.kids.map((k) => [short_(k.name), { a: 'trc', c: k.name }, k.name])) })]);
+}
+function askTrainKind_(ev, u, child) {
+  respond_(ev, [Object.assign(text_('🏃 ' + child + 'の今日の自主トレ。何をしましたか？\\n（文字でも「自主トレ 縄跳び 350回」のように送れます）'),
+    { quickReply: quickPb_(BOT_TRAIN_KINDS.map((k) => [k, { a: 'trk', c: child, k: k }, k]).concat([['記録を見る', { a: 'trlog' }, '自主トレの記録']])) })]);
+}
+function askTrainAmount_(ev, child, kind) {
+  const list = BOT_TRAIN_AMOUNTS[kind] || ['10分', '20分', '30分'];
+  respond_(ev, [Object.assign(text_(child + '：' + kind + '。どれくらい？\\n（ほかの数は「自主トレ ' + kind + ' 25分」のように送ってください）'),
+    { quickReply: quickPb_(list.map((a) => [a, { a: 'trs', c: child, k: kind, v: a }, kind + ' ' + a])) })]);
+}
+/** 保存して、「昨日の分にする」「取り消す」「もう1つ」のボタン */
+function saveTrainingBot_(ev, child, p, date) {
   const ctx = botCtx_(ev);
-  saveTrainingAction_(ctx, { child: child, date: today_(), kind: kind, km: km, min: min, count: count, memo: memo.join(' ') });
-  respond_(ev, botMessages_(['✅ ' + child + '：' + kind + ' ' + [km && km + 'km', min && min + '分', count && count + (kind === '縄跳び' ? '回' : '本')].filter(Boolean).join(' ') + ' を記録しました（今日）。'], ['自主トレ', '新着']));
+  saveTrainingAction_(ctx, Object.assign({ child: child, date: date || today_() }, p));
+  const id = ctx.savedId, amt = [p.km && p.km + 'km', p.min && p.min + '分', p.count && p.count + (/ダッシュ|坂道/.test(p.kind) ? '本' : '回')].filter(Boolean).join(' ');
+  const st = trainWeek_(child);
+  respond_(ev, [Object.assign(text_('✅ ' + child + '：' + p.kind + ' ' + amt + ' を記録しました（' + formatDate_(date || today_()) + '）\\nこの7日：' + st), {
+    quickReply: quickPb_([['昨日の分にする', { a: 'trmv', id: id }, '昨日の分にする'], ['取り消す', { a: 'trdel', id: id }, '取り消す'], ['もう1つ記録', { a: 'trc', c: child }, '自主トレ'], ['記録を見る', { a: 'trlog' }, '自主トレの記録'], ['メニュー', 'メニュー']]),
+  })]);
+}
+function trainWeek_(child) {
+  const from = addDays_(today_(), -6), rows = readRows_(SHEETS.TRAINING).filter((t) => t.id && t['子ども'] === child && t['日付'] >= from);
+  const days = {}; rows.forEach((t) => (days[t['日付']] = true));
+  return Object.keys(days).length + '日・' + rows.length + '件';
+}
+/** 最近1週間の記録（Botは見る・取り消すまで。直すのはポータルで） */
+function showTrainingLog_(ev, u) {
+  const names = u.kids.map((k) => k.name), from = addDays_(today_(), -6);
+  const rows = readRows_(SHEETS.TRAINING).filter((t) => t.id && names.indexOf(t['子ども']) >= 0 && t['日付'] >= from).sort((a, b) => (a['日付'] < b['日付'] ? 1 : -1));
+  const lines = ['🏃 この1週間の自主トレ'];
+  if (!rows.length) lines.push('まだ記録はありません。');
+  rows.slice(0, 15).forEach((t) => lines.push(formatDate_(t['日付']) + ' ' + (u.kids.length > 1 ? t['子ども'] + '：' : '') + t['種類'] + ' ' + [t['距離km'] && t['距離km'] + 'km', t['時間分'] && t['時間分'] + '分', t['回数'] && t['回数'] + '回'].filter(Boolean).join(' ')));
+  const mine = rows.filter((t) => !/^sv/.test(t.id))[0];
+  lines.push('', '前の日の記録を直すときは、ポータルの「目標・自主トレ」→「記録」→「最近の記録」の「直す」から。');
+  const q = [['記録する', { a: 'trc', c: u.kids.length === 1 ? u.kids[0].name : '' }, '自主トレ']];
+  if (mine) q.push(['最新を取り消す', { a: 'trdel', id: mine.id }, '最新の記録を取り消す']);
+  q.push({ type: 'uri', label: 'ポータルで直す', uri: portalUrl_() + (portalUrl_().indexOf('?') >= 0 ? '&' : '?') + 'tab=train&trv=log' });
+  respond_(ev, [Object.assign(text_(lines.join('\\n')), { quickReply: quickPb_(q) })]);
+}
+function moveTrainingBot_(ev, id) {
+  const ctx = botCtx_(ev);
+  const t = readRows_(SHEETS.TRAINING).find((x) => x.id === id);
+  if (!t) throw new Error('記録が見つかりません。');
+  const y = addDays_(today_(), -1);
+  saveTrainingAction_(ctx, { id: id, child: t['子ども'], date: y, kind: t['種類'], km: t['距離km'], min: t['時間分'], count: t['回数'], feel: t['調子'], memo: t['メモ'] });
+  respond_(ev, botMessages_(['📅 ' + t['子ども'] + '：' + t['種類'] + 'を ' + formatDate_(y) + ' の記録にしました。'], ['自主トレ', 'メニュー']));
+}
+function deleteTrainingBot_(ev, id) {
+  const ctx = botCtx_(ev);
+  const t = readRows_(SHEETS.TRAINING).find((x) => x.id === id);
+  deleteTrainingAction_(ctx, { id: id });
+  respond_(ev, botMessages_(['🗑 ' + (t ? formatDate_(t['日付']) + ' ' + t['子ども'] + '：' + t['種類'] + 'の' : '') + '記録を取り消しました。'], ['自主トレ', 'メニュー']));
 }
 
 /** メニューの分け方：まず目的（4つ）を選び、次にその中の操作を選ぶ */
@@ -1231,7 +1302,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'e314ccdb1d';
+const SERVER_VERSION = 'e54c758194';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -4169,8 +4240,10 @@ function saveTrainingAction_(ctx, p) {
       if (myKidNames_(ctx).indexOf(old['子ども']) < 0) throw new Error('直せる記録が見つかりません。');
       Object.assign(old, row);
       updateRow_(SHEETS.TRAINING, old);
+      ctx.savedId = old.id;
     } else {
-      appendRow_(SHEETS.TRAINING, Object.assign({ id: randomKey_().slice(0, 10) }, row));
+      ctx.savedId = randomKey_().slice(0, 10);
+      appendRow_(SHEETS.TRAINING, Object.assign({ id: ctx.savedId }, row));
     }
   });
   return p.child + '：' + kind + 'を記録しました';

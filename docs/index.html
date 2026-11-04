@@ -471,6 +471,7 @@ tr.sel td { background: var(--sky-soft); }
 .grow .main { flex: 1; min-width: 0; display: grid; } .grow .main b { font-size: 14.5px; }
 .grow .go { color: var(--muted); }
 .seg button { flex: 1; }
+.trday { display: grid; gap: 4px; padding: 4px 0; border-top: 1px solid var(--line); } .list .trday:first-child { border-top: 0; }
 .vlist { display: grid; gap: 10px; }
 .vitem { display: grid; gap: 4px; }
 .vlink { display: flex; gap: 10px; align-items: flex-start; text-decoration: none; color: var(--fg); }
@@ -648,9 +649,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "f122faca77";
+var BUILD = "1cc916c02d";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "e314ccdb1d";
+var EXPECT_SERVER = "e54c758194";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -824,13 +825,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     ST.me.children.forEach(function (k) {
       var u = trUnread(k.name);
-      if (u.length) out.push({ ic: '💬', hot: true, t: 'コーチからコメント（' + esc(k.name) + '）', s: esc(u[u.length - 1].text.slice(0, 30)), a: 'data-tab="train"', order: 1 });
+      if (u.length) out.push({ ic: '💬', hot: true, t: 'コーチからコメント（' + esc(k.name) + '）', s: esc(u[u.length - 1].text.slice(0, 30)), a: 'data-totrain="' + esc(k.name) + '"', order: 1 });
     });
-    if (ST.me.admin) { var rq = ST.parents.filter(function (p) { return p.request; }); if (rq.length) out.push({ ic: '🙋', hot: true, t: '役員の申請 ' + rq.length + '件', s: rq.map(function (p) { return esc(p.name); }).join('・'), a: 'data-tab="admin"', order: 0 }); }
+    if (ST.me.admin) { var rq = ST.parents.filter(function (p) { return p.request; }); if (rq.length) out.push({ ic: '🙋', hot: true, t: '役員の申請 ' + rq.length + '件', s: rq.map(function (p) { return esc(p.name); }).join('・'), a: 'data-goadm="members"', order: 0 }); }
     var unread = ST.notices.filter(function (n) { return !n.read; });
     if (unread.length) out.push({ ic: '📢', hot: unread.some(function (n) { return n.important; }), t: '新しいお知らせ ' + unread.length + '件', s: esc(unread[0].title), a: 'data-todo="notices"', order: unread.some(function (n) { return n.important; }) ? 0 : 50 });
     var du = myDuties()[0], dE = du && evByKey(du.key);
-    if (dE && diff(ST.today, dE.date) <= 7) out.push({ ic: '🙋', hot: diff(ST.today, dE.date) <= 1, t: md(dE.date) + ' ' + esc(du.type) + '当番', s: esc(dE.title), a: 'data-ev="' + dE.key + '"', order: diff(ST.today, dE.date) });
+    if (dE && diff(ST.today, dE.date) <= 7) out.push({ ic: '🙋', hot: diff(ST.today, dE.date) <= 1, t: md(dE.date) + ' ' + esc(du.type) + '当番', s: esc(dE.title), a: 'data-goto="' + dE.key + '|secDuty"', order: diff(ST.today, dE.date) });
     return out.sort(function (a, b) { return a.order - b.order; });
   }
   function todoCard() {
@@ -842,11 +843,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }).join('') + '</div></section>';
   }
   function bindBotCard() { on('#botOff', function () { try { localStorage.setItem('botCardOff', '1'); } catch (x) { /* 無視 */ } render(); }); }
+  /** その場所へ動かす（閉じているカードは開いて、少し光らせる） */
+  function flashTo(id) {
+    var el = document.getElementById(id);
+    if (!el) { window.scrollTo(0, 0); return; }
+    el.classList.remove('folded');
+    var h2 = el.querySelector('h2[aria-expanded]'); if (h2) h2.setAttribute('aria-expanded', 'true');
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
   function bindTodo() {
-    on('[data-todo]', function () {
-      var el = document.getElementById(this.dataset.todo);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    on('[data-todo]', function () { flashTo(this.dataset.todo); });
+    on('[data-totrain]', function () { S.tab = 'train'; S.trMode = 'mine'; S.trKid = this.dataset.totrain; S.trView = 'log'; S.toast = ''; render(); flashTo('trComments'); });
+    on('[data-goadm]', function () { S.tab = 'admin'; S.admin = this.dataset.goadm; S.toast = ''; render(); window.scrollTo(0, 0); });
   }
   /** はじめての人向け：やっておくことのチェック */
   /** はじめての人向け：やることを順番に。全部済むか「閉じる」で出なくなる */
@@ -1241,12 +1250,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-goto]', function () {
       var p = this.dataset.goto.split('|');
       S.tab = 'events'; S.event = p[0]; S.etab = '概要'; S.toast = ''; render();
-      var el = document.getElementById(p[1]);
-      if (!el) { window.scrollTo(0, 0); return; }
-      el.classList.remove('folded');
-      var h2 = el.querySelector('h2[aria-expanded]'); if (h2) h2.setAttribute('aria-expanded', 'true');
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      flashTo(p[1]);
     });
   }
 
@@ -3551,7 +3555,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }
     var level = ST.trainShare.mine[child] || '';
     var LV = [['', '家族だけ', '家族だけが見られます'], ['coach', 'コーチに見せる', 'コーチが記録とレポートを見て、コメントできます'], ['all', 'みんなに見せる', 'クラブのみんなが記録とレポートを見られます（コメントはコーチと家族だけ）']];
-    h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + effortCard(child) + trCalendarCard(child) + trReportCard(child) +
+    h += (level || trComments(child).length ? trCommentCard(child) : '') + trFormCard(child, F) + trRecentCard(child) + effortCard(child) + trCalendarCard(child) + trReportCard(child) +
       '<section class="card"><h2>だれに見せる<small>' + LV.filter(function (x) { return x[0] === level; })[0][1] + '</small></h2><div class="choice" role="group" aria-label="だれに見せる">' +
       LV.map(function (x) { return '<button type="button" data-trlv="' + x[0] + '" aria-pressed="' + (level === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="hint">' + esc(child) + 'の自主トレを、' + LV.filter(function (x) { return x[0] === level; })[0][2] + '。直せるのは家族だけです。</div></section>' + appsCard();
@@ -3626,6 +3630,18 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       call('addTrainComment', { child: child, text: t });
     });
     on('[data-tcdel]', function () { if (confirm('このコメントを消しますか？')) call('deleteTrainComment', { id: this.dataset.tcdel }); });
+  }
+  /** 最近2週間の記録（日ごと）。「直す」で上の欄に入り、日付も直せる */
+  function trRecentCard(child) {
+    var from = addDays(ST.today, -13), rows = trRows(child).filter(function (t) { return t.date >= from; }).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    if (!rows.length) return '';
+    var days = []; rows.forEach(function (t) { if (days.indexOf(t.date) < 0) days.push(t.date); });
+    return '<section class="card" id="trRecent"><h2>最近の記録<small>2週間・' + rows.length + '件</small></h2><div class="list">' + days.map(function (ds) {
+      return '<div class="trday"><div class="lbl">' + md(ds) + (ds === ST.today ? '（今日）' : ds === addDays(ST.today, -1) ? '（昨日）' : '') + '</div>' + rows.filter(function (t) { return t.date === ds; }).map(function (t) {
+        return '<div class="between"><span>' + trKind(t.kind).i + ' <b>' + esc(t.kind) + '</b> ' + esc(trSummary(t)) + (t.feel ? ' ' + esc(t.feel) : '') + (t.memo ? '<br><span class="sub">' + esc(t.memo) + '</span>' : '') + '</span>' +
+          (t.strava ? '<span class="sub">Strava</span>' : '<span class="row nowrap"><button class="btn small ghost" data-tredit="' + t.id + '" type="button">直す</button><button class="btn small ghost" data-trdel="' + t.id + '" type="button">消す</button></span>') + '</div>';
+      }).join('') + '</div>';
+    }).join('') + '</div><div class="hint">「直す」を押すと上の欄に入ります。日付・回数・距離などを直して「直す」を押してください。もっと前の日は、カレンダーの日にちを押すと出ます。</div></section>';
   }
   function trFormCard(child, F) {
     var k = trKind(F.kind), rows = trRows(child);
@@ -3764,7 +3780,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var t = ST.training.find(function (x) { return x.id === this.dataset.tredit; }, this); if (!t) return;
       var known = TR_KINDS.some(function (k) { return k.n === t.kind; });
       S.trForm = { id: t.id, date: t.date, kind: known ? t.kind : 'その他', other: known ? '' : t.kind, km: t.km || '', min: t.min || '', count: t.count || '', feel: t.feel || '', memo: t.memo || '' };
-      render();
+      render(); flashTo('trForm');
     });
     on('[data-trdel]', function () { if (confirm('この記録を消しますか？')) call('deleteTraining', { id: this.dataset.trdel }); });
     on('#trSave', function () {
@@ -5179,8 +5195,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
   if (q.get('tab') && /^(home|events|album|family|train|admin|dash)$/.test(q.get('tab'))) S.tab = q.get('tab');
+  if (q.get('trv') && /^(goal|log|video)$/.test(q.get('trv'))) S.trView = q.get('trv');
   if (q.get('ev') && /^[\w-]{6,40}$/.test(q.get('ev'))) { S.tab = 'events'; S.event = q.get('ev'); S.etab = /^(概要|エントリー|種目|タイムテーブル|手続き|結果|写真)$/.test(q.get('et') || '') ? q.get('et') : '概要'; }
-  if (q.get('v') || q.get('tab') || q.get('ev')) { q.delete('v'); q.delete('tab'); q.delete('ev'); q.delete('et'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  if (q.get('v') || q.get('tab') || q.get('ev')) { q.delete('v'); q.delete('tab'); q.delete('ev'); q.delete('et'); q.delete('trv'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   // Strava のログインから戻ってきたとき（?strava=1&code=…&state=…）。LINEログインの code とは分けて扱う
   if (q.get('strava')) {
     S.stravaPending = { code: q.get('code') || '', state: q.get('state') || '', scope: q.get('scope') || '', error: q.get('error') || '' };

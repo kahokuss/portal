@@ -706,7 +706,18 @@ test('Bot：カレンダー・予定のカードから押すだけで、休み�
   assert.ok(fees.includes('年会費 3000円') && fees.includes('秋季記録会 参加費 500円'), fees);
 
   // 自主トレ
-  assert.ok(gas.line(dm('U2'), '自主トレ').includes('自主トレを記録します'));
+  // ボタンで：自主トレ → 種類 → 量 → 記録。「昨日の分にする」「取り消す」も押すだけ
+  assert.ok(gas.line(dm('U2'), '自主トレ').includes('何をしましたか'));
+  assert.ok(gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '縄跳び').data).includes('どれくらい'));
+  assert.ok(gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '300回').data).includes('縄跳び 300回 を記録しました'));
+  const jump = gas.rows('自主トレ').find((r) => r['種類'] === '縄跳び');
+  assert.strictEqual(jump['回数'], '300');
+  assert.ok(gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '昨日の分にする').data).includes('の記録にしました'));
+  assert.strictEqual(gas.rows('自主トレ').find((r) => r.id === jump.id)['日付'], gas.run('addDays_(today_(), -1)'), '過去の日に直せる');
+  assert.ok(gas.line(dm('U2'), '自主トレ 記録').includes('縄跳び 300回'), '最近の記録');
+  assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /tab=train/.test(b.uri)), 'ポータルで直すリンク');
+  assert.ok(gas.postback(dm('U2'), 'a=trdel&id=' + jump.id).includes('取り消しました'));
+  assert.ok(!gas.rows('自主トレ').some((r) => r.id === jump.id));
   assert.ok(gas.line(dm('U2'), '自主トレ ランニング 3km 20分').includes('ランニング 3km 20分 を記録しました'));
   const tr = gas.rows('自主トレ').find((r) => r['子ども'] === '鈴木けんた');
   assert.strictEqual(tr['距離km'], '3');

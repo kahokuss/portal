@@ -1133,8 +1133,10 @@ function saveTrainingAction_(ctx, p) {
       if (myKidNames_(ctx).indexOf(old['子ども']) < 0) throw new Error('直せる記録が見つかりません。');
       Object.assign(old, row);
       updateRow_(SHEETS.TRAINING, old);
+      ctx.savedId = old.id;
     } else {
-      appendRow_(SHEETS.TRAINING, Object.assign({ id: randomKey_().slice(0, 10) }, row));
+      ctx.savedId = randomKey_().slice(0, 10);
+      appendRow_(SHEETS.TRAINING, Object.assign({ id: ctx.savedId }, row));
     }
   });
   return p.child + '：' + kind + 'を記録しました';

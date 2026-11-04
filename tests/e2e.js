@@ -789,11 +789,12 @@ async function openPortal(browser, gas, userId, name) {
       await q.click('[data-ttf="わが家"]');
       assert.ok((await q.textContent('#view')).includes('2種目ダブリ'), '時間の近い種目に注意が出る');
       // ガントチャート：アップ→招集→競技を横に並べ、重なりを赤で
-      await q.click('[data-ttf="ガント"]');
+      await q.click('[data-ttf="重なり"]');
       assert.ok(await q.$('.gantt .gseg.race'), 'ガントチャート');
       const gt = await q.textContent('#view');
       assert.ok(/重なり \d+件|重なりはありません/.test(gt), gt.slice(0, 300));
       await q.shot('12b-gantt');
+      if (await q.$('[data-gall="1"]')) { await q.click('[data-gall="1"]'); assert.ok(await q.$('.gantt .grow2'), '出る子全員：競技ごとの行'); await q.shot('12c-gantt-all'); }
       await q.shot('12-sporec');
       a.errors.push(...q.errors);
       await q.close();

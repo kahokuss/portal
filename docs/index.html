@@ -556,6 +556,7 @@ tr.sel td { background: var(--sky-soft); }
 .fnow { font-size: 12px; font-weight: 800; color: var(--track); }
 .gantt { display: grid; gap: 2px; overflow-x: auto; }
 .gax, .grow2 { display: grid; align-items: center; gap: 6px; width: max-content; }
+.gax .gnm, .gax { position: sticky; top: 0; }
 .gnm { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: grid; line-height: 1.2; position: sticky; left: 0; z-index: 2; background: var(--surface); padding-right: 4px; }
 .gnm small { font-weight: 400; color: var(--muted); font-size: 10.5px; }
 .gtrack { position: relative; height: 30px; }
@@ -563,6 +564,15 @@ tr.sel td { background: var(--sky-soft); }
 .gtick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
 .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
 .grow2 { padding: 3px 0; border-top: 1px solid var(--line); }
+.grow2 .gnm { font-weight: 600; font-size: 12px; }
+.grow2 .gnm small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gkid { display: grid; align-items: end; gap: 6px; width: max-content; padding: 10px 0 2px; }
+.gkid .gnm { font-size: 13.5px; font-weight: 800; }
+.gkid .gkm { font-size: 12px; font-weight: 700; color: var(--field); position: sticky; left: 6em; }
+.gkid.bad .gkm, .gkid.bad .gnm { color: var(--track); }
+.grow2.bad { background: var(--track-soft); }
+.grow2.bad .gnm { background: var(--track-soft); color: var(--track); }
+.gkids { color: var(--muted); }
 .grow2.bad .gnm { color: var(--track); }
 .gseg { position: absolute; top: 5px; height: 16px; border-radius: 4px; overflow: hidden; }
 .gseg.warm { background: var(--sky-soft); }
@@ -690,7 +700,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "bd36b1456c";
+var BUILD = "d260ff5d10";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "e54c758194";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2310,7 +2320,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         kids[k.name].push(sg);
       });
     });
-    var h = '<section class="card"><h2>ガントチャート<small>アップ → 招集 → 競技</small></h2>' +
+    var h = '<section class="card"><h2>競技の重なりチェック<small>アップ → 招集 → 競技</small></h2>' +
       (staff && mineNames.length ? '<div class="choice sm"><button type="button" data-gall="" aria-pressed="' + !all + '">わが家</button><button type="button" data-gall="1" aria-pressed="' + all + '">出る子全員</button></div>' : '');
     if (!order.length) return h + '<div class="sub">' + (all ? 'エントリーした子の種目が、時刻表にまだありません。' : 'わが家の子の種目が、時刻表にまだありません（エントリーの種目と、学年・男女を確かめてください）。') + '</div></section>';
     order.sort(byGrade);
@@ -2326,19 +2336,35 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var t0 = Math.floor(Math.min.apply(null, segs.map(function (x) { return x.warm[0]; })) / 30) * 30, t1 = Math.ceil(Math.max.apply(null, segs.map(function (x) { return x.race[1]; })) / 30) * 30, span = Math.max(30, t1 - t0);
     var pos = function (a, b) { return 'left:' + ((a - t0) * 100 / span).toFixed(2) + '%;width:' + Math.max(0.8, (b - a) * 100 / span).toFixed(2) + '%'; };
     var ticks = []; for (var t = t0; t <= t1; t += 30) ticks.push(t);
-    var W = Math.max(280, Math.round(span * 2.4)), cols = ' style="grid-template-columns:5.6em ' + W + 'px"';
+    var W = Math.max(280, Math.round(span * 2.4)), cols = ' style="grid-template-columns:7.5em ' + W + 'px"';
     h += clash.length ? '<div class="toast err">⚠ 重なり ' + clash.length + '件：' + clash.slice(0, 4).map(function (c) { return esc(c.k.name) + '（' + esc(c.a.r.race) + ' ' + hm(c.a.race[0]) + '／' + esc(c.b.r.race) + ' ' + hm(c.b.race[0]) + '）'; }).join('、') + (clash.length > 4 ? ' ほか' : '') + '<br><span class="sub">早めに抜けられるよう、当番や係の人と確かめておきましょう。</span></div>' : '<div class="toast">✓ 重なりはありません</div>';
-    h += '<div class="gantt"><div class="gax"' + cols + '><span class="gnm"></span><div class="gtrack">' + ticks.map(function (t) { return '<span class="gtick" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%">' + (t % 60 ? '' : hm(t)) + '</span>'; }).join('') + '</div></div>' +
-      order.map(function (k) {
-        var list = kids[k.name].sort(function (a, b) { return a.race[0] - b.race[0]; });
-        return '<div class="grow2' + (list.some(function (x) { return x.clash; }) ? ' bad' : '') + '"' + cols + '><span class="gnm">' + esc(k.name) + '<small>' + (k.grade || '') + '年</small></span><div class="gtrack">' +
-          ticks.map(function (t) { return '<i class="gline" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%"></i>'; }).join('') +
-          list.map(function (x) {
-            var tip = k.name + '｜' + x.r.race + (x.r.heat ? ' ' + x.r.heat : '') + '｜アップ ' + hm(x.warm[0]) + '〜 ・招集 ' + hm(x.call[0]) + '〜' + hm(x.call[1]) + '・競技 ' + hm(x.race[0]) + (x.maybe ? '（進んだら）' : '');
-            return '<span class="gseg warm' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.warm[0], x.warm[1]) + '"></span><span class="gseg call' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.call[0], x.call[1]) + '"></span>' +
-              '<span class="gseg race' + (x.clash ? ' clash' : '') + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.race[0], x.race[1]) + '" data-tip="' + esc(tip) + '"><b>' + esc(x.r.race) + '</b></span>';
-          }).join('') + '</div></div>';
-      }).join('') + '</div>' +
+    var axis = '<div class="gax"' + cols + '><span class="gnm"></span><div class="gtrack">' + ticks.map(function (t) { return '<span class="gtick" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%">' + (t % 60 ? '' : hm(t)) + '</span>'; }).join('') + '</div></div>';
+    var lines = ticks.map(function (t) { return '<i class="gline" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%"></i>'; }).join('');
+    var bar = function (x, label, bad) {
+      var tip = label + '｜アップ ' + hm(x.warm[0]) + '〜 ・招集 ' + hm(x.call[0]) + '〜' + hm(x.call[1]) + '・競技 ' + hm(x.race[0]) + (x.maybe ? '（進んだら）' : '');
+      return '<span class="gseg warm' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.warm[0], x.warm[1]) + '"></span><span class="gseg call' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.call[0], x.call[1]) + '"></span>' +
+        '<span class="gseg race' + (bad ? ' clash' : '') + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.race[0], x.race[1]) + '" data-tip="' + esc(tip) + '"></span>';
+    };
+    var rowLabel = function (r) { return esc(r.race) + (r.heat ? ' <small>' + esc(r.heat) + '</small>' : '') + '<small>' + esc(r.start || '') + (r.group ? '・' + esc(r.group) : '') + '</small>'; };
+    h += '<div class="gantt">' + axis;
+    if (!all) {
+      // わが家：子どもごとに、出る競技を1行ずつ（上下に並べて重なりを見る）
+      h += order.map(function (k) {
+        var list = kids[k.name].sort(function (a, b) { return a.race[0] - b.race[0]; }), bad = list.filter(function (x) { return x.clash; }).length;
+        return '<div class="gkid' + (bad ? ' bad' : '') + '"' + cols + '><span class="gnm">' + esc(k.name) + '<small>' + (k.grade || '') + '年・' + list.length + '種目</small></span><span class="gkm">' + (bad ? '⚠ 重なりあり' : '✓ 重なりなし') + '</span></div>' +
+          list.map(function (x) { return '<div class="grow2' + (x.clash ? ' bad' : '') + '"' + cols + '><span class="gnm">' + rowLabel(x.r) + '</span><div class="gtrack">' + lines + bar(x, k.name + '｜' + x.r.race, x.clash) + '</div></div>'; }).join('');
+      }).join('');
+    } else {
+      // 出る子全員：時刻表の競技を1行ずつ。重なっている子がいる競技は赤
+      var byRow = {}, rorder = [];
+      segs.forEach(function (x) { if (!byRow[x.r.id]) { byRow[x.r.id] = []; rorder.push(x.r); } byRow[x.r.id].push(x); });
+      rorder.sort(function (a, b) { return tMin(a.start) - tMin(b.start); });
+      h += rorder.map(function (r) {
+        var list = byRow[r.id], bad = list.filter(function (x) { return x.clash; }).map(function (x) { return x.k.name; });
+        return '<div class="grow2' + (bad.length ? ' bad' : '') + '"' + cols + '><span class="gnm">' + rowLabel(r) + '<small class="gkids">' + list.map(function (x) { return (bad.indexOf(x.k.name) >= 0 ? '⚠' : '') + esc(x.k.name.split(/[\s　]/).pop()); }).join('・') + '</small></span><div class="gtrack">' + lines + bar(list[0], r.race + '｜' + list.map(function (x) { return x.k.name; }).join('・'), bad.length) + '</div></div>';
+      }).join('');
+    }
+    h += '</div>' +
       '<div class="glegend"><span><i class="gseg warm"></i>アップ</span><span><i class="gseg call"></i>招集</span><span><i class="gseg race"></i>競技</span><span><i class="gseg race clash"></i>重なり</span><span><i class="gseg race maybe"></i>決勝（進んだら）</span></div>' +
       '<div class="hint">横にスクロールできます。招集が空のときはトラック20分前・フィールド40分前、アップは招集の' + ST.choices.warmMinutes + '分前、競技はトラック10分・長い距離15分・フィールド60分として描いています。棒を押すと時刻が出ます。</div></section>';
     return h;
@@ -2352,9 +2378,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (canManage(e.key) && e.detail && e.detail.ttDraft) h += '<div class="toast err">📝 タイムテーブルの下書きがあります（まだみんなには出ていません）。' + (ST.me.admin ? '「ボタンでつくる」で続きを直して「大会に反映」してください。' : '') + '</div>';
     if (canManage(e.key)) h += '<div class="row"><button class="btn small ghost" id="ttEdit" type="button">' + (rows.length ? '✎ 貼り付け・一覧で直す' : '＋ プログラムを貼り付けて入れる') + '</button>' + (ST.me.admin ? '<button class="btn small ghost" id="ttBuild" type="button">🗂 ボタンでつくる（出る子も）</button>' : '') + '</div>';
     if (!rows.length) return h + '<section class="card"><div class="sub">タイムテーブルはまだ入っていません。プログラムが出たら、役員か当番の人が入れます。</div></section>';
-    var filters = (mine.length ? ['わが家'] : []).concat(['ガント', '一覧表', '全部', '1年', '2年', '3年', '4年', '5年', '6年']);
+    var filters = (mine.length ? ['わが家'] : []).concat(['重なり', '一覧表', '全部', '1年', '2年', '3年', '4年', '5年', '6年']);
     h += '<div class="tabs" role="group" aria-label="しぼりこみ">' + filters.map(function (x) { return '<button type="button" data-ttf="' + x + '" aria-pressed="' + (f === x) + '">' + x + '</button>'; }).join('') + '</div>';
-    if (f === 'ガント') {
+    if (f === '重なり' || f === 'ガント') {
       h += ganttHtml(e, rows);
     } else if (f === '一覧表') {
       var all = rows.map(function (r) { return { start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, kids: (needsAdvance(e, r) ? rowKids(e, r) : entrants(e, r)).map(function (k) { return k.name; }) }; });

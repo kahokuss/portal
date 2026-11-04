@@ -526,6 +526,9 @@ tr.sel td { background: var(--sky-soft); }
 
 .gactf { display: grid; gap: 6px; padding: 8px; border-radius: 10px; background: var(--surface-2); }
 .gactf input { background: var(--surface); }
+@keyframes flashcard { 0% { box-shadow: 0 0 0 3px var(--track); } 100% { box-shadow: 0 0 0 3px transparent; } }
+.card.flash { animation: flashcard 1.8s ease-out; }
+.card[id] { scroll-margin-top: 12px; }
 .todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
 .newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
 .p-imp { background: var(--track); color: #fff; }
@@ -1228,6 +1231,20 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-entry]', function () { S.tab = 'events'; S.event = this.dataset.entry; S.etab = 'エントリー'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-gott]', function () { S.tab = 'events'; S.event = this.dataset.gott; S.etab = 'タイムテーブル'; S.ttf = ''; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-tab]', function () { go(this.dataset.tab); });
+    bindGoto();
+  }
+  // 「大会までにやること」などから、大会のページのその場所へ（閉じているカードは開いて、少し光らせる）
+  function bindGoto() {
+    on('[data-goto]', function () {
+      var p = this.dataset.goto.split('|');
+      S.tab = 'events'; S.event = p[0]; S.etab = '概要'; S.toast = ''; render();
+      var el = document.getElementById(p[1]);
+      if (!el) { window.scrollTo(0, 0); return; }
+      el.classList.remove('folded');
+      var h2 = el.querySelector('h2[aria-expanded]'); if (h2) h2.setAttribute('aria-expanded', 'true');
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    });
   }
 
   // ---- 予定 ----
@@ -1321,7 +1338,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += (e.date >= ST.today ? '<section class="card">' + raceHero(e) + raceTodoHtml(e, true) + '</section>' : '') + statusCard(e);
       if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button>' + (ST.me.admin ? '<button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button>' : '') + '</div>' + (ST.me.admin ? '' : '<div class="hint">案内（LINEや要項）を見た人なら、だれでも入れられます。</div>') + '</section>';
       else {
-        h += '<section class="card"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
+        h += '<section class="card" id="secInfo"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
           '<dt>参加費</dt><dd>' + (det.fee ? yen(det.fee) + '／人' : 'なし') + '</dd>' + 
           (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
           (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl><div class="between"><span class="hint">まちがい・漏れに気づいたら、だれでも直せます（直したところは下の「履歴」に残ります）</span><button class="btn small ghost" id="editRace" type="button" style="flex:none">案内を直す</button></div></section>';
@@ -1347,6 +1364,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#editRace', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
     bindEntry(e);
+    bindGoto();
+    on('.rtodo [data-entry]', function () { S.etab = 'エントリー'; S.toast = ''; render(); window.scrollTo(0, 0); });
   }
 
   function entryHtml(e) {
@@ -1840,7 +1859,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   /** わが家が大会までにやること。ng=まだ・ok=済み・info=確認 */
   function raceTodo(e) {
-    var det = e.detail || {}, out = [], open = 'data-entry="' + e.key + '"', ev = 'data-ev="' + e.key + '"';
+    var det = e.detail || {}, out = [], open = 'data-entry="' + e.key + '"', go = function (sec) { return 'data-goto="' + e.key + '|' + sec + '"'; };
     var dl = det.deadline ? (det.deadline < ST.today ? '（締切済み・役員に連絡）' : '締切 ' + md(det.deadline) + '（' + untilText(det.deadline) + '）') : '';
     ST.me.children.forEach(function (k) {
       if (!inTarget(det.target, k.grade)) return;
@@ -1852,11 +1871,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       if (det.fee) out.push(x.paid ? { st: 'ok', t: k.name + 'の参加費 ' + yen(det.fee) + ' 支払い済み', a: open } : { st: 'ng', t: k.name + 'の参加費 ' + yen(det.fee) + ' を役員へ', s: '集金係に渡してください', a: open, order: 2 });
     });
     var joined = ST.me.children.some(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
-    if (dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; })) out.push({ st: 'info', ic: '🙋', t: 'わが家は大会当番です', s: '当日の動きを確認してください', a: ev, order: 3 });
-    if (joined && (det.meetTime || det.meetPlace)) out.push({ st: 'info', ic: '⏰', t: '集合 ' + [det.meetTime, det.meetPlace].filter(Boolean).join(' '), s: '送り迎えの予定を立てる', a: ev, order: 4 });
-    if (joined && det.items && det.items.length) out.push({ st: 'info', ic: '🎒', t: '持ち物をそろえる', s: det.items.join('・'), a: ev, order: 5 });
-    if (joined && (docsOf(e.key).length || det.url)) out.push({ st: 'info', ic: '📄', t: '要項・資料に目を通す', s: '種目・時間・会場', a: ev, order: 6 });
-    if (ST.me.admin && det.applyBy && STEPS.indexOf(raceStatus(e)) < STEPS.indexOf('申込済み')) out.push({ st: 'ng', t: '【役員】主催者への申込', s: '期限 ' + md(det.applyBy) + '（' + untilText(det.applyBy) + '）', a: ev, order: 1 });
+    if (dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; })) out.push({ st: 'info', ic: '🙋', t: 'わが家は大会当番です', s: '当日の動きを確認してください', a: go('secDuty'), order: 3 });
+    if (joined && (det.meetTime || det.meetPlace)) out.push({ st: 'info', ic: '⏰', t: '集合 ' + [det.meetTime, det.meetPlace].filter(Boolean).join(' '), s: '送り迎えの予定を立てる', a: go('secInfo'), order: 4 });
+    if (joined && det.items && det.items.length) out.push({ st: 'info', ic: '🎒', t: '持ち物をそろえる', s: det.items.join('・'), a: go('secInfo'), order: 5 });
+    if (joined && (docsOf(e.key).length || det.url)) out.push({ st: 'info', ic: '📄', t: '要項・資料に目を通す', s: '種目・時間・会場', a: go('secDocs'), order: 6 });
+    if (ST.me.admin && det.applyBy && STEPS.indexOf(raceStatus(e)) < STEPS.indexOf('申込済み')) out.push({ st: 'ng', t: '【役員】主催者への申込', s: '期限 ' + md(det.applyBy) + '（' + untilText(det.applyBy) + '）', a: go('secStatus'), order: 1 });
     return out;
   }
   function raceTodoHtml(e, compact) {
@@ -1876,7 +1895,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   function dutyCard(e) {
     var type = dutyType(e), list = dutyOf(e.key);
-    var h = '<section class="card"><h2>' + type + '当番' + (list.length ? '' : '<small>まだ決まっていません</small>') + '</h2>';
+    var h = '<section class="card" id="secDuty"><h2>' + type + '当番' + (list.length ? '' : '<small>まだ決まっていません</small>') + '</h2>';
     if (list.length) h += '<div class="row">' + list.map(function (x) { return '<span class="pill ' + (x.fam === ST.me.fam ? 'p-race' : 'p-gray') + '">🏠 ' + esc(famName(x.fam)) + (x.fam === ST.me.fam ? '（わが家）' : '') + '</span>'; }).join(' ') + '</div>';
     if (type === '練習') {
       // 次の練習の当番（カギをかけて返す人）
@@ -2789,7 +2808,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function untilText(date) { var n = diff(ST.today, date); return n < 0 ? '過ぎています' : n === 0 ? '今日まで' : 'あと' + n + '日'; }
   function statusCard(e) {
     var st = raceStatus(e), det = e.detail || {}, i = STEPS.indexOf(st), applied = i >= STEPS.indexOf('申込済み');
-    var h = '<section class="card"><h2>大会の状況<span class="pill ' + (st === '中止' ? 'p-gray' : applied ? 'p-ok' : 'p-warn') + '">' + st + '</span></h2>' +
+    var h = '<section class="card" id="secStatus"><h2>大会の状況<span class="pill ' + (st === '中止' ? 'p-gray' : applied ? 'p-ok' : 'p-warn') + '">' + st + '</span></h2>' +
       '<div class="steps">' + STEPS.map(function (x, j) { return '<span class="' + (j < i ? 'done' : j === i ? 'now' : '') + '">' + x + '</span>'; }).join('') + '</div><dl class="kv">';
     if (det.deadline) h += '<dt>回答締切</dt><dd>' + md(det.deadline) + '（クラブ内）' + (st === '募集中' ? '　' + untilText(det.deadline) : '') + '</dd>';
     if (det.applyBy) {
@@ -2811,7 +2830,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function docsOf(key) { return ST.docs.filter(function (x) { return x.key === key; }); }
   function docsCard(e) {
     var list = docsOf(e.key), det = e.detail || {}, man = canManage(e.key), Dc = S.doc && S.doc.key === e.key ? S.doc : null;
-    var h = '<section class="card"' + (man ? dropAttr('doc', e.key, '', '') : '') + '><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>' + (man ? '<div class="hint wide-only">💻 要項やプログラムのPDF・写真を、この枠にドラッグ＆ドロップすると追加できます（種類はファイル名から判断）。</div>' : '');
+    var h = '<section class="card" id="secDocs"' + (man ? dropAttr('doc', e.key, '', '') : '') + '><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>' + (man ? '<div class="hint wide-only">💻 要項やプログラムのPDF・写真を、この枠にドラッグ＆ドロップすると追加できます（種類はファイル名から判断）。</div>' : '');
     if (det.url) h += '<div class="between"><span><span class="pill p-gray">要項</span> 主催者のページ</span><a class="btn small ghost" href="' + esc(det.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a></div>';
     if (list.length) h += '<div class="list">' + list.map(function (x) {
       return '<div class="between"><span><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '<br><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + (x.type === 'pdf' ? '・PDF' : x.type === 'image' ? '・写真' : '') + '</span></span><span class="row">' +

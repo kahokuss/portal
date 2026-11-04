@@ -1302,6 +1302,19 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await q.textContent('.vstrip')).includes('縄跳びの参考動画'), '自主トレの記録のそばに');
       await q.close();
     });
+    await step('大会までにやること：押すと、大会のページのその場所へ飛ぶ（集合・持ち物 → 案内、当番 → 当番のカード）', async () => {
+      const q = await openPortal(browser, gas, 'U2', 'goto');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      const items = await q.$$eval('.rtodo [data-goto]', (els) => els.map((x) => x.dataset.goto.split('|')[1]));
+      assert.ok(items.length, 'やることに飛び先がある ' + JSON.stringify(items));
+      const sec = items[items.length - 1];
+      await q.click('.rtodo [data-goto$="|' + sec + '"]');
+      await q.waitForTimeout(800);
+      const ok = await q.evaluate((id) => { const el = document.getElementById(id); const r = el.getBoundingClientRect(); return el.classList.contains('flash') && !el.classList.contains('folded') && r.top < window.innerHeight && r.bottom > 0; }, sec);
+      assert.ok(ok, sec + ' が開いて見えている');
+      await q.close();
+    });
     await step('すぐ画面に出す保存：サーバーが遅くても、押したらその場で変わる（失敗したら元にもどす）', async () => {
       const q = await openPortal(browser, gas, 'U2', 'quick');
       await q.click('[data-nav="train"]');

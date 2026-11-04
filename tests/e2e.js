@@ -1091,7 +1091,10 @@ async function openPortal(browser, gas, userId, name) {
       await a.idle();
       await a.click('[data-nav="events"]');
       await a.click('.ev:has-text("秋季記録会")');
-      await a.click('.between:has-text("テスト要項") [data-doc]');
+      await a.waitForSelector('.dcell:has-text("テスト要項") .dthumb.has img', { timeout: 10000 });
+      assert.ok((await a.getAttribute('.dcell:has-text("テスト要項") .dthumb img', 'src')).startsWith('data:image/png'), '資料はサムネイルで並ぶ（PDFは1ページ目）');
+      if (SHOTS) await a.locator('#secDocs').screenshot({ path: path.join(shotDir, 'admin-29a-docs-card.png') });
+      await a.click('.dcell:has-text("テスト要項") [data-doc]');
       await a.waitForSelector('.pdfv .pages img', { timeout: 20000 });
       assert.ok((await a.getAttribute('.pdfv .pages img', 'src')).startsWith('data:image/jpeg'), 'ページが画像になる');
       await a.shot('29-pdf');

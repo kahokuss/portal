@@ -156,7 +156,7 @@ function createGas(options) {
       createFile: (blob) => {
         const id = 'file' + (Object.keys(files).length + 1);
         const bytes = blob.getBytes ? blob.getBytes() : [];
-        files[id] = { id, folder: name, name: blob.name, getId: () => id, getUrl: () => 'https://drive.google.com/file/d/' + id, getBlob: () => ({ getContentType: () => blob.getContentType(), getBytes: () => bytes }), getThumbnail: () => null, setTrashed(v) { this.trashed = v; } };
+        files[id] = { id, folder: name, name: blob.name, getId: () => id, getUrl: () => 'https://drive.google.com/file/d/' + id, getBlob: () => ({ getContentType: () => blob.getContentType(), getBytes: () => bytes }), getThumbnail: () => (/pdf/.test(blob.getContentType() || '') ? { getContentType: () => 'image/png', getBytes: () => Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')) } : null), setTrashed(v) { this.trashed = v; } };
         return files[id];
       },
     };

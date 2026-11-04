@@ -1302,7 +1302,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'e54c758194';
+const SERVER_VERSION = '6340d83bcd';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2573,6 +2573,7 @@ const API_ACTIONS = {
   addDoc: { run: addDocAction_ },
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
+  docThumbs: { raw: true, run: docThumbsAction_ },
   setDeadline: { run: setDeadlineAction_ },
   markDown: { run: markDownAction_ },
   applyNotice: { admin: true, run: applyNoticeAction_ },
@@ -3723,6 +3724,29 @@ function docAction_(ctx, p) {
   if (!row) throw new Error('資料が見つかりません。');
   const blob = DriveApp.getFileById(row['ファイルID']).getBlob();
   return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+}
+
+/** 資料の小さい画像（PDFは1ページ目）。ドライブの縮小画像を使い、6時間覚えておく。1回に12件まで */
+function docThumbsAction_(ctx, p) {
+  const rows = {};
+  readRows_(SHEETS.DOCS).forEach((x) => { if (x.id && x['ファイルID']) rows[x.id] = x; });
+  const cache = CacheService.getScriptCache(), out = {};
+  (p.ids || []).slice(0, 12).forEach((id) => {
+    const row = rows[id];
+    if (!row) return;
+    const key = 'dth:' + row['ファイルID'];
+    try {
+      let data = cache.get(key);
+      if (!data) {
+        const blob = DriveApp.getFileById(row['ファイルID']).getThumbnail();
+        if (!blob) return;
+        data = 'data:' + (blob.getContentType() || 'image/png') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+        if (data.length < 95000) cache.put(key, data, 21600);
+      }
+      out[id] = data;
+    } catch (err) { console.warn('資料の縮小画像を作れません: ' + id + ' ' + err); }
+  });
+  return out;
 }
 
 /**

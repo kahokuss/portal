@@ -618,6 +618,29 @@ function docAction_(ctx, p) {
   return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
 }
 
+/** 資料の小さい画像（PDFは1ページ目）。ドライブの縮小画像を使い、6時間覚えておく。1回に12件まで */
+function docThumbsAction_(ctx, p) {
+  const rows = {};
+  readRows_(SHEETS.DOCS).forEach((x) => { if (x.id && x['ファイルID']) rows[x.id] = x; });
+  const cache = CacheService.getScriptCache(), out = {};
+  (p.ids || []).slice(0, 12).forEach((id) => {
+    const row = rows[id];
+    if (!row) return;
+    const key = 'dth:' + row['ファイルID'];
+    try {
+      let data = cache.get(key);
+      if (!data) {
+        const blob = DriveApp.getFileById(row['ファイルID']).getThumbnail();
+        if (!blob) return;
+        data = 'data:' + (blob.getContentType() || 'image/png') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+        if (data.length < 95000) cache.put(key, data, 21600);
+      }
+      out[id] = data;
+    } catch (err) { console.warn('資料の縮小画像を作れません: ' + id + ' ' + err); }
+  });
+  return out;
+}
+
 /**
  * 手続きの締切（日時）を入れる。例：リレー予選のオーダー提出は当日10:00まで。役員と当番
  * @param {{key: string, kind: string, at: string}} p at は 'yyyy-MM-dd HH:mm'（空なら消す）

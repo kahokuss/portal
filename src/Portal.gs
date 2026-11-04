@@ -61,6 +61,7 @@ const API_ACTIONS = {
   addDoc: { run: addDocAction_ },
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
+  docThumbs: { raw: true, run: docThumbsAction_ },
   setDeadline: { run: setDeadlineAction_ },
   markDown: { run: markDownAction_ },
   applyNotice: { admin: true, run: applyNoticeAction_ },

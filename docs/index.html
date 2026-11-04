@@ -584,6 +584,16 @@ tr.sel td { background: var(--sky-soft); }
 .glegend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); }
 .glegend span { display: inline-flex; align-items: center; gap: 4px; }
 .glegend .gseg { position: static; display: inline-block; width: 18px; height: 10px; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.dcell { position: relative; }
+.dtile { display: grid; gap: 4px; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 6px; font: inherit; color: var(--fg); text-align: left; cursor: pointer; text-decoration: none; }
+.dthumb { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.dthumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: none; }
+.dthumb.has img { display: block; } .dthumb.has .dicon { display: none; }
+.dicon { font-size: 34px; }
+.dtype { position: absolute; left: 6px; bottom: 6px; background: var(--track); color: #fff; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; }
+.dname { font-size: 12.5px; font-weight: 700; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ddel { position: absolute; top: 2px; right: 2px; background: var(--surface); }
 .todo-done { display: flex; align-items: center; gap: 8px; color: var(--field); font-weight: 700; font-size: 13px; }
 .newdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--track); margin-right: 4px; vertical-align: middle; }
 .p-imp { background: var(--track); color: #fff; }
@@ -700,9 +710,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "d260ff5d10";
+var BUILD = "fa9a899053";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "e54c758194";
+var EXPECT_SERVER = "6340d83bcd";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -2824,6 +2834,27 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
 
   var PHOTO = {};
   /** 小さい写真を、12枚ずつまとめて読み込む */
+  /** 資料のサムネイル（まとめて取りに行き、取れたら差しかえる） */
+  function loadDocThumbs() {
+    var want = [];
+    view.querySelectorAll('img[data-dsrc]').forEach(function (img) {
+      var id = img.dataset.dsrc;
+      if (PHOTO['d' + id]) { img.src = PHOTO['d' + id]; img.parentNode.classList.add('has'); return; }
+      if (PHOTO['dw' + id] || PHOTO['dn' + id] || want.indexOf(id) >= 0) return;
+      PHOTO['dw' + id] = 1; want.push(id);
+    });
+    if (!want.length || serverOld()) return;
+    for (var i = 0; i < want.length; i += 12) (function (ids) {
+      rpc('docThumbs', { ids: ids }, function (r) {
+        ids.forEach(function (id) {
+          delete PHOTO['dw' + id];
+          if (!r || !r[id]) { PHOTO['dn' + id] = 1; return; }
+          PHOTO['d' + id] = r[id];
+          view.querySelectorAll('img[data-dsrc="' + id + '"]').forEach(function (img) { img.src = r[id]; img.parentNode.classList.add('has'); });
+        });
+      }, function () { ids.forEach(function (id) { delete PHOTO['dw' + id]; PHOTO['dn' + id] = 1; }); });
+    })(want.slice(i, i + 12));
+  }
   function loadThumbs() {
     var want = [];
     view.querySelectorAll('img[data-src]').forEach(function (img) {
@@ -2986,10 +3017,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var list = docsOf(e.key), det = e.detail || {}, man = canManage(e.key), Dc = S.doc && S.doc.key === e.key ? S.doc : null;
     var h = '<section class="card" id="secDocs"' + (man ? dropAttr('doc', e.key, '', '') : '') + '><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>' + (man ? '<div class="hint wide-only">💻 要項やプログラムのPDF・写真を、この枠にドラッグ＆ドロップすると追加できます（種類はファイル名から判断）。</div>' : '');
     if (det.url) h += '<div class="between"><span><span class="pill p-gray">要項</span> 主催者のページ</span><a class="btn small ghost" href="' + esc(det.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a></div>';
-    if (list.length) h += '<div class="list">' + list.map(function (x) {
-      return '<div class="between"><span><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '<br><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + (x.type === 'pdf' ? '・PDF' : x.type === 'image' ? '・写真' : '') + '</span></span><span class="row">' +
-        (x.type === 'link' ? '<a class="btn small ghost" href="' + esc(x.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a>' : '<button class="btn small ghost" type="button" data-doc="' + esc(x.id) + '">開く</button>') +
-        (man ? '<button class="icon-btn" type="button" data-ddel="' + esc(x.id) + '" aria-label="消す">×</button>' : '') + '</span></div>';
+    // サムネイルで並べる（PDFは1ページ目、写真は小さく。リンクはマーク）。押すと開く
+    if (list.length) h += '<div class="dgrid">' + list.map(function (x) {
+      var open = x.type === 'link' ? '<a class="dtile" href="' + esc(x.url) + '" target="_blank" rel="noopener">' : '<button class="dtile" type="button" data-doc="' + esc(x.id) + '">';
+      var thumb = x.type === 'link' ? '<span class="dicon">🔗</span>' : '<img alt="" data-dsrc="' + esc(x.id) + '"><span class="dicon">' + (x.type === 'pdf' ? '📄' : '🖼') + '</span>';
+      return '<div class="dcell">' + open + '<span class="dthumb">' + thumb + (x.type === 'pdf' ? '<span class="dtype">PDF</span>' : '') + '</span><span class="dname"><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '</span><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + '</span>' + (x.type === 'link' ? '</a>' : '</button>') +
+        (man ? '<button class="icon-btn ddel" type="button" data-ddel="' + esc(x.id) + '" aria-label="消す">×</button>' : '') + '</div>';
     }).join('') + '</div>';
     if (!list.length && !det.url) h += '<div class="sub">まだ資料はありません。' + (man ? '' : '要項やプログラムが届いたら、役員か当番の人が載せます。') + '</div>';
     if (man && Dc) {
@@ -5237,6 +5270,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var app = document.querySelector('.app'); if (app) app.classList.toggle('wide', S.tab === 'dash');
     ({ home: home, events: events, album: album, family: family, admin: admin, train: train, dash: dash })[S.tab]();
     injectGuide();
+    loadDocThumbs();
     if (S.stravaPending && !serverOld()) { var sp = S.stravaPending; S.stravaPending = null; setTimeout(function () { call('stravaConnect', sp); }, 0); }
     applyFolds();
   }

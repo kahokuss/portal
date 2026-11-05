@@ -904,6 +904,23 @@ test('資料の保存：LINEのブラウザ向けに、ふつうのブラウザ�
   assert.ok(gas.ctx.doGet({ parameter: { dl: 'zzz' } }).getContent().includes('期限が切れました'));
 });
 
+test('種目を外す：大会の種目・エントリーの種目から外し、えらべば時刻表の行も消す（役員・当番）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kA, 'saveRace', { key: race.key, title: '秋季記録会', date: '2026-11-01', races: ['100m', '園児600m'] });
+  gas.ctx.api(kA, 'saveTimetable', { key: race.key, rows: [{ start: '9:45', race: '園児600m' }, { start: '10:00', race: '100m', group: '3年' }] });
+  gas.ctx.api(kA, 'saveEntry', { key: race.key, child: '山田たろう', join: '参加', races: ['100m', '園児600m'] });
+  assert.throws(() => gas.ctx.api(k2, 'removeEventRace', { key: race.key, race: '園児600m' }), /役員/);
+  const st = gas.ctx.api(kA, 'removeEventRace', { key: race.key, race: '園児600m', withTimetable: true });
+  assert.ok(st.message.includes('1人のエントリーからも') && st.message.includes('時刻表の 1行も'), st.message);
+  assert.deepStrictEqual(plain(st.events.find((e) => e.key === race.key).detail.races), ['100m']);
+  assert.strictEqual(gas.rows('エントリー')[0]['種目'], '100m');
+  assert.ok(!gas.rows('タイムテーブル').some((r) => r['種目'] === '園児600m'));
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

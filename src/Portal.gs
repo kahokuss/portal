@@ -42,6 +42,7 @@ const API_ACTIONS = {
   importDuties: { admin: true, run: importDutiesAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },
+  removeEventRace: { run: removeEventRaceAction_ },
   saveTimetablePlan: { run: saveTimetablePlanAction_ },
   saveTimetableDraft: { run: saveTimetableDraftAction_ },
   setTask: { run: setTaskAction_ },

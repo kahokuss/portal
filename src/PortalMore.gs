@@ -195,6 +195,29 @@ function saveTimetableAction_(ctx, p) {
   return 'タイムテーブルを保存しました（' + list.length + '件）' + (added.length ? '。大会の種目に ' + added.join('・') + ' を足したので、エントリーで選べます' : '');
 }
 
+/**
+ * 大会の種目から外す（役員・当番）。エントリーで選んでいた子の種目からも外す。
+ * withTimetable なら時刻表のその種目の行も消す（残すと、時刻表を保存したときにまた種目に足されるため）
+ */
+function removeEventRaceAction_(ctx, p) {
+  const ev = findEvent_(p.key);
+  if (!ev) throw new Error('大会が見つかりません。');
+  requireManager_(ctx, p.key);
+  const race = String(p.race || '').trim();
+  if (!race) throw new Error('種目を選んでください。');
+  let tt = 0, ent = 0;
+  withLock_(() => {
+    const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
+    if (row) { row['種目'] = splitNames_(row['種目']).filter((x) => !sameRaceGs_(x, race)).join(','); row['更新日時'] = now_(); updateRow_(SHEETS.RACES, row); }
+    readRows_(SHEETS.ENTRIES).filter((x) => x.eventKey === p.key && splitNames_(x['種目']).some((q) => sameRaceGs_(q, race))).forEach((x) => {
+      x['種目'] = splitNames_(x['種目']).filter((q) => !sameRaceGs_(q, race)).join(','); updateRow_(SHEETS.ENTRIES, x); ent++;
+    });
+    if (p.withTimetable) readRows_(SHEETS.TIMETABLE).filter((x) => x.id && x.eventKey === p.key && sameRaceGs_(x['種目'], race)).forEach((x) => { clearRow_(SHEETS.TIMETABLE, x); tt++; });
+  });
+  logHistory_(p.key, ctx, '種目から「' + race + '」を外しました' + (tt ? '（時刻表の' + tt + '行も）' : ''));
+  return '「' + race + '」を種目から外しました' + (ent ? '（' + ent + '人のエントリーからも）' : '') + (tt ? '。時刻表の ' + tt + '行も消しました' : '');
+}
+
 // ---- 手続き（チェックリスト） ----
 
 /** 招集・レーン・ナンバー・リザルトの写真はだれでも（会場で助け合えるように）。ほかは役員と当番 */

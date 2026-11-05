@@ -2754,7 +2754,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var W = legWord(e), rounds = relayRounds(e), man = canManage(e.key), teams = relayTeams(e), R = S.relay && S.relay.key === e.key ? S.relay : null;
     var roundName = function (k) { return W === '区' ? 'オーダー' : k === 'リレー予選' ? '予選' : '決勝'; };
     var h = '<div class="lbl" style="font-weight:700;color:var(--fg);margin-top:6px">オーダー提出</div>' + rounds.map(function (k) {
-      return '<div class="between"><span class="sub">' + roundName(k) + 'のオーダー</span>' + dlChip(e, k, teams.length && teams.every(function (tm) { return (taskOf(e.key, k, tm) || {}).done; })) + '</div>';
+      return '<div class="between"><span class="sub">' + (roundName(k) === 'オーダー' ? 'オーダー' : roundName(k) + 'のオーダー') + '</span>' + dlChip(e, k, teams.length && teams.every(function (tm) { return (taskOf(e.key, k, tm) || {}).done; })) + '</div>';
     }).join('');
     teams.forEach(function (tm) {
       h += '<div class="kid"><b>' + esc(tm) + '</b>';
@@ -2793,6 +2793,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (rows.length) h += '<div class="list">' + rows.map(function (r) { return ttItem(e, r, relay ? [] : rowKids(e, r)); }).join('') + '</div>';
     else h += '<div class="sub">時刻はまだです（タイムテーブルに入れると、予選・決勝の時刻と招集がここに出ます）。</div>' + (kids.length && !relay ? '<div class="sub">出る子：' + kids.map(function (k) { return esc(k.name); }).join('、') + '</div>' : '');
     if (relay) h += relaySection(e);
+    if (canManage(e.key)) h += '<div class="row" style="justify-content:flex-end"><button class="link" type="button" data-rmrace="' + esc(race) + '" data-rmtt="' + rows.length + '" data-kids="' + kids.length + '">この種目を外す</button></div>';
     var res = ST.results.filter(function (r) { return r.key === e.key && sameRace(r.race, race); });
     if (res.length) h += '<div class="lbl">結果</div><div class="list">' + res.map(function (r) {
       return '<div class="between"><span>' + esc(r.child) + ' <b>' + esc(r.record) + '</b>' + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + '</span></div>';
@@ -2805,6 +2806,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return '<div class="hint">種目ごとに、時刻・招集・出る子・結果をまとめています。リレーはオーダー（予選・決勝）もここで。</div>' + list.map(function (r) { return raceCard(e, r); }).join('');
   }
   function bindRelay(e) {
+    on('[data-rmrace]', function () {
+      var race = this.dataset.rmrace, tt = +this.dataset.rmtt, kids = +this.dataset.kids;
+      if (!confirm('「' + race + '」をこの大会の種目から外しますか？' + (kids ? '\nエントリーで選んでいた ' + kids + '人の種目からも外れます。' : ''))) return;
+      var withTT = tt > 0 && confirm('時刻表に「' + race + '」の行が ' + tt + '行あります。いっしょに消しますか？\n（残すと、時刻表を保存したときにまた種目に足されます）');
+      call('removeEventRace', { key: e.key, race: race, withTimetable: withTT });
+    });
     on('[data-relayadd]', function () { S.relay = { key: e.key, kind: this.dataset.relayadd, name: '', runners: [], sub: '', extra: '' }; render(); });
     on('[data-relayedit]', function () {
       var kind = this.dataset.kind, tm = this.dataset.relayedit, t = taskOf(e.key, kind, tm) || { memo: '' }, runners = [], extra = [], sub = '';

@@ -1141,6 +1141,15 @@ async function openPortal(browser, gas, userId, name) {
       await a.waitForSelector('.ttcard', { timeout: 20000 });
       assert.ok((await a.textContent('#view')).includes('ぜんぶもう時刻表に入っています'), '2重に足さない');
       await a.click('#ttBack');
+      // 種目・リレーのタブで「この種目を外す」（時刻表の行もいっしょに）
+      await a.click('[data-et="種目"]');
+      const acceptAll = (d) => d.accept();
+      a.on('dialog', acceptAll);
+      await a.click('[data-rmrace="1500m"]');
+      await a.idle();
+      a.off('dialog', acceptAll);
+      assert.ok(!(await a.$('[data-rmrace="1500m"]')), '種目のカードが消える');
+      assert.ok(!gas.rows('タイムテーブル').some((r) => r['種目'] === '1500m'), '時刻表の行も消える');
       await a.click('[data-et="概要"]');
       await a.click('.dcell:has-text("テスト要項") [data-doc]');
       await a.waitForSelector('.pdfv .pages img', { timeout: 20000 });

@@ -181,6 +181,9 @@ form.f, .f { display: grid; gap: 8px; }
 .tt-time { flex: none; width: 3.4em; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .tt .main { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .tt-kids { display: grid; gap: 4px; }
+.ttedit { cursor: pointer; }
+.ttedit:hover { color: var(--sky); }
+.ttpen { font-size: 12px; color: var(--sky); font-weight: 700; }
 .tt-kids > span { justify-content: space-between; }
 .callt { color: var(--track); }
 .ttcards { display: grid; gap: 8px; }
@@ -734,7 +737,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "1dce97a5bd";
+var BUILD = "8115d8ecb9";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "ee55315a9e";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1322,6 +1325,30 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function eligible(e) {
     var det = e.detail || {};
     return ST.kids.filter(function (k) { return inTarget(det.target, k.grade); });
+  }
+  /** 時刻表の入力を開く（id の行、または新しい行を開いた状態） */
+  function openTTEdit(key, id, race) {
+    var e = ST.events.filter(function (x) { return x.key === key; })[0];
+    if (!e) return;
+    S.tab = 'events'; S.event = key; S.etab = 'タイムテーブル'; S.toast = '';
+    var kept = (S.ttKeep || {})[key];
+    if (!S.ttDraft || S.ttDraftKey !== key) {
+      S.ttDraft = kept ? kept.rows : ttDraftFrom(e); S.ttPdfText = kept ? kept.pdf : '';
+      if (kept) delete S.ttKeep[key];
+    }
+    S.ttDraftKey = key;
+    var i = -1;
+    S.ttDraft.forEach(function (r, k) { if (id && r.id === id) i = k; });
+    if (i < 0 && race) { var b = blankTT(); b.race = race; S.ttDraft.push(b); i = S.ttDraft.length - 1; }
+    S.ttOpen = i;
+    render();
+    var c = document.getElementById('ttc' + i);
+    if (c) c.scrollIntoView({ block: 'center' }); else window.scrollTo(0, 0);
+  }
+  function bindTTOpen() {
+    on('[data-ttopen]', function () { var p = this.dataset.ttopen.split('|'); openTTEdit(p[0], p.slice(1).join('|')); });
+    view.querySelectorAll('[data-ttopen]').forEach(function (el) { el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') el.click(); }); });
+    on('[data-ttnew]', function () { var p = this.dataset.ttnew.split('|'); openTTEdit(p[0], '', p.slice(1).join('|')); });
   }
   function bindCommon() {
     on('[data-ev]', function () { S.tab = 'events'; S.event = this.dataset.ev; S.etab = '概要'; S.toast = ''; render(); window.scrollTo(0, 0); });
@@ -2299,7 +2326,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function ttItem(e, r, kids, only) {
     var warm = r.warm || tsub(r.call, ST.choices.warmMinutes);
-    var h = '<div class="tt"><div class="tt-time">' + esc(r.start || '—') + '</div><div class="main"><div class="ttl">' + esc(r.race) + ' <span class="sub">' + esc([r.group, r.heat].filter(Boolean).join(' ')) + '</span></div>' +
+    // 役員・当番は、時刻や種目名を押すと時刻表の入力（その行が開いた状態）へ
+    var ed = canManage(e.key) && r.id ? ' data-ttopen="' + esc(e.key + '|' + r.id) + '" role="button" tabindex="0" title="押すと直せます"' : '';
+    var who = [r.group, r.heat].filter(Boolean).join(' ') || (ed ? '全学年・男女とも' : '');
+    var h = '<div class="tt"><div class="tt-time' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.start || '—') + '</div><div class="main"><div class="ttl' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.race) + ' <span class="sub">' + esc(who) + '</span>' + (ed ? ' <span class="ttpen" aria-hidden="true">✎</span>' : '') + '</div>' +
       '<div class="sub">' + (r.call ? '<b class="callt">招集 ' + shortRange(r.call) + '</b>　' : '') + (warm ? 'アップ ' + shortRange(warm) + (r.warm ? '' : '頃') : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
     if (kids.length) h += '<div class="tt-kids">' + kids.map(function (k) {
       var lane = taskOf(e.key, 'レーン', k.name + '|' + r.id), mine = myNames().indexOf(k.name) >= 0;
@@ -2456,6 +2486,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return h + '<div class="hint">アップの時刻は目安です（空欄のときは招集の' + ST.choices.warmMinutes + '分前）。「招集した」は、会場にいる人ならだれが押してもかまいません。</div>';
   }
   function bindTimetable(e) {
+    bindTTOpen();
     on('[data-gall]', function () { S.ganttAll = !!this.dataset.gall; render(); });
     // ガント：最初の重なり（なければ最初の競技）が見えるところまで横に送る
     var gw = view.querySelector('.gantt');
@@ -2596,7 +2627,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function ttCard(e, r, i) {
     var open = S.ttOpen === i || (S.ttOpen === undefined && !r.race && !r.start), miss = ttMissing(r), blank = !r.race && !r.start && !r.group;
     var title = [r.start, r.race, r.group, r.heat].filter(function (x) { return String(x || '').trim(); }).join('　') || '（新しい種目）';
-    var h = '<div class="ttcard' + (open ? ' open' : '') + (miss.length && !blank ? ' bad' : '') + '"><button type="button" class="ttc-head" data-tto="' + i + '"><span class="ttc-no">' + (i + 1) + '</span><span class="ttc-ttl">' + esc(title) +
+    var h = '<div class="ttcard' + (open ? ' open' : '') + (miss.length && !blank ? ' bad' : '') + '" id="ttc' + i + '"><button type="button" class="ttc-head" data-tto="' + i + '"><span class="ttc-no">' + (i + 1) + '</span><span class="ttc-ttl">' + esc(title) +
       (r.call ? '<small>招集 ' + esc(r.call) + '</small>' : '') + (miss.length && !blank ? '<small class="ttc-warn">⚠ ' + miss.join('・') + 'がありません</small>' : '') + '</span><span class="ttc-arrow" aria-hidden="true">' + (open ? '▲' : '▼') + '</span></button>';
     if (!open) return h + '</div>';
     var races = ((e.detail && e.detail.races) || []).concat(TTB_RACES).filter(function (x, k, a) { return a.indexOf(x) === k; }).slice(0, 12);
@@ -2797,7 +2828,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var kids = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && x.races.some(function (q) { return sameRace(q, race); }); }).sort(byGrade);
     var h = '<section class="card"><h2>' + esc(race) + '<small>' + kids.length + '人' + (higherBetter(race) ? '・フィールド' : '') + '</small></h2>';
     if (rows.length) h += '<div class="list">' + rows.map(function (r) { return ttItem(e, r, relay ? [] : rowKids(e, r)); }).join('') + '</div>';
-    else h += '<div class="sub">時刻はまだです（タイムテーブルに入れると、予選・決勝の時刻と招集がここに出ます）。</div>' + (kids.length && !relay ? '<div class="sub">出る子：' + kids.map(function (k) { return esc(k.name); }).join('、') + '</div>' : '');
+    else h += '<div class="sub">時刻はまだです（タイムテーブルに入れると、予選・決勝の時刻と招集がここに出ます）。</div>' + (kids.length && !relay ? '<div class="sub">出る子：' + kids.map(function (k) { return esc(k.name); }).join('、') + '</div>' : '') +
+      (canManage(e.key) ? '<button class="btn small ghost" type="button" data-ttnew="' + esc(e.key + '|' + race) + '">＋ 時刻表に入れる（時刻・学年・男女）</button>' : '');
+    if (rows.length && canManage(e.key)) h += '<div class="sub">対象の学年・男女や時刻は、上の時刻か種目名を押すと直せます。</div>';
     if (relay) h += relaySection(e);
     if (canManage(e.key)) h += '<div class="row" style="justify-content:flex-end"><button class="link" type="button" data-rmrace="' + esc(race) + '" data-rmtt="' + rows.length + '" data-kids="' + kids.length + '">この種目を外す</button></div>';
     var res = ST.results.filter(function (r) { return r.key === e.key && sameRace(r.race, race); });

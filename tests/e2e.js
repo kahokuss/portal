@@ -1476,6 +1476,20 @@ async function openPortal(browser, gas, userId, name) {
       if (process.env.SHOTDIR) await p.screenshot({ path: path.join(process.env.SHOTDIR, 'nav-fixed.png') });
       await p.close();
     });
+    await step('役員: 種目タブの時刻・種目名を押すと、時刻表の入力がその行を開いた状態で出る（学年・男女を直せる）', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'ttopen');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="種目"]');
+      const el = q.locator('.ttl[data-ttopen]').first();
+      const race = (await el.textContent()).split(' ')[0];
+      await el.click();
+      const open = await q.textContent('.ttcard.open');
+      assert.ok(open.includes(race), race + ' の行が開く: ' + open);
+      assert.ok(await q.$('.ttcard.open [data-ttg], .ttcard.open [data-ttsx], .ttcard.open button'), '学年・男女のボタンがある');
+      if (SHOTS) await q.locator('.ttcard.open').screenshot({ path: path.join(shotDir, 'admin-ttopen.png') });
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

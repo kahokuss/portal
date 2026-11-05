@@ -10,11 +10,12 @@ const { createGas } = require('./gas-mock');
 
 const SHOTS = process.argv.includes('--shots');
 // 小さなPDF（1ページ・文字「TEST」）をつくる
-function tinyPdf() {
+function tinyPdf(cells) {
   const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
     null, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
-  const stream = 'BT /F1 24 Tf 40 40 Td (TEST) Tj ET';
+  // cells: [[x, y, text], ...] (like a table: same height, apart)
+  const stream = cells ? cells.map((c) => 'BT /F1 8 Tf ' + c[0] + ' ' + c[1] + ' Td (' + c[2] + ') Tj ET').join(' ') : 'BT /F1 24 Tf 40 40 Td (TEST) Tj ET';
   objs[3] = '<< /Length ' + stream.length + ' >>\nstream\n' + stream + '\nendstream';
   let out = '%PDF-1.4\n';
   const offs = [];
@@ -1098,6 +1099,19 @@ async function openPortal(browser, gas, userId, name) {
       await a.waitForSelector('.dcell:has-text("テスト要項") .dthumb.has img', { timeout: 10000 });
       assert.ok((await a.getAttribute('.dcell:has-text("テスト要項") .dthumb img', 'src')).startsWith('data:image/png'), '資料はサムネイルで並ぶ（PDFは1ページ目）');
       if (SHOTS) await a.locator('#secDocs').screenshot({ path: path.join(shotDir, 'admin-29a-docs-card.png') });
+      // 資料のPDFから時刻表を読み込む（表の行を左から並べて読む → 入力画面に入る → 確かめて保存）
+      gas.ctx.api(gas.login('U1').key, 'addDoc', { key: race.key, kind: 'プログラム', name: 'PDFプログラム', data: tinyPdf([[10, 80, '9:40'], [50, 80, '60m'], [100, 80, '9:10-9:20'], [10, 60, '15:20'], [50, 60, '1500m'], [10, 40, 'Hello']]) });
+      await a.click('#reload');
+      await a.idle();
+      await a.click('.dcell:has-text("PDFプログラム") [data-docread]');
+      await a.waitForSelector('.ttcard', { timeout: 20000 });
+      const tt = await a.textContent('#view');
+      assert.ok(tt.includes('PDFから 2行を読み取りました'), tt.slice(0, 300));
+      const n0 = (await a.$$('.ttcard')).length;
+      assert.deepStrictEqual(await ttRow(a, n0 - 2, ['start', 'race', 'call']), ['9:40', '60m', '9:10〜9:20']);
+      assert.deepStrictEqual(await ttRow(a, n0 - 1, ['start', 'race']), ['15:20', '1500m']);
+      await a.click('#ttBack');
+      await a.click('[data-et="概要"]');
       await a.click('.dcell:has-text("テスト要項") [data-doc]');
       await a.waitForSelector('.pdfv .pages img', { timeout: 20000 });
       assert.ok((await a.getAttribute('.pdfv .pages img', 'src')).startsWith('data:image/jpeg'), 'ページが画像になる');

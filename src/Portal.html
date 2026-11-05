@@ -594,6 +594,8 @@ tr.sel td { background: var(--sky-soft); }
 .dtype { position: absolute; left: 6px; bottom: 6px; background: var(--track); color: #fff; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; }
 .dname { font-size: 12.5px; font-weight: 700; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ddel { position: absolute; top: 2px; right: 2px; background: var(--surface); }
+.dread { width: 100%; margin-top: 4px; font-size: 12px; }
+.pdftext { white-space: pre-wrap; font-size: 11.5px; max-height: 220px; overflow: auto; background: var(--surface-2); padding: 6px; border-radius: 8px; }
 .sflow { display: grid; gap: 0; }
 .srow { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; position: relative; padding-bottom: 10px; }
 .srow::before { content: ''; position: absolute; left: 12px; top: 26px; bottom: 0; width: 2px; background: var(--line); }
@@ -2442,7 +2444,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ttf]', function () { S.ttf = this.dataset.ttf; render(); });
     on('#ttPrint', function () { window.print(); });
     on('#ttBuild', function () { S.ttb = { key: e.key, meet: '', warmAll: '', trackCall: 30, fieldCall: 40, rows: [], f: { grades: [], sex: '女子', race: '100m', round: '予選', start: '' }, edit: -1, allKids: false, view: '' }; ttbLoad(S.ttb); S.tab = 'admin'; S.admin = 'ttb'; render(); window.scrollTo(0, 0); });
-    on('#ttEdit', function () { S.ttDraft = ST.timetable.filter(function (r) { return r.key === e.key && isAll(r); }).concat(ttRows(e)).map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }; }); if (!S.ttDraft.length) S.ttDraft.push(blankTT()); S.toast = ''; render(); });
+    on('#ttEdit', function () { S.ttDraft = ttDraftFrom(e); if (!S.ttDraft.length) S.ttDraft.push(blankTT()); S.toast = ''; render(); });
     on('[data-call]', function () { call('setTask', { key: e.key, kind: '招集', target: this.dataset.call, done: !!this.dataset.done }); });
     on('[data-adv]', function () { call('setTask', { key: e.key, kind: '進出', target: this.dataset.adv, done: !!this.dataset.on }); });
     on('[data-lane]', function () { var v = prompt('組とレーンを入れてください（例：2組 5レーン）', this.dataset.cur); if (v !== null) call('setTask', { key: e.key, kind: 'レーン', target: this.dataset.lane, memo: toHalf(v).trim() }); });
@@ -2451,6 +2453,52 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function blankTT() { return { id: '', start: '', race: '', group: '', heat: '', call: '', warm: '', memo: '' }; }
   /** プログラムの文章を1行ずつ読み取る（AIは使わない） */
+  function ttDraftFrom(e) { return ST.timetable.filter(function (r) { return r.key === e.key && isAll(r); }).concat(ttRows(e)).map(function (r) { return { id: r.id, start: r.start, race: r.race, group: r.group, heat: r.heat, call: r.call, warm: r.warm, memo: r.memo }; }); }
+  /** PDFの文字を、行ごとに取り出す（表は、同じ高さの文字を左から並べて1行に） */
+  function pdfLines(dataUrl, ok, ng) {
+    var bin = atob(dataUrl.split(',')[1]), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    loadPdfJs(function () {
+      window.pdfjsLib.getDocument({ data: arr }).promise.then(function (pdf) {
+        var out = [], n = 1;
+        (function next() {
+          if (n > pdf.numPages) return ok(out);
+          pdf.getPage(n).then(function (page) { return page.getTextContent(); }).then(function (tc) {
+            var rows = [];
+            tc.items.forEach(function (it) {
+              if (!String(it.str).trim()) return;
+              var y = it.transform[5], x = it.transform[4], r = rows.find(function (q) { return Math.abs(q.y - y) <= 3; });
+              if (!r) { r = { y: y, items: [] }; rows.push(r); }
+              r.items.push({ x: x, w: it.width || 0, s: it.str });
+            });
+            rows.sort(function (a, b) { return b.y - a.y; }).forEach(function (r) {
+              r.items.sort(function (a, b) { return a.x - b.x; });
+              var line = '', end = null;
+              r.items.forEach(function (it) { line += (end !== null && it.x - end > 2 ? ' ' : '') + it.s; end = it.x + it.w; });
+              out.push(line);
+            });
+            n++; next();
+          }, ng);
+        })();
+      }, ng);
+    }, ng);
+  }
+  /** 資料のPDFから時刻表を読み取って、時刻表の入力画面に入れる（保存は確かめてから） */
+  function docToTimetable(e, docId, btn) {
+    var busy = document.getElementById('busy'); busy.textContent = 'PDFから時刻表を読み取っています…'; busy.hidden = false;
+    var end = function (msg, err) { busy.hidden = true; busy.textContent = '保存しています…'; if (btn) btn.disabled = false; S.toast = msg; S.toastErr = !!err; render(); window.scrollTo(0, 0); };
+    if (btn) btn.disabled = true;
+    rpc('doc', { id: docId }, function (r) {
+      pdfLines(r.data, function (lines) {
+        var rows = parseTT(lines.join('\n')).filter(function (x) { return x.start; });
+        if (!rows.length) return end('⚠ このPDFからは時刻表の行を読み取れませんでした（写真をPDFにしたものは文字がありません）。プログラムの文をコピーして「貼り付け」に入れてください', true);
+        var D = ttDraftFrom(e), key = function (x) { return [x.start, x.race, x.group, x.heat].join('|'); }, have = D.map(key), added = 0;
+        rows.forEach(function (x) { if (have.indexOf(key(x)) < 0) { D.push(x); have.push(key(x)); added++; } });
+        S.ttDraft = D; S.ttOpen = -1; S.etab = 'タイムテーブル'; S.ttPdfText = lines.filter(function (l) { return /\d{1,2}[:：]\d{2}/.test(l); }).join('\n');
+        end('✅ PDFから ' + rows.length + '行を読み取りました（新しく足したのは ' + added + '行）。下で確かめて、直してから「保存する」を押してください');
+      }, function () { end('⚠ PDFを読み取れませんでした', true); });
+    }, function (err) { end('⚠ ' + ((err && err.message) || err), true); });
+  }
   function parseTT(raw) {
     var T = '(\\d{1,2})[:：時](\\d{2})';
     return toHalf(raw).split('\n').map(function (line) {
@@ -2528,7 +2576,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function ttEditor(e) {
     var D = S.ttDraft, others = ST.events.filter(function (x) { return x.key !== e.key && ST.timetable.some(function (r) { return r.key === x.key; }); });
     var h = '<button class="link" id="ttBack" type="button">‹ タイムテーブルに戻る（保存しない）</button>' +
-      '<section class="card"><h2>プログラムから貼り付け</h2><form class="f" id="ttPaste"><textarea id="ttIn" placeholder="1行に1種目。例：&#10;10:30 5年男子 100m 予選 招集10:00&#10;13:30 5年男子 100m 決勝 招集13:10&#10;11:00 3年女子 走り幅跳び 招集10:30"></textarea><button class="btn" type="submit">読み取って下に足す</button>' +
+      '<section class="card"><h2>プログラムから貼り付け</h2>' + (S.ttPdfText ? '<details class="hint"><summary>PDFから取り出した時刻のある行（読み取りがずれたときの確かめ用）</summary><pre class="pdftext">' + esc(S.ttPdfText) + '</pre></details>' : '') + '<form class="f" id="ttPaste"><textarea id="ttIn" placeholder="1行に1種目。例：&#10;10:30 5年男子 100m 予選 招集10:00&#10;13:30 5年男子 100m 決勝 招集13:10&#10;11:00 3年女子 走り幅跳び 招集10:30"></textarea><button class="btn" type="submit">読み取って下に足す</button>' +
       '<div class="hint">時刻・学年・男子／女子・種目・予選／決勝・組・「招集」「アップ」の時刻を読み取ります（AIは使いません）。予選と決勝がある種目は、決勝に進んだ子だけ決勝の時刻が出ます（「決勝へ」ボタン）。読み取れなかったところは手で直してください。</div></form>' +
       (others.length ? '<div class="lbl">前の大会からコピー</div><div class="quick">' + others.map(function (x) { return '<button type="button" data-ttcopy="' + x.key + '">' + md(x.date) + ' ' + esc(x.title) + '</button>'; }).join('') + '</div>' : '') + '</section>' +
       '<section class="card"><h2>タイムテーブル<small>' + D.length + '件</small></h2>' +
@@ -2544,7 +2592,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       el.addEventListener('input', function () { var p = this.dataset.tt.split('|'); D[+p[0]][p[1]] = this.value; });
       if (el.inputMode === 'numeric') el.addEventListener('blur', function () { var p = this.dataset.tt.split('|'); D[+p[0]][p[1]] = this.value = fmtTime(this.value); });
     });
-    on('#ttBack', function () { S.ttDraft = null; S.toast = ''; render(); });
+    on('#ttBack', function () { S.ttDraft = null; S.ttPdfText = ''; S.toast = ''; render(); });
     on('[data-ttdel]', function () { D.splice(+this.dataset.ttdel, 1); S.ttOpen = -1; render(); });
     on('#ttAdd', function () {
       D.push(blankTT()); S.ttOpen = D.length - 1; render();
@@ -2592,7 +2640,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       removeBlank(D);
       var bad = D.map(function (r, i) { var m = ttMissing(r); return m.length ? (i + 1) + '番目：' + m.join('・') : ''; }).filter(Boolean);
       if (bad.length) { S.toast = '入っていないところがあります（' + bad.slice(0, 3).join('／') + '）。赤い枠の種目を開いて入れてください'; S.toastErr = true; S.ttOpen = -1; render(); window.scrollTo(0, 0); return; }
-      call('saveTimetable', { key: e.key, rows: D }, function (st) { if (st.message) { S.ttDraft = null; S.ttOpen = undefined; S.ttf = '全部'; } });
+      call('saveTimetable', { key: e.key, rows: D }, function (st) { if (st.message) { S.ttDraft = null; S.ttPdfText = ''; S.ttOpen = undefined; S.ttf = '全部'; } });
     });
   }
   function removeBlank(D) { for (var i = D.length - 1; i >= 0; i--) if (!D[i].race && !D[i].start && !D[i].group && !D[i].call) D.splice(i, 1); }
@@ -3049,7 +3097,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var open = x.type === 'link' ? '<a class="dtile" href="' + esc(x.url) + '" target="_blank" rel="noopener">' : '<button class="dtile" type="button" data-doc="' + esc(x.id) + '">';
       var thumb = x.type === 'link' ? '<span class="dicon">🔗</span>' : '<img alt="" data-dsrc="' + esc(x.id) + '"><span class="dicon">' + (x.type === 'pdf' ? '📄' : '🖼') + '</span>';
       return '<div class="dcell">' + open + '<span class="dthumb">' + thumb + (x.type === 'pdf' ? '<span class="dtype">PDF</span>' : '') + '</span><span class="dname"><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '</span><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + '</span>' + (x.type === 'link' ? '</a>' : '</button>') +
-        (man ? '<button class="icon-btn ddel" type="button" data-ddel="' + esc(x.id) + '" aria-label="消す">×</button>' : '') + '</div>';
+        (man ? '<button class="icon-btn ddel" type="button" data-ddel="' + esc(x.id) + '" aria-label="消す">×</button>' : '') +
+        (man && x.type === 'pdf' ? '<button class="btn small ghost dread" type="button" data-docread="' + esc(x.id) + '">⏱ 時刻表に読み込む</button>' : '') + '</div>';
     }).join('') + '</div>';
     if (!list.length && !det.url) h += '<div class="sub">まだ資料はありません。' + (man ? '' : '要項やプログラムが届いたら、役員か当番の人が載せます。') + '</div>';
     if (man && Dc) {
@@ -3085,6 +3134,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var f = document.getElementById('docForm');
     if (f) f.addEventListener('submit', function (x) { x.preventDefault(); keep(); call('addDoc', { key: e.key, kind: Dc.kind, name: Dc.name, url: Dc.url, data: Dc.data || '' }, function () { S.doc = null; }); });
     on('[data-ddel]', function () { if (confirm('この資料を消しますか？')) call('deleteDoc', { id: this.dataset.ddel }); });
+    on('[data-docread]', function () { var e = evByKey(CURKEY); if (e) docToTimetable(e, this.dataset.docread, this); });
     on('[data-doc]', function () {
       var b = this, x = ST.docs.find(function (d) { return d.id === b.dataset.doc; });
       var busy = document.getElementById('busy'); busy.textContent = '資料を読み込んでいます…'; busy.hidden = false; b.classList.add('loading');

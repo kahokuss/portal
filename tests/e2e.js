@@ -816,6 +816,13 @@ async function openPortal(browser, gas, userId, name) {
       const gt = await q.textContent('#view');
       assert.ok(/重なり \d+件|重なりはありません/.test(gt), gt.slice(0, 300));
       await q.shot('12b-gantt');
+      // 学年と男女でしぼる
+      await q.click('[data-ttf="全部"]');
+      await q.click('[data-ttsex="女"]');
+      const fem = await q.textContent('#view');
+      assert.ok(fem.includes('女子') && !/\d+年男子|小男|\b男子\b/.test(fem.split('男女とも')[1] || ''), '女子だけ');
+      await q.click('[data-ttsex=""]');
+      await q.click('[data-ttf="重なり"]');
       if (await q.$('[data-gall="1"]')) { await q.click('[data-gall="1"]'); assert.ok(await q.$('.gantt .grow2'), '出る子全員：競技ごとの行'); await q.shot('12c-gantt-all'); }
       await q.shot('12-sporec');
       a.errors.push(...q.errors);

@@ -734,7 +734,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "f27f94c62d";
+var BUILD = "1dce97a5bd";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "ee55315a9e";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2447,9 +2447,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         h += '</section>';
       });
     } else {
-      var g = f === '全部' ? 0 : +f[0];
-      var list = rows.filter(function (r) { return !g || groupMatch(r.group, { grade: g, sex: '' }); });
-      h += '<section class="card"><div class="list">' + (list.length ? list.map(function (r) { return ttItem(e, r, rowKids(e, r).filter(function (k) { return !g || k.grade === g; })); }).join('') : '<div class="sub">この学年の種目はありません。</div>') + '</div></section>';
+      var g = f === '全部' ? 0 : +f[0], sx = S.ttsex || '';
+      // 男女でもしぼる（男女どちらでもない種目は両方に出る）
+      h += '<div class="tabs sm" role="group" aria-label="男女">' + [['', '男女とも'], ['男', '男子'], ['女', '女子']].map(function (x) { return '<button type="button" data-ttsex="' + x[0] + '" aria-pressed="' + (sx === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      var list = rows.filter(function (r) { return (!g && !sx) || groupMatch(r.group, { grade: g || 0, sex: sx }); });
+      h += '<section class="card"><div class="list">' + (list.length ? list.map(function (r) { return ttItem(e, r, rowKids(e, r).filter(function (k) { return (!g || k.grade === g) && (!sx || !k.sex || k.sex === sx); })); }).join('') : '<div class="sub">' + (g ? g + '年' : '') + (sx ? (sx === '男' ? '男子' : '女子') : '') + 'の種目はありません。</div>') + '</div></section>';
     }
     return h + '<div class="hint">アップの時刻は目安です（空欄のときは招集の' + ST.choices.warmMinutes + '分前）。「招集した」は、会場にいる人ならだれが押してもかまいません。</div>';
   }
@@ -2460,6 +2462,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (gw) { var tg = gw.querySelector('.gseg.clash') || gw.querySelector('.gseg.race'); if (tg) { var gr = gw.getBoundingClientRect(), tr = tg.getBoundingClientRect(); gw.scrollLeft += tr.left - gr.left - 120; } }
     bindTips();
     on('[data-ttf]', function () { S.ttf = this.dataset.ttf; render(); });
+    on('[data-ttsex]', function () { S.ttsex = this.dataset.ttsex; render(); });
     on('#ttPrint', function () { window.print(); });
     on('#ttBuild', function () { S.ttb = { key: e.key, meet: '', warmAll: '', trackCall: 30, fieldCall: 40, rows: [], f: { grades: [], sex: '女子', race: '100m', round: '予選', start: '' }, edit: -1, allKids: false, view: '' }; ttbLoad(S.ttb); S.tab = 'admin'; S.admin = 'ttb'; render(); window.scrollTo(0, 0); });
     on('#ttEdit', function () { S.ttDraftKey = e.key; S.ttDraft = ttDraftFrom(e); if (!S.ttDraft.length) S.ttDraft.push(blankTT()); S.toast = ''; render(); });

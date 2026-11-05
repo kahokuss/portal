@@ -586,7 +586,7 @@ tr.sel td { background: var(--sky-soft); }
 .glegend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); }
 .glegend span { display: inline-flex; align-items: center; gap: 4px; }
 .glegend .gseg { position: static; display: inline-block; width: 18px; height: 10px; }
-.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.docgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .dcell { position: relative; }
 .dtile { display: grid; gap: 4px; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 6px; font: inherit; color: var(--fg); text-align: left; cursor: pointer; text-decoration: none; }
 .dthumb { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
@@ -723,7 +723,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "96f39558f3";
+var BUILD = "59678df30e";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "6340d83bcd";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -3047,7 +3047,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var h = '<section class="card" id="secDocs"' + (man ? dropAttr('doc', e.key, '', '') : '') + '><h2>資料<small>' + (list.length + (det.url ? 1 : 0)) + '件</small></h2>' + (man ? '<div class="hint wide-only">💻 要項やプログラムのPDF・写真を、この枠にドラッグ＆ドロップすると追加できます（種類はファイル名から判断）。</div>' : '');
     if (det.url) h += '<div class="between"><span><span class="pill p-gray">要項</span> 主催者のページ</span><a class="btn small ghost" href="' + esc(det.url) + '" target="_blank" rel="noopener" style="text-decoration:none">開く</a></div>';
     // サムネイルで並べる（PDFは1ページ目、写真は小さく。リンクはマーク）。押すと開く
-    if (list.length) h += '<div class="dgrid">' + list.map(function (x) {
+    if (list.length) h += '<div class="docgrid">' + list.map(function (x) {
       var open = x.type === 'link' ? '<a class="dtile" href="' + esc(x.url) + '" target="_blank" rel="noopener">' : '<button class="dtile" type="button" data-doc="' + esc(x.id) + '">';
       var thumb = x.type === 'link' ? '<span class="dicon">🔗</span>' : '<img alt="" data-dsrc="' + esc(x.id) + '"><span class="dicon">' + (x.type === 'pdf' ? '📄' : '🖼') + '</span>';
       return '<div class="dcell">' + open + '<span class="dthumb">' + thumb + (x.type === 'pdf' ? '<span class="dtype">PDF</span>' : '') + '</span><span class="dname"><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '</span><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + '</span>' + (x.type === 'link' ? '</a>' : '</button>') +

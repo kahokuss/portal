@@ -234,6 +234,7 @@ function createGas(options) {
     ScriptApp: { getScriptId: () => 'TESTSCRIPTID', getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }) },
     Session: { getActiveUser: () => ({ getEmail: () => '' }), getEffectiveUser: () => ({ getEmail: () => 'club@example.com' }) },
     HtmlService: {
+      createHtmlOutput: (html) => { const o = { getContent: () => html, setTitle: () => o, addMetaTag: () => o }; return o; },
       createTemplateFromFile: (name) => {
         const t = {
           evaluate() {

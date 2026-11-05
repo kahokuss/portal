@@ -1102,6 +1102,7 @@ async function openPortal(browser, gas, userId, name) {
       await a.waitForSelector('.pdfv .pages img', { timeout: 20000 });
       assert.ok((await a.getAttribute('.pdfv .pages img', 'src')).startsWith('data:image/jpeg'), 'ページが画像になる');
       await a.shot('29-pdf');
+      if (SHOTS) await a.screenshot({ path: path.join(shotDir, 'admin-29-pdf-view.png') });
       await a.click('#vClose');
       // PCの広い画面では大きく出る（＋で、さらに大きく）
       await a.setViewportSize({ width: 1280, height: 900 });
@@ -1115,6 +1116,17 @@ async function openPortal(browser, gas, userId, name) {
       if (SHOTS) await a.screenshot({ path: path.join(shotDir, 'admin-29b-pdf-pc.png') });
       await a.click('#vClose');
       await a.setViewportSize({ width: 420, height: 900 });
+      // LINEのブラウザでは「PDF」で、ふつうのブラウザの保存用ページへ（openExternalBrowser=1）
+      await a.evaluate(() => Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Linux; Android 14) Line/14.20.0' }));
+      let opened = '';
+      await a.route('https://script.google.com/**', (r) => { opened = r.request().url(); r.fulfill({ contentType: 'text/html', body: 'ok' }); });
+      await a.click('.dcell:has-text("テスト要項") [data-doc]');
+      await a.waitForSelector('.pdfv #pdfDl');
+      await a.click('.pdfv #pdfDl');
+      await a.waitForURL(/script\.google\.com/);
+      assert.ok(/\?dl=[A-Za-z0-9]+&openExternalBrowser=1$/.test(opened), opened);
+      await a.goto('https://portal.test/');
+      await a.waitForSelector('#nav:not([hidden])');
     });
     await step('Strava：管理者が鍵を入れる → 「Stravaとつなぐ」→ 戻ってくると、名前の入った活動が自主トレに入る', async () => {
       await a.click('[data-nav="train"]');

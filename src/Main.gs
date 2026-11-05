@@ -6,6 +6,7 @@
 function doGet(e) {
   resetMemo_();
   const p = (e && e.parameter) || {};
+  if (p.dl) return docDownloadPage_(String(p.dl));
   let key = '';
   let error = '';
   if (p.code) {

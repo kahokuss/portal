@@ -1302,7 +1302,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '6340d83bcd';
+const SERVER_VERSION = '941771b7df';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2082,6 +2082,7 @@ function codeLogin_(code) {
 function doGet(e) {
   resetMemo_();
   const p = (e && e.parameter) || {};
+  if (p.dl) return docDownloadPage_(String(p.dl));
   let key = '';
   let error = '';
   if (p.code) {
@@ -2574,6 +2575,7 @@ const API_ACTIONS = {
   deleteDoc: { run: deleteDocAction_ },
   doc: { raw: true, run: docAction_ },
   docThumbs: { raw: true, run: docThumbsAction_ },
+  docLink: { raw: true, run: docLinkAction_ },
   setDeadline: { run: setDeadlineAction_ },
   markDown: { run: markDownAction_ },
   applyNotice: { admin: true, run: applyNoticeAction_ },
@@ -3724,6 +3726,31 @@ function docAction_(ctx, p) {
   if (!row) throw new Error('資料が見つかりません。');
   const blob = DriveApp.getFileById(row['ファイルID']).getBlob();
   return { name: row['名前'], data: 'data:' + (blob.getContentType() || 'application/octet-stream') + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+}
+
+/**
+ * LINEのブラウザはファイルを保存できないので、ふつうのブラウザで開く保存用のページのリンクを作る（10分だけ・1回だけ使える）
+ */
+function docLinkAction_(ctx, p) {
+  const row = readRows_(SHEETS.DOCS).find((x) => x.id && x.id === p.id && x['ファイルID']);
+  if (!row) throw new Error('資料が見つかりません。');
+  const token = randomKey_();
+  CacheService.getScriptCache().put('dl:' + token, row.id, 600);
+  return { url: ScriptApp.getService().getUrl() + '?dl=' + token };
+}
+
+/** 保存用のページ（ふつうのブラウザで開く）。リンクは1回だけ使える */
+function docDownloadPage_(token) {
+  const cache = CacheService.getScriptCache(), id = /^[A-Za-z0-9]+$/.test(token) ? cache.get('dl:' + token) : null;
+  const page = (body) => HtmlService.createHtmlOutput('<!DOCTYPE html><meta name="viewport" content="width=device-width, initial-scale=1"><div style="font-family:sans-serif;padding:24px;max-width:560px;margin:auto;line-height:1.7">' + body + '</div>').setTitle(CONFIG.CLUB_NAME + ' 資料');
+  if (!id) return page('<h3>リンクの期限が切れました</h3><p>ポータルに戻って、もう一度「PDF」を押してください（リンクは10分・1回だけ使えます）。</p>');
+  cache.remove('dl:' + token);
+  const row = readRows_(SHEETS.DOCS).find((x) => x.id === id && x['ファイルID']);
+  if (!row) return page('<h3>資料が見つかりません</h3>');
+  const blob = DriveApp.getFileById(row['ファイルID']).getBlob();
+  const type = blob.getContentType() || 'application/pdf', name = String(row['名前'] || '資料').replace(/[\\/:*?"<>|]/g, '_') + (/pdf/.test(type) ? '.pdf' : '');
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  return page('<h3>' + esc(row['名前'] || '資料') + '</h3><p><a id="dl" download="' + esc(name) + '" href="data:' + type + ';base64,' + Utilities.base64Encode(blob.getBytes()) + '" style="display:inline-block;background:#c4512f;color:#fff;padding:14px 22px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:18px">⬇ PDFを保存する</a></p><p style="color:#5f7079;font-size:14px">保存したら、ファイルアプリや「ダウンロード」から開けます。このページは閉じてかまいません。</p>');
 }
 
 /** 資料の小さい画像（PDFは1ページ目）。ドライブの縮小画像を使い、6時間覚えておく。1回に12件まで */

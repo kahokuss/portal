@@ -887,6 +887,23 @@ test('参考動画：だれでも足せる（YouTubeは題名を自動で）・�
   assert.strictEqual(st.videos.length, 1, '役員は消せる');
 });
 
+test('資料の保存：LINEのブラウザ向けに、ふつうのブラウザで開く保存用ページ（10分・1回だけ）', () => {
+  const gas = setupClub();
+  gas.line(dm('U1'), '登録 山田たろう 3年');
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  const pdf = 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 test').toString('base64');
+  const st = gas.ctx.api(kA, 'addDoc', { key: race.key, kind: '要項', name: '大会要項', data: pdf });
+  const doc = st.docs.find((d) => d.name === '大会要項');
+  const r = gas.ctx.api(gas.login('U2').key, 'docLink', { id: doc.id });
+  const token = r.url.match(/\?dl=([A-Za-z0-9]+)/)[1];
+  const html = gas.ctx.doGet({ parameter: { dl: token } }).getContent();
+  assert.ok(html.includes('download="大会要項.pdf"') && html.includes('data:application/pdf;base64,'), '保存のボタン');
+  assert.ok(gas.ctx.doGet({ parameter: { dl: token } }).getContent().includes('期限が切れました'), '1回だけ');
+  assert.ok(gas.ctx.doGet({ parameter: { dl: 'zzz' } }).getContent().includes('期限が切れました'));
+});
+
 test('スプレッドシート: 書きかえてよい列は緑、裏方の列はかくし、「使い方」を前に', () => {
   const gas = createGas();
   gas.init();

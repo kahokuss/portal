@@ -210,9 +210,10 @@ form.f, .f { display: grid; gap: 8px; }
 .upl { display: inline-block; }
 .viewer { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 20; display: grid; place-items: center; padding: 12px; }
 .viewer img { max-width: 100%; max-height: calc(100vh - 80px); border-radius: 8px; }
-.viewer.pdfv { display: block; padding: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.viewer.pdfv { display: block; padding: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
 .viewer.pdfv .vcap { position: static; padding: 8px 0 16px; }
-.viewer.pdfv .vbar { position: sticky; top: 0; z-index: 1; display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: rgba(0,0,0,.75); }
+.viewer.pdfv .vbar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; padding: 8px 10px; background: rgba(0,0,0,.75); }
+.viewer.pdfv .vbar b { flex-basis: 100%; } @media (min-width: 700px) { .viewer.pdfv .vbar b { flex-basis: auto; } }
 .viewer.pdfv .pages { display: grid; gap: 10px; padding: 10px; justify-items: center; }
 .viewer.pdfv .pages img { max-height: none; width: var(--vw, 100%); max-width: none; background: #fff; border-radius: 4px; }
 .viewer.pdfv .pages { overflow-x: auto; justify-items: start; } .viewer.pdfv .pages img { margin: 0 auto; }
@@ -3091,7 +3092,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rpc('doc', { id: x.id }, function (r) {
         done();
         if (x.type === 'image') return showDocImage(r.name || x.name || '資料', r.data);
-        showPdf(r.name || x.name || '資料', r.data);
+        showPdf(r.name || x.name || '資料', r.data, x.id);
       }, function (err) { done(); S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
     });
   }
@@ -3110,9 +3111,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   /** 資料を大きく見る画面（PDF・写真）。＋／−で大きさを変えられる（PCでは横幅いっぱいに近く） */
   var DOC_W = 0, DOC_F = 1; // DOC_F：ふだんの大きさに対する倍率（開くたびに画面の幅から計算しなおす）
   function docZoom(box, step) {
-    var full = Math.max(320, window.innerWidth - 24), base = window.innerWidth >= 900 ? Math.min(1400, full) : full;
+    var vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+    var full = Math.max(280, vw - 24), base = vw >= 900 ? Math.min(1400, full) : full;
     if (step === 0) DOC_F = full / base; else if (step) DOC_F = Math.max(0.4, Math.min(3, DOC_F * (step > 0 ? 1.25 : 0.8)));
-    DOC_W = Math.max(320, Math.round(base * DOC_F));
+    DOC_W = Math.max(280, Math.round(base * DOC_F));
     box.style.setProperty('--vw', DOC_W + 'px');
   }
   function zoomBar(box) {
@@ -3130,7 +3132,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     box.querySelector('#vClose').addEventListener('click', function () { box.remove(); });
     zoomBar(box);
   }
-  function showPdf(name, dataUrl) {
+  /** LINEのアプリの中のブラウザか（ファイルの保存ができない） */
+  function inLineApp() { return /\bLine\//i.test(navigator.userAgent || ''); }
+  function showPdf(name, dataUrl, docId) {
     var box = document.createElement('div');
     box.className = 'viewer pdfv';
     box.innerHTML = '<div class="vbar"><b style="color:#fff;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(name) + '</b>' + ZOOM_BTNS + '<a class="btn small ghost" id="pdfDl" download="' + esc(name) + '.pdf">PDF</a><button class="btn small ghost" type="button" id="vClose">閉じる</button></div>' +
@@ -3139,7 +3143,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     box.querySelector('#vClose').addEventListener('click', function () { box.remove(); });
     zoomBar(box);
     var dl = box.querySelector('#pdfDl'); dl.href = dataUrl;
+    // LINEのブラウザは保存できないので、ふつうのブラウザで保存用のページを開く
+    if (inLineApp() && docId) dl.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      dl.textContent = '準備中…';
+      rpc('docLink', { id: docId }, function (r) { dl.textContent = 'PDF'; window.location.href = r.url + '&openExternalBrowser=1'; }, function (err) { dl.textContent = 'PDF'; alert('保存のページを開けませんでした：' + ((err && err.message) || err)); });
+    });
     var pages = box.querySelector('.pages');
+    pages.scrollLeft = 0;
     var bin = atob(dataUrl.split(',')[1]), arr = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
     loadPdfJs(function () {
@@ -3147,7 +3158,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         pages.innerHTML = '';
         var n = 1, width = Math.min(2400, Math.max(320, Math.max(DOC_W, pages.clientWidth || window.innerWidth)) * Math.min(2, window.devicePixelRatio || 1));
         (function next() {
-          if (n > pdf.numPages) { pages.insertAdjacentHTML('beforeend', '<div class="vcap">全' + pdf.numPages + 'ページ。画像を長押しすると保存できます</div>'); return; }
+          if (n > pdf.numPages) { pages.insertAdjacentHTML('beforeend', '<div class="vcap">全' + pdf.numPages + 'ページ。' + (inLineApp() ? '右上の「PDF」で、ふつうのブラウザが開いて保存できます' : '右上の「PDF」で保存できます') + '</div>'); return; }
           pdf.getPage(n).then(function (page) {
             var vp1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: width / vp1.width });
             var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;

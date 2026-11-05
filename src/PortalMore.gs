@@ -161,7 +161,11 @@ function saveTimetableAction_(ctx, p) {
     '招集': cleanTimeRange_(r.call),
     'アップ': cleanTimeRange_(r.warm),
     'メモ': String(r.memo || '').trim().slice(0, 100),
-  })).filter((r) => r['種目']);
+  })).filter((r) => r['種目']).filter((r, i, all) => {
+    // 同じ種目（時刻・種目・区分・組がおなじ）が2つあれば1つにする
+    const k = (x) => [x['開始'], x['種目'], String(x['区分']).replace(/\s/g, ''), x['組']].join('|');
+    return all.findIndex((x) => k(x) === k(r)) === i;
+  });
   withLock_(() => {
     const rows = readRows_(SHEETS.TIMETABLE).filter((x) => x.eventKey === p.key);
     const keep = {};

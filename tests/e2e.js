@@ -59,6 +59,9 @@ async function ttVal(pg, i, k) {
 /** はじめから閉じているカードを開く */
 async function openFold(pg, title) { const h = pg.locator('.card.folded > h2', { hasText: title }); if (await h.count()) await h.first().click(); }
 
+/** 開いている種目の「招集・アップ・組・メモ」を開く */
+async function openMore(pg) { const m = await pg.$('.ttcard.open .ttmore:not([open]) summary'); if (m) await m.click(); }
+
 async function ttRow(pg, i, keys) { const out = []; for (const k of keys) out.push(await ttVal(pg, i, k)); return out; }
 
 async function openPortal(browser, gas, userId, name) {
@@ -322,6 +325,7 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('[data-ttc="3|grade|5"]');
       await p.click('[data-ttc="3|grade|6"]');
       await p.click('[data-ttc="3|sex|女子"]');
+      await openMore(p);
       await p.click('[data-ttc="3|heat|タイムレース"]');
       assert.deepStrictEqual(await ttRow(p, 3, ['start', 'race', 'group', 'heat']), ['14:20', '走幅跳', '5・6年女子', 'タイムレース']);
       // 「次の種目へ」：学年・男女・ラウンドを引きつぎ、時刻はボタン（ひとつ前+10分、招集は開始の30分前）
@@ -329,9 +333,21 @@ async function openPortal(browser, gas, userId, name) {
       assert.strictEqual(await ttVal(p, 4, 'group'), '5・6年女子');
       await p.click('[data-ttc="4|start|+10"]');
       assert.strictEqual(await ttVal(p, 4, 'start'), '14:30');
+      await openMore(p);
       await p.click('[data-ttc="4|call|-30"]');
       assert.strictEqual(await ttVal(p, 4, 'call'), '14:00');
       await p.click('[data-ttc="4|race|走高跳"]');
+      // 1行で足す：「1025 リレー 4年以下」→ 10:25・リレー・1〜4年
+      const nq = (await p.$$('.ttcard')).length;
+      await p.fill('#ttQuick', '1025 ｸﾛｶﾝﾘﾚｰ 4年生以下の部 招集1000');
+      await p.press('#ttQuick', 'Enter');
+      assert.deepStrictEqual(await ttRow(p, nq, ['start', 'race', 'group', 'call']), ['10:25', 'クロカンリレー', '1~4年', '10:00']);
+      await p.fill('#ttQuick', '10:25 クロカンリレー 1~4年 招集10:00');
+      await p.press('#ttQuick', 'Enter');
+      assert.ok((await p.textContent('#view')).includes('もう入っています'), '同じ種目は2重に足さない');
+      assert.strictEqual((await p.$$('.ttcard')).length, nq + 1);
+      await p.click('[data-tto="' + nq + '"]');
+      await p.click('[data-ttdel="' + nq + '"]');
       await p.shot('5-tt-edit');
       // 時刻のない種目があると保存しないで知らせる
       await p.click('#ttAdd');
@@ -492,6 +508,7 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('[data-et="タイムテーブル"]');
       await p.click('#ttEdit');
       await p.click('[data-tto="0"]');
+      await openMore(p);
       await p.fill('[data-tt="0|heat"]', '予選 2組');
       await p.fill('#ttIn', '14:00 5・6年男子 100m 決勝 招集13:40');
       await p.click('#ttPaste button[type=submit]');
@@ -1106,10 +1123,17 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('.dcell:has-text("PDFプログラム") [data-docread]');
       await a.waitForSelector('.ttcard', { timeout: 20000 });
       const tt = await a.textContent('#view');
-      assert.ok(tt.includes('PDFから 2行を読み取りました'), tt.slice(0, 300));
+      assert.ok(tt.includes('PDFから 2行を読み取り'), tt.slice(0, 300));
       const n0 = (await a.$$('.ttcard')).length;
       assert.deepStrictEqual(await ttRow(a, n0 - 2, ['start', 'race', 'call']), ['9:40', '60m', '9:10〜9:20']);
       assert.deepStrictEqual(await ttRow(a, n0 - 1, ['start', 'race']), ['15:20', '1500m']);
+      // 保存してから、同じPDFをもう一度読み込んでも2重にならない
+      await a.click('#ttSave');
+      await a.idle();
+      await a.click('[data-et="概要"]');
+      await a.click('.dcell:has-text("PDFプログラム") [data-docread]');
+      await a.waitForSelector('.ttcard', { timeout: 20000 });
+      assert.ok((await a.textContent('#view')).includes('ぜんぶもう時刻表に入っています'), '2重に足さない');
       await a.click('#ttBack');
       await a.click('[data-et="概要"]');
       await a.click('.dcell:has-text("テスト要項") [data-doc]');

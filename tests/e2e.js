@@ -1127,6 +1127,12 @@ async function openPortal(browser, gas, userId, name) {
       const n0 = (await a.$$('.ttcard')).length;
       assert.deepStrictEqual(await ttRow(a, n0 - 2, ['start', 'race', 'call']), ['9:40', '60m', '9:10〜9:20']);
       assert.deepStrictEqual(await ttRow(a, n0 - 1, ['start', 'race']), ['15:20', '1500m']);
+      // 保存しないでほかのタブへ → 時刻表に「保存していない入力があります」→ 続ける
+      await a.click('[data-et="概要"]');
+      await a.click('[data-et="タイムテーブル"]');
+      assert.ok((await a.textContent('#view')).includes('保存していない時刻表の入力があります'), '入力はとっておく');
+      await a.click('#ttResume');
+      assert.ok(await a.$('.ttsave #ttSave'), '下に「保存する」のバー');
       // 保存してから、同じPDFをもう一度読み込んでも2重にならない
       await a.click('#ttSave');
       await a.idle();

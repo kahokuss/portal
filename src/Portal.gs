@@ -373,6 +373,12 @@ function wantsAbsenceNotice_(f) {
 
 // ---- 操作 ----
 
+/** 役員か、この大会の当番の家族 */
+function isManager_(ctx, key) {
+  if (ctx.admin) return true;
+  return !!key && readRows_(SHEETS.DUTIES).some((d) => d.eventKey === key && d['家族ID'] === ctx.famId);
+}
+
 function requireMyChild_(ctx, name) {
   const mine = childrenOf_(ctx.userId).some((c) => c.name === name);
   if (!mine && !ctx.admin) throw new Error(name + 'さんは、あなたのお子さんとして登録されていません。');
@@ -392,18 +398,29 @@ function inTarget_(target, grade) {
   return !m || !grade || grade >= Number(m[1]);
 }
 
+/**
+ * エントリー。保護者は「参加・不参加」だけ。出る種目は役員（とこの大会の当番）が登録する。
+ * 保護者が送った種目は使わず、役員が入れた種目をそのまま残す（種目が1つだけの大会は自動でそれ）
+ */
 function saveEntryAction_(ctx, p) {
-  requireMyChild_(ctx, p.child);
+  const mgr = isManager_(ctx, p.key);
+  if (!mgr) requireMyChild_(ctx, p.child);
   const ev = findEvent_(p.key);
   if (!ev) throw new Error('大会が見つかりません。');
   const race = readRows_(SHEETS.RACES).find((r) => r.eventKey === p.key);
   const detail = race ? raceToObj_(race) : { races: [], deadline: '' };
-  if (!ctx.admin && detail.deadline && today_() > detail.deadline) throw new Error('エントリーの締切（' + formatDate_(detail.deadline) + '）を過ぎています。役員に連絡してください。');
+  if (!mgr && detail.deadline && today_() > detail.deadline) throw new Error('エントリーの締切（' + formatDate_(detail.deadline) + '）を過ぎています。役員に連絡してください。');
   if (p.join !== '参加' && p.join !== '不参加') throw new Error('参加か不参加を選んでください。');
-  const races = p.join === '参加' ? (p.races || []).filter((r) => !detail.races.length || detail.races.indexOf(r) >= 0) : [];
+  const okRace = (r) => !detail.races.length || detail.races.indexOf(r) >= 0;
+  let races = [];
   withLock_(() => {
     const rows = readRows_(SHEETS.ENTRIES);
     const row = rows.find((x) => x.eventKey === p.key && x['子ども'] === p.child);
+    if (p.join === '参加') {
+      if (mgr && p.races) races = p.races.filter(okRace);
+      else races = row ? splitNames_(row['種目']).filter(okRace) : [];
+      if (!races.length && detail.races.length === 1) races = detail.races.slice();
+    }
     const data = { eventKey: p.key, '子ども': p.child, '回答': p.join, '種目': races.join(','), '更新者': ctx.name, '更新日時': now_() };
     if (row) updateRow_(SHEETS.ENTRIES, Object.assign(row, data));
     else appendRow_(SHEETS.ENTRIES, Object.assign(data, { '集金': '' }));

@@ -109,9 +109,13 @@ test('ポータル: 予定の取り込み・エントリー・締切・集金', 
   assert.ok(h && h.text.includes('集合時刻 7:50→7:30') && h.text.includes('持ち物 +スパイク') && h.by === '鈴木', JSON.stringify(h));
 
   assert.throws(() => gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '山田たろう', join: '参加', races: [] }), /登録されていません/);
+  // 保護者は参加・不参加だけ。種目は役員が登録する
   st = gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m', '砲丸投げ'] });
-  assert.deepStrictEqual(plain(st.entries[0].races), ['100m'], '大会にない種目は入れない');
-  st = gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m', '走り幅跳び'] });
+  assert.deepStrictEqual(plain(st.entries[0].races), [], '保護者が送った種目は使わない');
+  st = gas.ctx.api(kAdmin, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m', '砲丸投げ'] });
+  assert.deepStrictEqual(plain(st.entries[0].races), ['100m'], '役員はよその子の種目も登録できる。大会にない種目は入れない');
+  st = gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['走り幅跳び'] });
+  assert.deepStrictEqual(plain(st.entries[0].races), ['100m'], '保護者が参加を押し直しても、役員の種目はそのまま');
   assert.strictEqual(gas.rows('エントリー').length, 1, '同じ子は上書き');
 
   st = gas.ctx.api(kAdmin, 'setPaid', { key: race.key, child: '鈴木けんた', paid: true });
@@ -684,6 +688,11 @@ test('Bot：カレンダー・予定のカードから押すだけで、休み�
   const sched = gas.line(dm('U2'), '予定');
   assert.ok(sched.includes('秋季記録会') && sched.includes('鈴木けんた：未回答') && sched.includes('集合 8:00'), sched);
   const join = gas.lastButtons().find((b) => /a=ent/.test(b.data || '') && /j=%E5%8F%82%E5%8A%A0/.test(b.data));
+  const r1 = gas.postback(dm('U2'), join.data);
+  assert.ok(r1.includes('出る種目：まだ（役員が登録します）') && !r1.includes('出る種目を押して'), r1);
+  assert.ok(gas.postback(dm('U2'), 'a=race&k=' + race.key + '&c=' + encodeURIComponent('鈴木けんた') + '&r=100m').includes('役員が登録します'), '保護者は種目を選べない');
+  // 役員なら、参加を押したあと種目を押して選べる
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U2') r[3] = '○'; });
   assert.ok(gas.postback(dm('U2'), join.data).includes('出る種目を押してください'));
   gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '＋100m').data);
   assert.ok(gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '＋走幅跳').data).includes('いま：100m・走幅跳'));
@@ -692,6 +701,7 @@ test('Bot：カレンダー・予定のカードから押すだけで、休み�
   assert.strictEqual(ent['種目'], '100m,走幅跳');
   gas.postback(dm('U2'), gas.lastButtons().find((b) => b.label === '✓100m').data);
   assert.strictEqual(gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた')['種目'], '走幅跳', 'もう一度押すと外れる');
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U2') r[3] = ''; });
   assert.throws(() => { throw new Error(gas.postback(dm('U2'), 'a=ent&k=' + race.key + '&c=' + encodeURIComponent('山田たろう') + '&j=' + encodeURIComponent('参加'))); }, /登録されていません/, 'よその子は押せない');
 
   // アンケート

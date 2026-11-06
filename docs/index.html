@@ -743,9 +743,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "b3b5bb1519";
+var BUILD = "16e2c51ef3";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "ee55315a9e";
+var EXPECT_SERVER = "891152b34d";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -1505,9 +1505,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           var x = entryOf(e.key, k.name) || { join: '', races: [] }, dis = locked ? ' disabled' : '';
           return '<div class="kid" data-kid="' + esc(k.name) + '"><div class="between"><b>' + esc(k.name) + (k.grade ? '（' + k.grade + '年）' : '') + '</b>' + (x.join === '参加' && det.fee ? '<span class="pill ' + (x.paid ? 'p-ok' : 'p-warn') + '">参加費 ' + yen(det.fee) + (x.paid ? ' 支払い済み' : ' 未払い') + '</span>' : '') + '</div>' +
             '<span class="yn">' + ['参加', '不参加'].map(function (j) { return '<button type="button" class="' + (j === '参加' ? 'y' : 'n') + '" data-join="' + j + '" aria-pressed="' + (x.join === j) + '"' + dis + '><span class="mk" aria-hidden="true">' + (j === '参加' ? '✓' : '✕') + '</span>' + j + '</button>'; }).join('') + '</span>' +
-            (x.join === '参加' && det.races.length > 1 ? '<div class="sub">出る種目</div><div class="choice">' + det.races.map(function (r) { return '<button type="button" data-race="' + esc(r) + '" aria-pressed="' + (x.races.indexOf(r) >= 0) + '"' + dis + '>' + esc(r) + '</button>'; }).join('') + '</div>' : '') + '</div>';
-        }).join('') + '</section>';
+            (x.join === '参加' && det.races.length > 1 ? '<div class="sub">出る種目：' + (x.races.length ? '<b>' + x.races.map(esc).join('・') + '</b>' : 'まだ（役員が登録します）') + '</div>' : '') + '</div>';
+        }).join('') + (det.races.length > 1 ? '<div class="hint">保護者は「参加・不参加」だけ答えてください。出る種目は役員が登録します。</div>' : '') + '</section>';
     }
+    if (canManage(e.key) && det.races.length > 1) h += entryRegCard(e, det);
     var all = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });
     var joined = all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
     var paid = joined.filter(function (k) { return entryOf(e.key, k.name).paid; });
@@ -1520,7 +1521,34 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       }).join('') + '</tbody></table></div>' + (ST.me.admin && det.fee ? '<div class="hint">「未／済」を押すと集金状況を切り替えられます（役員だけ）。</div>' : '') + '</section>';
     return h;
   }
+  /** 役員・当番：子どもごとに出る種目を登録する（押すたびに付け外し。押すと「参加」になる） */
+  function entryRegCard(e, det) {
+    var kids = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });
+    var done = kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && x.races.length; }).length;
+    var h = '<section class="card" id="entryReg"><h2>種目を登録する<small>役員　' + done + '/' + kids.length + '人</small></h2><div class="sub">種目を押すと、その子は「参加」になって種目が入ります。もう一度押すと外れます。</div><div class="list">';
+    var lastG = -1;
+    kids.forEach(function (k) {
+      var x = entryOf(e.key, k.name) || { join: '', races: [] };
+      if (k.grade !== lastG) { lastG = k.grade; h += '<div class="lbl">' + (k.grade ? k.grade + '年' : '学年なし') + '</div>'; }
+      h += '<div class="kid"><div class="between"><b>' + esc(k.name) + (k.sex ? ' <span class="sub">' + (k.sex === '男' ? '男子' : '女子') + '</span>' : '') + '</b>' +
+        (x.join ? '<span class="pill ' + (x.join === '参加' ? 'p-ok' : 'p-gray') + '">' + x.join + '</span>' : '<span class="pill p-warn">未回答</span>') + '</div>' +
+        '<div class="choice sm">' + det.races.map(function (r) { return '<button type="button" data-ereg="' + esc(k.name + '|' + r) + '" aria-pressed="' + (x.join === '参加' && x.races.indexOf(r) >= 0) + '">' + esc(r) + '</button>'; }).join('') +
+        '<button type="button" data-enot="' + esc(k.name) + '" aria-pressed="' + (x.join === '不参加') + '">不参加</button></div></div>';
+    });
+    return h + '</div></section>';
+  }
   function bindEntry(e) {
+    on('[data-ereg]', function () {
+      var p = this.dataset.ereg.split('|'), child = p[0], r = p.slice(1).join('|'), x = entryOf(e.key, child);
+      var races = x && x.join === '参加' ? x.races.slice() : [], i = races.indexOf(r);
+      if (i >= 0) races.splice(i, 1); else races.push(r);
+      quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); });
+    });
+    on('[data-enot]', function () {
+      var child = this.dataset.enot, x = entryOf(e.key, child);
+      var j = x && x.join === '不参加' ? '参加' : '不参加';
+      quick('saveEntry', { key: e.key, child: child, join: j, races: [] }, function (st) { qEntry(st, e.key, child, j, []); });
+    });
     var det = e.detail || { races: [] };
     view.querySelectorAll('[data-kid]').forEach(function (box) {
       var child = box.dataset.kid, x = entryOf(e.key, child) || { join: '', races: [] };
@@ -1529,13 +1557,6 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           var races = this.dataset.join === '参加' ? (x.races.length ? x.races : det.races.length === 1 ? det.races.slice() : []) : [];
           var j0 = this.dataset.join;
           quick('saveEntry', { key: e.key, child: child, join: j0, races: races }, function (st) { qEntry(st, e.key, child, j0, races); });
-        });
-      });
-      box.querySelectorAll('[data-race]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          var races = x.races.slice(), r = this.dataset.race, i = races.indexOf(r);
-          if (i >= 0) races.splice(i, 1); else races.push(r);
-          quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); });
         });
       });
     });
@@ -5527,14 +5548,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     home: ['やること', '次の練習', '次の大会', '今日の大会', '明日の大会', 'はじめにやること', 'あと少しで', 'お知らせ', '変更の連絡'],
     train: ['今日やること', '今週のふりかえり', '先週のふりかえり', '📣 監督からのミッション', '今日のトレーニング', '記録を直す', '目標を直す', 'ミッションをまとめて', '自主トレ'],
     family: ['お子さん'],
-    events: ['大会の状況', '大会当番', '練習当番', '資料', '今日の大会', '明日の大会', '変更の連絡', '出欠', 'わが家のエントリー', '結果を入れる', 'この大会の結果', '手続きの流れ', '大会の案内を直す', '大会の内容']
+    events: ['大会の状況', '大会当番', '練習当番', '資料', '今日の大会', '明日の大会', '変更の連絡', '出欠', 'わが家のエントリー', '種目を登録する', '結果を入れる', 'この大会の結果', '手続きの流れ', '大会の案内を直す', '大会の内容']
   };
   var FOLD_FREE_ETABS = ['タイムテーブル', '写真']; // 時刻表・写真はどれも見たいので閉じない
   var STAFF_TITLES = ['予定を直す', '運用チェック', '運用に必要な情報', '大会の案内を直す'];
   function isStaffCard(h2, title) {
     if (S.tab === 'events' && S.event && (S.etab === '手続き' || S.etab === '種目')) return true;
     var sm = h2.querySelector('small');
-    return (sm && sm.textContent.trim() === '役員') || STAFF_TITLES.some(function (t) { return title.indexOf(t) === 0; });
+    return (sm && /^役員(\s|　|$)/.test(sm.textContent.trim())) || STAFF_TITLES.some(function (t) { return title.indexOf(t) === 0; });
   }
   function foldByDefault(h2, title) {
     if (FOLD_DEFAULT.concat(ST.me.admin ? [] : FOLD_DEFAULT_MEMBER).some(function (t) { return title.indexOf(t) === 0; })) return true;

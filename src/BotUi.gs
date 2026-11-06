@@ -249,8 +249,11 @@ function doEntry_(ev, key, child, join) {
   saveEntryAction_(ctx, { key: key, child: child, join: join, races: join === '参加' ? (keep.length ? keep : det.races.length === 1 ? det.races.slice() : []) : [] });
   const ev2 = findEvent_(key);
   const title = ev2 ? ev2['タイトル'] : '大会';
-  if (join === '参加' && det.races.length > 1) return askRaces_(ev, key, child, '✅ ' + child + '：' + title + 'に参加で回答しました。');
-  respond_(ev, botMessages_(['✅ ' + child + '：' + title + 'に' + join + 'で回答しました。' + (join === '参加' && det.fee ? '\n参加費 ' + det.fee + '円は役員へ。' : '')], ['新着', 'エントリー', 'カレンダー']));
+  if (join === '参加' && det.races.length > 1 && isManager_(ctx, key)) return askRaces_(ev, key, child, '✅ ' + child + '：' + title + 'に参加で回答しました。');
+  const now = readRows_(SHEETS.ENTRIES).find((x) => x.eventKey === key && x['子ども'] === child);
+  const rs = now ? splitNames_(now['種目']) : [];
+  const raceLine = join === '参加' && det.races.length > 1 ? '\n出る種目：' + (rs.length ? rs.join('・') : 'まだ（役員が登録します）') : '';
+  respond_(ev, botMessages_(['✅ ' + child + '：' + title + 'に' + join + 'で回答しました。' + raceLine + (join === '参加' && det.fee ? '\n参加費 ' + det.fee + '円は役員へ。' : '')], ['新着', 'エントリー', 'カレンダー']));
 }
 
 /** 出る種目をボタンで選ぶ（押すたびに付け外し） */
@@ -265,6 +268,7 @@ function askRaces_(ev, key, child, head) {
 
 function doRaceToggle_(ev, key, child, r) {
   const ctx = botCtx_(ev);
+  if (!isManager_(ctx, key)) return respond_(ev, botMessages_(['出る種目は役員が登録します。変えたいときは役員に連絡してください。']));
   const x = readRows_(SHEETS.ENTRIES).find((y) => y.eventKey === key && y['子ども'] === child);
   const chosen = x && x['回答'] === '参加' ? splitNames_(x['種目']) : [];
   const next = chosen.indexOf(r) >= 0 ? chosen.filter((q) => q !== r) : chosen.concat([r]);
@@ -434,7 +438,7 @@ const BOT_MENU = [
     ['カレンダー', '月の表。日にちを押すとその日の予定'], ['予定', 'これからの予定（カードから休み・参加も）'], ['今日', '今日の予定。大会の日は時刻・招集'],
   ] },
   { id: 'send', icon: '🙋', t: '連絡・回答する', d: '休み・大会の参加・アンケート', items: [
-    ['休み', '休みの連絡（日付と理由を押すだけ）'], ['エントリー', '大会に出るか・種目'], ['アンケート', 'ボタンで回答'],
+    ['休み', '休みの連絡（日付と理由を押すだけ）'], ['エントリー', '大会に出るか（種目は役員が登録）'], ['アンケート', 'ボタンで回答'],
   ] },
   { id: 'home', icon: '🏠', t: 'わが家のこと', d: '当番・集金・記録・自主トレ・ふりかえり', items: [
     ['当番', 'わが家の当番と、これからの当番'], ['集金', '払っていない集金・参加費'], ['記録', 'お子さんの記録'], ['自主トレ', '自主トレを記録する'], ['ふりかえり', '今週のやること・できた／できなかった'],

@@ -191,18 +191,29 @@ async function openPortal(browser, gas, userId, name) {
       await p.shot('1-fix-race');
       await p.click('[data-nav="home"]');
     });
-    await step('保護者: エントリーする（参加・種目）', async () => {
+    await step('保護者は参加だけ答え、出る種目は役員が登録する', async () => {
       await p.click('[data-entry]');
       await p.click('[data-kid="鈴木けんた"] [data-join="参加"]');
       await p.idle();
-      await p.click('[data-kid="鈴木けんた"] [data-race="100m"]');
-      await p.idle();
-      await p.click('[data-kid="鈴木けんた"] [data-race="走幅跳"]');
-      await p.idle();
+      let text = await p.textContent('#view');
+      assert.ok(text.includes('出る種目：まだ（役員が登録します）') && !(await p.$('[data-ereg]')), '保護者は種目を選ばない');
+      const q = await openPortal(browser, gas, keys.admin, 'entryreg');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="エントリー"]');
+      await q.click('[data-ereg="鈴木けんた|100m"]');
+      await q.idle();
+      await q.click('[data-ereg="鈴木けんた|走幅跳"]');
+      await q.idle();
+      if (SHOTS) await q.locator('#entryReg').screenshot({ path: path.join(shotDir, 'admin-entry-reg.png') });
+      a.errors.push(...q.errors);
+      await q.close();
       const e = gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた');
       assert.strictEqual(e['回答'], '参加');
       assert.strictEqual(e['種目'], '100m,走幅跳');
-      const text = await p.textContent('#view');
+      await p.click('[data-nav="home"]');
+      await p.click('[data-entry]');
+      text = await p.textContent('#view');
       assert.ok(text.includes('参加費 ¥500 未払い'));
       await p.shot('1-entry');
     });

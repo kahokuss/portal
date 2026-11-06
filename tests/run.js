@@ -1540,6 +1540,17 @@ test('アプリ連携の要望：「使いたい」を数える（人数は役�
   assert.deepStrictEqual(plain(gas.ctx.api(kA, 'bootstrap').appRequests.counts), { 'Garmin Connect': 2 });
 });
 
+test('種目の見分け：リレーの種類・距離・ハードルを分ける／保護者の部には子どもは出ない', () => {
+  const gas = setupClub();
+  const S = (a, b) => gas.ctx.sameRaceGs_(a, b);
+  assert.ok(!S('4×100mR', 'クロカンリレー'), '4×100mRとクロカンリレーは別');
+  assert.ok(S('リレー', 'クロカンリレー') && S('リレー', '4×100mR'), 'ただの「リレー」はどのリレーにも合う');
+  assert.ok(S('4×100mR', '4x100mリレー') && S('クロカンリレー', 'クロカン リレー'));
+  assert.ok(!S('クロカン', 'クロカンリレー'), 'クロカンとクロカンリレーは別');
+  assert.ok(!S('60m', '60mH') && !S('100m', '1000m') && S('100m', '3年100m') && S('走り幅跳び', '走幅跳'));
+  assert.ok(!gas.ctx.groupMatchGs_('保護者', { grade: 4, sex: '男' }) && gas.ctx.groupMatchGs_('男子', { grade: 4, sex: '男' }));
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

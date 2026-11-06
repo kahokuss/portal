@@ -396,7 +396,7 @@ function padTime_(t) {
 
 function canonRaceGs_(r) {
   r = toHalfWidth_(r || '').toLowerCase().replace(/\s/g, '').replace(/[×x]/g, 'x').replace(/\(.*?\)/g, '');
-  if (/リレー|\dx\d+m/.test(r)) return 'リレー';
+  if (/リレー|\dx\d+m/.test(r)) return 'リレー' + ((r.match(/\dx\d+m/) || [''])[0]) + (/クロカン/.test(r) ? 'クロカン' : '');
   return r.replace('走り幅跳び', '走幅跳').replace('走り高跳び', '走高跳').replace(/幅跳び?$/, '幅跳').replace(/高跳び?$/, '高跳')
     .replace(/ジャベ(?:リック)?ボール(?:投げ?|スロー)|ボール(?:投げ?|スロー)|ジャベリックスロー|ジャベ$/, 'ボール投').replace(/ハードル/, 'h').replace(/^小学|^[1-6・.]+年|男子|女子|混合/g, '');
 }
@@ -404,11 +404,18 @@ function canonRaceGs_(r) {
 function sameRaceGs_(a, b) {
   a = canonRaceGs_(a);
   b = canonRaceGs_(b);
-  return !!a && !!b && (a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // リレーとリレーでないもの・距離のちがうもの・ハードルとそうでないものは別（ポータルの sameCanon と同じ）
+  const rel = (x) => x.indexOf('リレー') === 0, num = (x) => (x.match(/\d+/g) || []).join('x'), hur = (x) => /\dmh|^h|h$/.test(x);
+  if (rel(a) !== rel(b) || hur(a) !== hur(b)) return false;
+  if (num(a) && num(b) && num(a) !== num(b)) return false;
+  return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
 }
 
 function groupMatchGs_(g, k) {
   g = toHalfWidth_(g || '').replace(/[〜～]/g, '~');
+  if (/保護者|大人|一般|父|母|中学|高校|OB|OG|シニア|マスターズ/.test(g)) return false; // 保護者・一般などの部には子どもは出ない
   const sex = /男女|混合/.test(g) ? '' : /男/.test(g) ? '男' : /女/.test(g) ? '女' : '';
   if (sex && k.sex && sex !== k.sex) return false;
   let grades = [];

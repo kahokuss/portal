@@ -743,7 +743,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "bfb46e941d";
+var BUILD = "b3b5bb1519";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "ee55315a9e";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2252,13 +2252,21 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var st = e.start === '終日' ? '' : e.start.replace(/^0/, ''), en = (e.end || '').replace(/^0/, '');
     return '<section class="card"><h2>予定を直す<small>役員</small></h2><form class="f" id="evEdit"><label>タイトル<input id="ee-title" value="' + esc(e.title) + '"></label>' +
       '<div class="two"><label>日付<input type="date" id="ee-date" value="' + e.date + '"></label><label>場所<input id="ee-place" value="' + esc(e.place || '') + '"></label></div>' +
+      placeQuick(e) +
       '<div class="two"><label>始まり<input id="ee-start" inputmode="numeric" placeholder="1700 → 17:00" value="' + esc(st) + '"></label><label>終わり<input id="ee-end" inputmode="numeric" value="' + esc(en) + '"></label></div>' +
       '<div class="quick">' + ST.choices.practiceTimes.map(function (t) { return '<button type="button" data-pt="' + t[0] + '|' + t[1] + '">' + t[0] + '〜' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="row"><button class="btn" type="submit">直す</button><button class="btn ghost" id="evCancel" type="button">中止にする</button></div>' +
       '<div class="hint">Googleカレンダーも直ります。中止にするとカレンダーから消え、ポータルには「中止」と残ります。LINEグループへの連絡は「お知らせ」からどうぞ。</div></form></section>';
   }
+  /** 場所の候補（同じ種類の予定でよく使う場所 → ほかの場所）。押すと場所に入る */
+  function placeQuick(e) {
+    var list = places(dutyType(e)).concat(places()).filter(function (x, i, a) { return a.indexOf(x) === i; }).slice(0, 8);
+    if (!list.length) return '';
+    return '<div class="lbl">場所の候補</div><div class="quick">' + list.map(function (x) { return '<button type="button" data-eeplace="' + esc(x) + '" aria-pressed="' + (x === e.place) + '">' + esc(x) + '</button>'; }).join('') + '</div>';
+  }
   function bindEventEdit(e) {
     var f = document.getElementById('evEdit'); if (!f) return;
+    on('[data-eeplace]', function () { var b = this; document.getElementById('ee-place').value = b.dataset.eeplace; f.querySelectorAll('[data-eeplace]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); });
     on('[data-pt]', function () { var t = this.dataset.pt.split('|'); document.getElementById('ee-start').value = t[0]; document.getElementById('ee-end').value = t[1]; });
     f.addEventListener('submit', function (x) {
       x.preventDefault();

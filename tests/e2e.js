@@ -1520,6 +1520,17 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(ov.find((x) => x[0].startsWith('大会の状況') && !x[1] && !x[2]), 'みんなのカードはふつうの色');
       await q.close();
     });
+    await step('役員: 予定を直すの場所は、前に使った場所の候補から選べる', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'eeplace');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("練習") >> nth=0');
+      await q.click('[data-eeplace] >> nth=0');
+      const v = await q.inputValue('#ee-place');
+      const b = await q.getAttribute('[data-eeplace] >> nth=0', 'data-eeplace');
+      assert.ok(v && v === b, '候補を押すと場所に入る ' + v);
+      if (SHOTS) await q.locator('#evEdit').screenshot({ path: path.join(shotDir, 'admin-eeplace.png') });
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

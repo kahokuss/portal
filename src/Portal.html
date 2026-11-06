@@ -13,6 +13,7 @@
   --g1: #2a78d6; --g2: #eb6834; --g3: #1baf7a; --g4: #eda100; --g5: #e87ba4; --g6: #008300;
   /* 目標の色（濃い藍に金。ほかの画面と区別する） */
   --goal-a: #26457f; --goal-b: #172c55; --goal-gold: #ffc94d; --goal-ink: #ffffff; --goal-soft: #e6ecf7;
+  --staff: #6a4fb0; --staff-soft: #f1ecfa;
   --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
   --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
 }
@@ -23,6 +24,7 @@
     --warn: #e5a54a; --warn-soft: #3a2a12; --viz-line: #4f8fd1; --viz-pb: #e07050; color-scheme: dark;
     --g1: #3987e5; --g2: #d95926; --g3: #199e70; --g4: #c98500; --g5: #d55181; --g6: #008300;
     --goal-a: #24395f; --goal-b: #141f38; --goal-gold: #ffd36b; --goal-ink: #f4f7ff; --goal-soft: #1b2640;
+    --staff: #b69cf0; --staff-soft: #241d36;
   }
 }
 * { box-sizing: border-box; }
@@ -88,8 +90,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 /* 大会のページのタブ：折り返して全部見えるように、4つずつのマス目に */
 .tabs.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tabs.grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.tabs.staff { align-items: center; background: var(--surface-2); border: 1px dashed var(--line); border-radius: 12px; padding: 6px 8px; gap: 6px; }
-.tabs.staff .stl { font-size: 12px; font-weight: 700; color: var(--muted); margin-right: 2px; }
+.tabs.staff { align-items: center; background: var(--staff-soft); border: 1px dashed var(--staff); border-radius: 12px; padding: 6px 8px; gap: 6px; }
+.tabs.staff .stl { font-size: 12px; font-weight: 700; color: var(--staff); margin-right: 2px; }
 .tabs.staff button { font-size: 12.5px; padding: 6px 12px; }
 .tabs.grid button { padding: 9px 2px; border-radius: 10px; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip; letter-spacing: -.02em; min-width: 0; }
 @media (max-width: 380px) { .tabs.grid button { font-size: 11.5px; } }
@@ -245,6 +247,10 @@ form.f, .f { display: grid; gap: 8px; }
 .fold-ic { flex: none; color: var(--muted); font-size: 18px; line-height: 1; transition: transform .15s; }
 .card.folded > h2 .fold-ic { transform: rotate(-90deg); }
 .card.folded > :not(h2) { display: none !important; }
+/* 役員・当番だけが使うカード */
+.card.staffcard { background: var(--staff-soft); box-shadow: inset 4px 0 0 var(--staff); }
+.card.staffcard > h2::before { content: "🛠"; font-size: .8em; margin-right: 4px; }
+.card.staffcard input, .card.staffcard select, .card.staffcard textarea { background: var(--surface); }
 .rsvp-kid { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
 .rsvp-kid .nm { min-width: 0; display: grid; }
 .rsvp-kid .nm b { font-size: 15px; }
@@ -5501,14 +5507,41 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     applyFolds();
   }
   // ---- 折りたたみ：カードの見出しを押すと閉じる・開く（このスマホに覚える） ----
-  var FOLD_STORE = 'clubPortalFold';
+  var FOLD_STORE = 'clubPortalFold2'; // 2: 「見てほしいもの以外は閉じる」にしたので、前に覚えた開け閉めは使わない
   // はじめから閉じておくカード（見出しの文字）
   var FOLD_DEFAULT = ['予定を直す', '履歴', '最近のヒヤリハット', 'PCでも使う', 'だれに見せる', 'アプリ連携', 'Strava', '1週間のスケジュール', 'おわった目標'];
   var FOLD_DEFAULT_MEMBER = ['練習当番', '大会当番']; // 当番を入れかえる役員には開いておく
+  // ホーム・目標・わが家・大会のページでは、ここにあるもの（と、まだ済んでいない手続き・出る子のいる種目）だけ開いておく
+  var FOLD_OPEN = {
+    home: ['やること', '次の練習', '次の大会', '今日の大会', '明日の大会', 'はじめにやること', 'あと少しで', 'お知らせ', '変更の連絡'],
+    train: ['今日やること', '今週のふりかえり', '先週のふりかえり', '📣 監督からのミッション', '今日のトレーニング', '記録を直す', '目標を直す', 'ミッションをまとめて', '自主トレ'],
+    family: ['お子さん'],
+    events: ['大会の状況', '大会当番', '練習当番', '資料', '今日の大会', '明日の大会', '変更の連絡', '出欠', 'わが家のエントリー', '結果を入れる', 'この大会の結果', '手続きの流れ', '大会の案内を直す', '大会の内容']
+  };
+  var FOLD_FREE_ETABS = ['タイムテーブル', '写真']; // 時刻表・写真はどれも見たいので閉じない
+  var STAFF_TITLES = ['予定を直す', '運用チェック', '運用に必要な情報', '大会の案内を直す'];
+  function isStaffCard(h2, title) {
+    if (S.tab === 'events' && S.event && (S.etab === '手続き' || S.etab === '種目')) return true;
+    var sm = h2.querySelector('small');
+    return (sm && sm.textContent.trim() === '役員') || STAFF_TITLES.some(function (t) { return title.indexOf(t) === 0; });
+  }
+  function foldByDefault(h2, title) {
+    if (FOLD_DEFAULT.concat(ST.me.admin ? [] : FOLD_DEFAULT_MEMBER).some(function (t) { return title.indexOf(t) === 0; })) return true;
+    var open = FOLD_OPEN[S.tab];
+    if (!open) return false;
+    if (title.indexOf('運用チェック') === 0) { var oc = h2.querySelector('small'); return !(oc && oc.textContent.indexOf('急ぎ') >= 0); } // 急ぎがあるときだけ開く
+    if (S.tab === 'events') {
+      if (!S.event || FOLD_FREE_ETABS.indexOf(S.etab) >= 0) return false;
+      if (S.etab === '手続き' && title.indexOf('手続きの流れ') !== 0) return !!h2.querySelector('.p-ok'); // 済んだ手続きは閉じる
+      if (S.etab === '種目') { var sm = h2.querySelector('small'); return !!sm && /^0人/.test(sm.textContent); } // 出る子のいない種目は閉じる
+    }
+    return !open.some(function (t) { return title.indexOf(t) === 0; });
+  }
+  var FOLD_SESSION = {};
   function foldState() { try { return JSON.parse(localStorage.getItem(FOLD_STORE) || '{}'); } catch (e) { return {}; } }
   function foldKey(h2) {
     var c = h2.cloneNode(true);
-    c.querySelectorAll('small, button, a, .fold-ic').forEach(function (x) { x.remove(); });
+    c.querySelectorAll('small, button, a, .fold-ic, .pill').forEach(function (x) { x.remove(); });
     return S.tab + ':' + c.textContent.replace(/[0-9０-９]+(件|人|日)/g, '').trim().slice(0, 30);
   }
   function applyFolds() {
@@ -5516,7 +5549,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.querySelectorAll('.card > h2:first-child').forEach(function (h2) {
       var card = h2.parentNode, key = foldKey(h2), title = key.split(':').slice(1).join(':');
       if (!title || card.querySelector('form') && card.querySelector('form').contains(document.activeElement)) return;
-      var folded = key in st ? st[key] : FOLD_DEFAULT.concat(ST.me.admin ? [] : FOLD_DEFAULT_MEMBER).some(function (t) { return title.indexOf(t) === 0; });
+      // はじめて出たときに決めた開け閉めは、この画面を開いているあいだ変えない（手続きを済ませたとたんに閉じたりしない）
+      var sk = (S.event || '') + '|' + key;
+      if (!(sk in FOLD_SESSION)) FOLD_SESSION[sk] = foldByDefault(h2, title);
+      var folded = key in st ? st[key] : FOLD_SESSION[sk];
+      card.classList.toggle('staffcard', isStaffCard(h2, title));
       card.classList.add('foldable');
       card.classList.toggle('folded', folded);
       h2.setAttribute('role', 'button');

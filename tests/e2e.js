@@ -93,6 +93,19 @@ async function openPortal(browser, gas, userId, name) {
   await page.goto('https://portal.test/');
   if (userId) await page.waitForSelector('#nav:not([hidden])');
   page.errors = errors;
+  // 閉じているカードの中を押すときは、人と同じように先に見出しを押して開く
+  for (const m of ['click', 'fill', 'selectOption', 'check', 'setInputFiles']) {
+    const orig = page[m].bind(page);
+    page[m] = async (sel, ...rest) => {
+      if (typeof sel === 'string') {
+        try {
+          await page.waitForSelector(sel, { state: 'attached', timeout: 5000 });
+          await page.$$eval(sel, (els) => { const c = els[0] && els[0].closest('.card.folded'); if (c) c.querySelector(':scope > h2').click(); });
+        } catch (e) { /* 見つからないときは元の動きにまかせる */ }
+      }
+      return orig(sel, ...rest);
+    };
+  }
   page.shot = async (n) => { if (SHOTS) await page.screenshot({ path: path.join(shotDir, name + '-' + n + '.png'), fullPage: true }); };
   page.idle = () => page.waitForSelector('#busy[hidden]', { state: 'attached' });
   return page;
@@ -374,7 +387,7 @@ async function openPortal(browser, gas, userId, name) {
       await p.click('[data-et="手続き"]');
       const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
       await p.setInputFiles('[data-upl="プログラム|"]', { name: 'program.png', mimeType: 'image/png', buffer: png });
-      await p.waitForSelector('.thumb img[src^="data:image"]');
+      await p.waitForSelector('.card:not(.folded) .thumb img[src^="data:image"]');
       const prog = gas.rows('手続き').find((t) => t['種類'] === 'プログラム');
       assert.strictEqual(prog['状態'], '済');
       assert.ok((await p.textContent('#view')).includes('招集1/2'.replace('1/2', '')));
@@ -1228,7 +1241,7 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-nav="home"]');
       const h = a.locator('.card > h2:has-text("次の大会")');
       await h.click();
-      assert.ok(await a.$eval('.card.folded > h2', (x) => x.textContent.includes('次の大会')));
+      assert.ok(await a.$('.card.folded > h2:has-text("次の大会")'));
       assert.ok(!(await a.isVisible('.card.folded .ev')), '中身が隠れる');
       await a.click('[data-nav="events"]');
       await a.click('[data-nav="home"]');
@@ -1488,6 +1501,23 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(open.includes(race), race + ' の行が開く: ' + open);
       assert.ok(await q.$('.ttcard.open [data-ttg], .ttcard.open [data-ttsx], .ttcard.open button'), '学年・男女のボタンがある');
       if (SHOTS) await q.locator('.ttcard.open').screenshot({ path: path.join(shotDir, 'admin-ttopen.png') });
+      await q.close();
+    });
+    await step('見てほしいカードだけ開いている／役員・当番のカードは色が違う', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'folds');
+      const st = async () => q.$$eval('.card > h2:first-child', (els) => els.map((h) => [h.textContent.replace(/⌄/g, '').trim().slice(0, 8), h.parentNode.classList.contains('folded'), h.parentNode.classList.contains('staffcard')]));
+      const home = await st();
+      assert.ok(home.find((x) => x[0].startsWith('やること') && !x[1]), 'やることは開く ' + JSON.stringify(home));
+      assert.ok(home.find((x) => x[0].startsWith('最近のヒヤリ') && x[1]), 'ほかは閉じる');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="種目"]');
+      const races = await st();
+      assert.ok(races.every((x) => x[2]), '種目タブは役員・当番の色 ' + JSON.stringify(races));
+      assert.ok(races.find((x) => x[0].startsWith('100m') && !x[1]) && races.find((x) => x[0].startsWith('走高跳') && x[1]), '出る子のいない種目は閉じる');
+      await q.click('[data-et="概要"]');
+      const ov = await st();
+      assert.ok(ov.find((x) => x[0].startsWith('大会の状況') && !x[1] && !x[2]), 'みんなのカードはふつうの色');
       await q.close();
     });
     await step('画面のエラーなし', async () => {

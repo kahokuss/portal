@@ -620,6 +620,8 @@ tr.sel td { background: var(--sky-soft); }
 .dread { width: 100%; margin-top: 4px; font-size: 12px; }
 .pdftext { white-space: pre-wrap; font-size: 11.5px; max-height: 220px; overflow: auto; background: var(--surface-2); padding: 6px; border-radius: 8px; }
 .sflow { display: grid; gap: 0; }
+.fstep, #raceRelay, .card { scroll-margin-top: 84px; }
+.sgo { cursor: pointer; color: var(--sky); text-decoration: underline; text-underline-offset: 3px; }
 .srow { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; position: relative; padding-bottom: 10px; }
 .srow::before { content: ''; position: absolute; left: 12px; top: 26px; bottom: 0; width: 2px; background: var(--line); }
 .srow:last-child::before { display: none; } .srow.done::before { background: var(--field); }
@@ -1493,6 +1495,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '結果') bindResults(e);
     if (S.etab === '種目') { bindRoster(e); bindRelay(e); bindDeadlines(e); bindTimetable(e); bindPhotos(e); }
     on('#back', function () { ttStash(e); S.event = null; S.toast = ''; S.relay = null; render(); });
+    on('[data-sgo]', function () {
+      var p = this.dataset.sgo.split('|');
+      S.etab = p[0]; S.toast = ''; render();
+      var el = p[1] === 'relay' ? document.getElementById('raceRelay') : p[1] ? view.querySelector('[data-flabel="' + p[1] + '"]') : null;
+      if (el) { if (!el.id) el.id = 'fgo' + Date.now(); flashTo(el.id); } else window.scrollTo(0, 0);
+    });
     on('[data-et]', function () {
       var bar = view.querySelector('.etabs'), stuck = bar && bar.getBoundingClientRect().top <= 1 && window.scrollY > 0;
       ttStash(e); S.etab = this.dataset.et; S.toast = ''; S.relay = null; render();
@@ -2886,7 +2894,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function raceCard(e, race) {
     var relay = isRelay(race), rows = ttRows(e).filter(function (r) { return sameRace(r.race, race); });
     var kids = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && x.races.some(function (q) { return sameRace(q, race); }); }).sort(byGrade);
-    var h = '<section class="card"><h2>' + esc(race) + '<small>' + kids.length + '人' + (higherBetter(race) ? '・フィールド' : '') + '</small></h2>';
+    var h = '<section class="card"' + (relay ? ' id="raceRelay"' : '') + '><h2>' + esc(race) + '<small>' + kids.length + '人' + (higherBetter(race) ? '・フィールド' : '') + '</small></h2>';
     if (rows.length) h += '<div class="list">' + rows.map(function (r) { return ttItem(e, r, relay ? [] : rowKids(e, r)); }).join('') + '</div>';
     else h += '<div class="sub">時刻はまだです（タイムテーブルに入れると、予選・決勝の時刻と招集がここに出ます）。</div>' + (kids.length && !relay ? '<div class="sub">出る子：' + kids.map(function (k) { return esc(k.name); }).join('、') + '</div>' : '') +
       (canManage(e.key) ? '<button class="btn small ghost" type="button" data-ttnew="' + esc(e.key + '|' + race) + '">＋ 時刻表に入れる（時刻・学年・男女）</button>' : '');
@@ -3112,7 +3120,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       return (i ? '<span class="farr" aria-hidden="true">→</span>' : '') + '<button type="button" class="fchip ' + (x.done ? 'done' : i === now ? 'now' : '') + '" data-fgo="fstep' + i + '"><b>' + (x.done ? '✓' : i + 1) + '</b>' + esc(x.label) + '</button>';
     }).join('') + '</div>' + (man ? '' : '<div class="hint">手続きは役員と、この大会の当番の人が進めます。</div>') + '</section>';
     h += '<div class="flow">' + steps.map(function (x, i) {
-      return '<div class="fstep ' + (x.done ? 'done' : i === now ? 'now' : '') + '" id="fstep' + i + '"><div class="fnum">' + (x.done ? '✓' : i + 1) + '</div><div class="fbody">' + (i === now ? '<div class="fnow">▶ いまここ</div>' : '') + x.html + '</div></div>';
+      return '<div class="fstep ' + (x.done ? 'done' : i === now ? 'now' : '') + '" id="fstep' + i + '" data-flabel="' + esc(x.label) + '"><div class="fnum">' + (x.done ? '✓' : i + 1) + '</div><div class="fbody">' + (i === now ? '<div class="fnow">▶ いまここ</div>' : '') + x.html + '</div></div>';
     }).join('') + '</div>';
     return h;
   }
@@ -3328,18 +3336,22 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var rows = [];
     rows.push({ t: '大会の案内', done: !!e.detail, sub: e.detail ? (det.target ? '対象 ' + esc(det.target) : '') : 'まだ（「案内を直す」から入れられます）' });
     if (det.deadline) rows.push({ t: 'クラブ内の回答', done: ST.today > det.deadline, sub: md(det.deadline) + 'まで' + (ST.today <= det.deadline ? '（' + untilText(det.deadline) + '）' : '（締め切りました）'), go: 'エントリー' });
-    rows.push({ t: '主催への申込' + (det.applyHow ? '（' + esc(det.applyHow) + '）' : ''), done: applied, sub: det.applyBy ? '期限 ' + md(det.applyBy) : '', dl: 'エントリー控え' });
-    if (det.fee || det.payBy) rows.push({ t: '参加費の支払い', done: ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || tdone('参加費支払い'), sub: det.payBy ? '期限 ' + md(det.payBy) : '', dl: '参加費支払い' });
+    rows.push({ t: '主催への申込' + (det.applyHow ? '（' + esc(det.applyHow) + '）' : ''), done: applied, sub: det.applyBy ? '期限 ' + md(det.applyBy) : '', dl: 'エントリー控え', go: '手続き|エントリー' });
+    if (det.fee || det.payBy) rows.push({ t: '参加費の支払い', done: ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || tdone('参加費支払い'), sub: det.payBy ? '期限 ' + md(det.payBy) : '', dl: '参加費支払い', go: '手続き|大会に払う' });
     if (relayTeams(e).length || (det.deadlines || {})['リレー予選'] || (det.deadlines || {})['リレー決勝']) relayRounds(e).forEach(function (k) {
-      rows.push({ t: (legWord(e) === '区' ? 'オーダー' : k.replace('リレー', 'リレー ')) + 'の提出', done: relayTeams(e).length > 0 && relayTeams(e).every(function (tm) { return (taskOf(e.key, k, tm) || {}).done; }), dl: k });
+      rows.push({ t: (legWord(e) === '区' ? 'オーダー' : k.replace('リレー', 'リレー ')) + 'の提出', done: relayTeams(e).length > 0 && relayTeams(e).every(function (tm) { return (taskOf(e.key, k, tm) || {}).done; }), dl: k, go: '種目|relay' });
     });
-    rows.push({ t: '当日の受付', done: tdone('受付'), sub: det.reception ? esc(det.reception) : '', dl: '受付' });
+    rows.push({ t: '当日の受付', done: tdone('受付'), sub: det.reception ? esc(det.reception) : '', dl: '受付', go: '手続き|当日の受付' });
+    // オーダーの締切がまだなくても、リレーがある大会は「オーダーの提出」を出す
+    if (!rows.some(function (r) { return /の提出$/.test(r.t); }) && eventRaces(e).some(isRelay)) rows.splice(rows.length - 1, 0, { t: (legWord(e) === '区' ? 'オーダー' : 'リレーのオーダー') + 'の提出', done: false, sub: 'まだ（チームとメンバーを入れてください）', go: '種目|relay' });
     rows.push({ t: '大会', done: e.date < ST.today, sub: md(e.date) + (e.date >= ST.today ? '（' + (e.date === ST.today ? '今日' : 'あと' + diff(ST.today, e.date) + '日') + '）' : '') });
     var now = rows.findIndex(function (r) { return !r.done; });
     var h = '<section class="card" id="secStatus"><h2>大会の状況<span class="pill ' + (st === '中止' ? 'p-gray' : applied ? 'p-ok' : 'p-warn') + '">' + st + '</span></h2>' +
       '<div class="sflow">' + rows.map(function (r, k) {
         var cls = r.done ? 'done' : k === now ? 'now' : '';
-        return '<div class="srow ' + cls + '"><span class="snum">' + (r.done ? '✓' : k + 1) + '</span><span class="smain"><span class="shd"><b>' + r.t + '</b>' + (r.done ? '<span class="pill p-ok">済</span>' : k === now ? '<span class="pill p-race">いまここ</span>' : '') + '</span>' +
+        // 役員・当番は、押すと入れる場所へ（クラブ内の回答はみんな）
+        var goA = r.go && (canManage(e.key) || r.go === 'エントリー') ? ' data-sgo="' + r.go + '"' : '';
+        return '<div class="srow ' + cls + '"><span class="snum">' + (r.done ? '✓' : k + 1) + '</span><span class="smain"><span class="shd"><b' + (goA ? ' class="sgo" role="button" tabindex="0"' + goA : '') + '>' + r.t + (goA ? ' ›' : '') + '</b>' + (r.done ? '<span class="pill p-ok">済</span>' : k === now ? '<span class="pill p-race">いまここ</span>' : '') + '</span>' +
           (r.sub ? '<span class="sub">' + r.sub + '</span>' : '') + (r.dl ? dlChip(e, r.dl, r.done) : '') + '</span></div>';
       }).join('') + '</div>' + (det.organizer ? '<div class="sub">主催：' + esc(det.organizer) + '</div>' : '');
     if (!det.applyBy && !det.organizer && ST.me.admin) h += '<div class="hint">「案内を直す」で、主催者の申込期限・支払期限・受付・要項のリンクも入れられます。</div>';

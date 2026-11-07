@@ -1535,6 +1535,13 @@ async function openPortal(browser, gas, userId, name) {
       if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-etabs-sticky.png') });
       await q.evaluate(() => window.scrollTo(0, 0));
       const ov = await st();
+      // 大会の状況の「参加費の支払い」「オーダーの提出」を押すと、入れる場所へ
+      await q.click('[data-sgo="手続き|大会に払う"]');
+      assert.ok(await q.isVisible('[data-flabel="大会に払う"] #payForm'), '参加費を大会に払う（領収書の記録）へ');
+      await q.click('[data-et="概要"]');
+      await q.click('[data-sgo="種目|relay"]');
+      assert.ok(await q.isVisible('#raceRelay'), 'リレーのオーダーへ');
+      await q.click('[data-et="概要"]');
       assert.ok(ov.find((x) => x[0].startsWith('大会の状況') && !x[1] && !x[2]), 'みんなのカードはふつうの色');
       await q.close();
     });

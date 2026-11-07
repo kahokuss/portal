@@ -1549,6 +1549,27 @@ async function openPortal(browser, gas, userId, name) {
       if (SHOTS) await q.locator('#evEdit').screenshot({ path: path.join(shotDir, 'admin-eeplace.png') });
       await q.close();
     });
+    await step('役員: 名簿・オーダーを貼り付けると、エントリー・リレーのオーダー・ナンバーがまとめて入る', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'roster');
+      q.on('dialog', (d) => d.accept());
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="種目"]');
+      await q.fill('#rosterText', 'リレー 男子の部（黒）: 鈴木 けんた(6), だれか いない(5)\n800mタイムトライアル: 佐藤 さくら(4) 11');
+      await q.click('#rosterRead');
+      const t = await q.textContent('#rosterPaste');
+      assert.ok(t.includes('名簿にいない名前：だれかいない') || t.includes('名簿にいない名前：だれか いない'), t);
+      if (SHOTS) await q.locator('#rosterPaste').screenshot({ path: path.join(shotDir, 'admin-roster-paste.png') });
+      await q.click('#rosterGo');
+      await q.waitForFunction(() => /名簿の内容を登録しました|一部うまく/.test(document.body.textContent), null, { timeout: 15000 });
+      const ent = gas.rows('エントリー').find((r) => r['子ども'] === '佐藤さくら');
+      assert.ok(ent && ent['回答'] === '参加' && /800m/.test(ent['種目']), JSON.stringify(ent));
+      assert.ok(/800m/.test(gas.rows('大会').find((r) => r['集合場所'] === '正面スタンド下')['種目']), '大会の種目に足す');
+      assert.ok(gas.rows('手続き').some((x) => x['種類'] === 'ナンバー' && x['対象'] === '佐藤さくら' && x['メモ'] === '11'), 'ナンバー');
+      const relay = gas.rows('手続き').find((x) => /リレー/.test(x['種類']) && /男子の部/.test(x['対象']));
+      assert.ok(relay && relay['メモ'].startsWith('1走 鈴木けんた／2走 だれか いない'), JSON.stringify(relay));
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

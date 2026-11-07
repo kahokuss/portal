@@ -1527,6 +1527,13 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(races.every((x) => x[2]), '種目タブは役員・当番の色 ' + JSON.stringify(races));
       assert.ok(races.find((x) => x[0].startsWith('100m') && !x[1]) && races.find((x) => x[0].startsWith('走高跳') && x[1]), '出る子のいない種目は閉じる');
       await q.click('[data-et="概要"]');
+      // 大会のページの見出し（概要・エントリー…）はスクロールしても上に出ている
+      await q.evaluate(() => window.scrollTo(0, 900));
+      await q.waitForTimeout(200);
+      const top = await q.$eval('.etabs', (el) => el.getBoundingClientRect().top);
+      assert.ok(top >= -1 && top < 10, '見出しが上に残る ' + top);
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-etabs-sticky.png') });
+      await q.evaluate(() => window.scrollTo(0, 0));
       const ov = await st();
       assert.ok(ov.find((x) => x[0].startsWith('大会の状況') && !x[1] && !x[2]), 'みんなのカードはふつうの色');
       await q.close();

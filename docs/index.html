@@ -93,9 +93,15 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 /* 大会のページのタブ：折り返して全部見えるように、4つずつのマス目に */
 .tabs.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tabs.grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.tabs.staff { align-items: center; background: var(--staff-soft); border: 1px dashed var(--staff); border-radius: 12px; padding: 6px 8px; gap: 6px; }
+.etabs { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface); border-radius: 14px; padding: 4px; gap: 2px; box-shadow: 0 2px 10px rgba(0,0,0,.10); border: 1.5px solid var(--line); }
+.etabs button { border: 0; background: none; font: inherit; color: var(--fg); font-weight: 700; font-size: 12.5px; letter-spacing: -.03em; padding: 6px 0 7px; border-radius: 10px; display: grid; justify-items: center; gap: 1px; cursor: pointer; min-width: 0; white-space: nowrap; overflow: hidden; }
+.etabs .ei { font-size: 20px; line-height: 1.1; }
+.etabs button[aria-pressed="true"] { background: var(--track); color: #fff; box-shadow: 0 2px 6px rgba(196,81,47,.35); }
+.etabs button:not([aria-pressed="true"]):hover { background: var(--surface-2); }
+.tabs.staff { align-items: center; flex-wrap: nowrap; overflow-x: auto; background: var(--staff-soft); border: 1px dashed var(--staff); border-radius: 12px; padding: 5px 8px; gap: 6px; }
+.tabs.staff button[aria-pressed="true"] { background: var(--staff); border-color: var(--staff); }
 .tabs.staff .stl { font-size: 12px; font-weight: 700; color: var(--staff); margin-right: 2px; }
-.tabs.staff button { font-size: 12.5px; padding: 6px 12px; }
+.tabs.staff button { font-size: 12px; padding: 5px 10px; flex: none; }
 .tabs.grid button { padding: 9px 2px; border-radius: 10px; font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: clip; letter-spacing: -.02em; min-width: 0; }
 @media (max-width: 380px) { .tabs.grid button { font-size: 11.5px; } }
 @media (min-width: 900px) { .tabs.grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
@@ -743,7 +749,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "212c35b9cf";
+var BUILD = "42d8ea2258";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "80007b907b";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1459,7 +1465,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     // みんなが見るタブと、役員・当番が使うタブを分ける
     var tabs = ['概要', 'エントリー', 'タイムテーブル', '結果', '写真'], staff = canManage(e.key) ? ['手続き', '種目'] : [];
     if (!staff.length && (S.etab === '手続き' || S.etab === '種目')) S.etab = '概要';
-    h += '<div class="tabs grid five" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + (t === 'タイムテーブル' ? '時刻表' : t) + '</button>'; }).join('') + '</div>' +
+    // 大会のページの中の見出し（中項目）。スクロールしても上に出ている
+    var ETAB_IC = { '概要': '📋', 'エントリー': '✋', 'タイムテーブル': '⏱', '結果': '🏅', '写真': '📷' };
+    h += '<nav class="etabs" role="group" aria-label="大会の情報">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '"><span class="ei" aria-hidden="true">' + ETAB_IC[t] + '</span>' + (t === 'タイムテーブル' ? '時刻表' : t === 'エントリー' ? 'エントリー' : t) + '</button>'; }).join('') + '</nav>' +
       (staff.length ? '<div class="tabs staff" role="group" aria-label="役員・当番"><span class="stl">🛠 役員・当番</span>' + staff.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + (t === '手続き' ? '手続きの流れ' : '種目・リレー') + '</button>'; }).join('') + '</div>' : '') + toastHtml();
     if (S.etab === '概要') {
       if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
@@ -1488,7 +1496,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '結果') bindResults(e);
     if (S.etab === '種目') { bindRelay(e); bindDeadlines(e); bindTimetable(e); bindPhotos(e); }
     on('#back', function () { ttStash(e); S.event = null; S.toast = ''; S.relay = null; render(); });
-    on('[data-et]', function () { ttStash(e); S.etab = this.dataset.et; S.toast = ''; S.relay = null; render(); });
+    on('[data-et]', function () {
+      var bar = view.querySelector('.etabs'), stuck = bar && bar.getBoundingClientRect().top <= 1 && window.scrollY > 0;
+      ttStash(e); S.etab = this.dataset.et; S.toast = ''; S.relay = null; render();
+      // 下まで見ていたときは、切りかえた先の先頭から見せる
+      if (stuck) { var b2 = view.querySelector('.etabs'); if (b2) { b2.style.position = 'static'; var y = b2.getBoundingClientRect().top + window.scrollY; b2.style.position = ''; window.scrollTo(0, Math.max(0, y - 4)); } }
+    });
     on('#editRace', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
     bindEntry(e);

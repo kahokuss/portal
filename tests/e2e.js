@@ -1577,6 +1577,26 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(relay && relay['メモ'].startsWith('1走 鈴木けんた／2走 だれか いない'), JSON.stringify(relay));
       await q.close();
     });
+    await step('大会の日：時刻表を開くと、いまの時刻のところに線が出て、そこまで動く', async () => {
+      const { gas: g2 } = setupClub();
+      g2.calendar.add({ title: '今日の記録会', start: new Date('2026-10-14T00:00:00+09:00'), end: new Date('2026-10-15T00:00:00+09:00'), allDay: true, location: '市営陸上競技場' });
+      const k = g2.login('U1').key;
+      const ev = g2.ctx.api(k, 'bootstrap').events.find((x) => x.title === '今日の記録会');
+      g2.ctx.api(k, 'saveTimetable', { key: ev.key, rows: ['8:30', '8:40', '8:50', '9:00', '9:10', '9:20', '9:30', '9:40', '9:50', '10:00', '10:10', '10:20', '10:30', '10:50', '11:00', '11:30', '12:00', '13:00', '14:00', '15:00', '15:30', '16:00'].map((t, i) => ({ start: t, race: '100m', group: (i % 6 + 1) + '年' })) });
+      const q = await openPortal(browser, g2, 'U1', 'ttnow');
+      await q.evaluate(() => { const off = new Date('2026-10-14T10:40:00+09:00').getTime() - Date.now(); const o = Date.now.bind(Date); Date.now = () => o() + off; });
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("今日の記録会")');
+      await q.click('[data-et="タイムテーブル"]');
+      await q.waitForTimeout(300);
+      const next = await q.$eval('#ttNow', (el) => el.nextElementSibling && el.nextElementSibling.dataset.tts);
+      assert.strictEqual(next, '10:30', 'いま10:40 → はじまって15分以内の10:30の前に線');
+      const top = await q.$eval('#ttNow', (el) => el.getBoundingClientRect().top);
+      assert.ok(top > 0 && top < 300, 'そこまで動いている ' + top);
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-ttnow.png') });
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

@@ -189,6 +189,8 @@ form.f, .f { display: grid; gap: 8px; }
 .tt-time { flex: none; width: 3.4em; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .tt .main { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .tt-kids { display: grid; gap: 4px; }
+.ttnow { display: flex; align-items: center; gap: 8px; color: var(--track); font-weight: 800; font-size: 12.5px; }
+.ttnow::before, .ttnow::after { content: ''; flex: 1; height: 2px; background: var(--track); }
 .ttedit { cursor: pointer; }
 .ttedit:hover { color: var(--sky); }
 .ttpen { font-size: 12px; color: var(--sky); font-weight: 700; }
@@ -751,7 +753,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "51d7ac86e4";
+var BUILD = "dbb6947be4";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1497,7 +1499,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '写真') bindPhotos(e);
     if (S.etab === '結果') bindResults(e);
     if (S.etab === '種目') { bindRoster(e); bindRelay(e); bindDeadlines(e); bindTimetable(e); bindPhotos(e); }
-    on('#back', function () { ttStash(e); S.event = null; S.toast = ''; S.relay = null; render(); });
+    on('#back', function () { ttStash(e); S.event = null; S.toast = ''; S.relay = null; S.ttNowDone = null; render(); });
     on('[data-sgo]', function () {
       var p = this.dataset.sgo.split('|');
       S.etab = p[0]; S.toast = ''; render();
@@ -1506,7 +1508,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     on('[data-et]', function () {
       var bar = view.querySelector('.etabs'), stuck = bar && bar.getBoundingClientRect().top <= 1 && window.scrollY > 0;
-      ttStash(e); S.etab = this.dataset.et; S.toast = ''; S.relay = null; render();
+      ttStash(e); S.etab = this.dataset.et; S.toast = ''; S.relay = null; S.ttNowDone = null; render();
       // 下まで見ていたときは、切りかえた先の先頭から見せる
       if (stuck) { var b2 = view.querySelector('.etabs'); if (b2) { b2.style.position = 'static'; var y = b2.getBoundingClientRect().top + window.scrollY; b2.style.position = ''; window.scrollTo(0, Math.max(0, y - 4)); } }
     });
@@ -2447,7 +2449,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     // 役員・当番は、時刻や種目名を押すと時刻表の入力（その行が開いた状態）へ
     var ed = canManage(e.key) && r.id ? ' data-ttopen="' + esc(e.key + '|' + r.id) + '" role="button" tabindex="0" title="押すと直せます"' : '';
     var who = [r.group, r.heat].filter(Boolean).join(' ') || (ed ? '全学年・男女とも' : '');
-    var h = '<div class="tt"><div class="tt-time' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.start || '—') + '</div><div class="main"><div class="ttl' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.race) + ' <span class="sub">' + esc(who) + '</span>' + (ed ? ' <span class="ttpen" aria-hidden="true">✎</span>' : '') + '</div>' +
+    var h = '<div class="tt" data-tts="' + tkey(r.start) + '"><div class="tt-time' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.start || '—') + '</div><div class="main"><div class="ttl' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.race) + ' <span class="sub">' + esc(who) + '</span>' + (ed ? ' <span class="ttpen" aria-hidden="true">✎</span>' : '') + '</div>' +
       '<div class="sub">' + (r.call ? '<b class="callt">招集 ' + shortRange(r.call) + '</b>　' : '') + (warm ? 'アップ ' + shortRange(warm) + (r.warm ? '' : '頃') : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
     if (kids.length) h += '<div class="tt-kids">' + kids.map(function (k) {
       var lane = taskOf(e.key, 'レーン', k.name + '|' + r.id), mine = myNames().indexOf(k.name) >= 0;
@@ -2603,8 +2605,24 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }
     return h + '<div class="hint">アップの時刻は目安です（空欄のときは招集の' + ST.choices.warmMinutes + '分前）。「招集した」は、会場にいる人ならだれが押してもかまいません。</div>';
   }
+  /** 大会の日は、時刻表を開いたら今の時刻のところへ（はじまって15分以内の種目も見えるように）。開いたときの1回だけ */
+  function ttScrollNow(e) {
+    if (e.date !== ST.today || S.ttNowDone === e.key + '|' + (S.ttf || '') + (S.ttsex || '')) return;
+    S.ttNowDone = e.key + '|' + (S.ttf || '') + (S.ttsex || '');
+    var now = nowHM(), from = tsub(now, 15), items = view.querySelectorAll('.tt[data-tts]'), hit = null;
+    for (var i = 0; i < items.length; i++) { var t = items[i].dataset.tts; if (t !== '99:99' && tkey(from) <= t) { hit = items[i]; break; } }
+    var line = '<div class="ttnow" id="ttNow"><span>いま ' + now.replace(/^0/, '') + '</span></div>';
+    if (hit) hit.insertAdjacentHTML('beforebegin', line);
+    else if (items.length) { items[items.length - 1].insertAdjacentHTML('afterend', line); hit = items[items.length - 1]; }
+    else return;
+    var el = document.getElementById('ttNow');
+    // 上に出ている「概要・エントリー…」の帯の下に来るように
+    var go = function () { var bar = view.querySelector('.etabs'), off = (bar ? bar.offsetHeight : 0) + 24; window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off), behavior: 'instant' }); };
+    setTimeout(go, 0); setTimeout(go, 250);
+  }
   function bindTimetable(e) {
     bindTTOpen();
+    if (S.etab === 'タイムテーブル') ttScrollNow(e);
     on('[data-gall]', function () { S.ganttAll = !!this.dataset.gall; render(); });
     // ガント：最初の重なり（なければ最初の競技）が見えるところまで横に送る
     var gw = view.querySelector('.gantt');

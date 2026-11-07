@@ -240,7 +240,7 @@ function handleToday_(ev) {
         if (!x || x['回答'] !== '参加') return;
         const bib = tasks.find((t) => t.eventKey === e.key && t['種類'] === 'ナンバー' && t['対象'] === k.name);
         lines.push('', '👟 ' + k.name + (bib && bib['メモ'] ? '（ナンバー ' + bib['メモ'] + '）' : ''));
-        const mine = rows.filter((r) => splitNames_(x['種目']).some((q) => sameRaceGs_(r['種目'], q)) && groupMatchGs_(r['区分'], k)).sort((a, b) => (padTime_(a['開始']) < padTime_(b['開始']) ? -1 : 1));
+        const mine = rows.filter((r) => splitNames_(x['種目']).some((q) => sameRaceGs_(r['種目'], q) && qualOkGs_(q, r['区分'])) && groupMatchGs_(r['区分'], k)).sort((a, b) => (padTime_(a['開始']) < padTime_(b['開始']) ? -1 : 1));
         const adv = (r) => !needsAdvanceGs_(rows, r) || tasks.some((t) => t.eventKey === e.key && t['種類'] === '進出' && t['対象'] === k.name + '|' + r.id && t['状態'] === '済');
         if (!mine.length) lines.push('　種目：' + (x['種目'] || '—') + '（タイムテーブルはまだ）');
         mine.forEach((r) => {
@@ -416,6 +416,21 @@ function sameRaceGs_(a, b) {
   if (rel(a) !== rel(b) || hur(a) !== hur(b)) return false;
   if (num(a) && num(b) && num(a) !== num(b)) return false;
   return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
+}
+
+/** エントリーの種目に「（男子）」のように部が付いていたら、時刻表のその区分の行だけ */
+function qualOkGs_(q, group) {
+  const m = String(q || '').match(/[（(]([^）)]*)[）)]\s*$/);
+  const n = (v) => toHalfWidth_(v || '').replace(/\s/g, '');
+  if (!m || n(m[1]) === n(group)) return true;
+  // 「1・2・3・4年男女」と「1〜4年男女」は同じ部
+  const parse = (v) => {
+    v = n(v); let gs = [];
+    const g = v.match(/([1-6](?:[・,、~〜\-][1-6])*)年/);
+    if (g) { const d = g[1].match(/[1-6]/g).map(Number); if (/[~〜\-]/.test(g[1]) && d.length === 2) { for (let i = d[0]; i <= d[1]; i++) gs.push(i); } else gs = d; }
+    return gs.sort().join() + '|' + (/男女|混合/.test(v) ? '男女' : /男/.test(v) ? '男子' : /女/.test(v) ? '女子' : '');
+  };
+  return parse(m[1]) !== '|' && parse(m[1]) === parse(group);
 }
 
 function groupMatchGs_(g, k) {
@@ -1313,7 +1328,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '80007b907b';
+const SERVER_VERSION = '3626b68bc4';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2935,7 +2950,8 @@ function saveEntryAction_(ctx, p) {
   const detail = race ? raceToObj_(race) : { races: [], deadline: '' };
   if (!mgr && detail.deadline && today_() > detail.deadline) throw new Error('エントリーの締切（' + formatDate_(detail.deadline) + '）を過ぎています。役員に連絡してください。');
   if (p.join !== '参加' && p.join !== '不参加') throw new Error('参加か不参加を選んでください。');
-  const okRace = (r) => !detail.races.length || detail.races.indexOf(r) >= 0;
+  // 「クロカンリレー（男子）」のように部を付けたものは、もとの種目が大会にあればよい
+  const okRace = (r) => !detail.races.length || detail.races.indexOf(r) >= 0 || detail.races.indexOf(String(r).replace(/\s*[（(][^）)]*[）)]\s*$/, '').trim()) >= 0;
   let races = [];
   withLock_(() => {
     const rows = readRows_(SHEETS.ENTRIES);

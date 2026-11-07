@@ -1540,6 +1540,18 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return h;
   }
   /** 役員・当番：子どもごとに出る種目を登録する（押すたびに付け外し。押すと「参加」になる） */
+  /** その子が出られる種目のボタン（部に分かれた種目は、その子の学年・男女に合う部だけ。前に選んだものは残す） */
+  function regOptions(e, det, k, x) {
+    var out = [];
+    (det.races || []).forEach(function (r) {
+      if (raceQual(r) && (det.races || []).indexOf(raceBase(r)) >= 0) return; // 部つきは、もとの種目のところで出す
+      var opts = raceOptions(e, r);
+      if (opts.length > 1) { if (x.races.indexOf(r) >= 0) out.push(r); opts.forEach(function (o) { if (groupMatch(raceQual(o).replace('〜', '~'), k) || x.races.indexOf(o) >= 0) out.push(o); }); }
+      else out.push(r);
+    });
+    x.races.forEach(function (r) { if (out.indexOf(r) < 0) out.push(r); });
+    return out;
+  }
   function entryRegCard(e, det) {
     var kids = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });
     var done = kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && x.races.length; }).length;
@@ -1550,7 +1562,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       if (k.grade !== lastG) { lastG = k.grade; h += '<div class="lbl">' + (k.grade ? k.grade + '年' : '学年なし') + '</div>'; }
       h += '<div class="kid"><div class="between"><b>' + esc(k.name) + (k.sex ? ' <span class="sub">' + (k.sex === '男' ? '男子' : '女子') + '</span>' : '') + '</b>' +
         (x.join ? '<span class="pill ' + (x.join === '参加' ? 'p-ok' : 'p-gray') + '">' + x.join + '</span>' : '<span class="pill p-warn">未回答</span>') + '</div>' +
-        '<div class="choice sm">' + det.races.map(function (r) { return '<button type="button" data-ereg="' + esc(k.name + '|' + r) + '" aria-pressed="' + (x.join === '参加' && x.races.indexOf(r) >= 0) + '">' + esc(r) + '</button>'; }).join('') +
+        '<div class="choice sm">' + regOptions(e, det, k, x).map(function (r) { return '<button type="button" data-ereg="' + esc(k.name + '|' + r) + '" aria-pressed="' + (x.join === '参加' && x.races.indexOf(r) >= 0) + '">' + esc(r) + '</button>'; }).join('') +
         '<button type="button" data-enot="' + esc(k.name) + '" aria-pressed="' + (x.join === '不参加') + '">不参加</button></div></div>';
     });
     return h + '</div></section>';
@@ -1559,8 +1571,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ereg]', function () {
       var p = this.dataset.ereg.split('|'), child = p[0], r = p.slice(1).join('|'), x = entryOf(e.key, child);
       var races = x && x.join === '参加' ? x.races.slice() : [], i = races.indexOf(r);
-      if (i >= 0) races.splice(i, 1); else races.push(r);
-      quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); });
+      if (i >= 0) races.splice(i, 1);
+      else {
+        races.push(r);
+        // 部を選んだら、部のない同じ種目（ひとかたまりの登録）は外す
+        if (raceQual(r)) races = races.filter(function (q) { return q !== raceBase(r); });
+      }
+      ensureEventRaces(e, races, function () { quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); }); });
     });
     on('[data-enot]', function () {
       var child = this.dataset.enot, x = entryOf(e.key, child);
@@ -2357,7 +2374,39 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return a.indexOf(b) >= 0 || b.indexOf(a) >= 0;
   }
   function isRelay(r) { return canon(r).indexOf('リレー') === 0; }
-  function raceMatch(row, x) { return x.races.some(function (q) { return sameRace(row.race, q); }); }
+  // エントリーの種目に「（男子）」のように部が付いていたら、時刻表のその部（区分）の行だけに合わせる
+  function raceMatch(row, x) { return x.races.some(function (q) { return sameRace(row.race, q) && (!raceQual(q) || sameGroup(raceQual(q), row.group)); }); }
+  /** 同じ部か（「1・2・3・4年男女」と「1〜4年男女」は同じ） */
+  function sameGroup(a, b) {
+    if (normG(a) === normG(b)) return true;
+    var x = ttGroupParse(a), y = ttGroupParse(b);
+    return (x.grades.length || x.sex) && x.grades.slice().sort().join() === y.grades.slice().sort().join() && x.sex === y.sex;
+  }
+  /** 部の名前（保存のときに「・」や空白で切れないように、学年は「1〜4年」の形に） */
+  function qualLabel(g) {
+    var p = ttGroupParse(g), gs = p.grades.slice().sort();
+    var ok = gs.length && gs.every(function (v, i) { return !i || v === gs[i - 1] + 1; });
+    if (!gs.length && p.sex) return p.sex;
+    if (ok) return (gs.length > 1 ? gs[0] + '〜' + gs[gs.length - 1] : gs[0]) + '年' + p.sex;
+    return toHalf(g).replace(/[\s・,、]/g, '');
+  }
+  function raceBase(q) { return String(q || '').replace(/\s*[（(][^）)]*[）)]\s*$/, '').trim(); }
+  function raceQual(q) { var m = String(q || '').match(/[（(]([^）)]*)[）)]\s*$/); return m ? m[1].trim() : ''; }
+  /** 種目の選びかた。時刻表で同じ種目が部（男子・女子・学年など）に分かれていたら「種目（部）」ごとに。保護者・一般の部は除く */
+  function raceOptions(e, race) {
+    if (raceQual(race)) return [race];
+    var gs = [];
+    ttRows(e).forEach(function (r) { var g = String(r.group || '').trim(); if (sameRace(r.race, race) && !ADULT_GROUP.test(toHalf(g)) && !gs.some(function (x) { return sameGroup(x, g); })) gs.push(g); });
+    return gs.length > 1 && gs.every(Boolean) ? gs.map(function (g) { return race + '（' + qualLabel(g) + '）'; }) : [race];
+  }
+  /** エントリーの種目を、大会の種目に入っていなければ先に足す（サーバーは大会の種目にないものを入れないため） */
+  function ensureEventRaces(e, list, done) {
+    var det = e.detail || { races: [] }, add = list.filter(function (r, i, a) { return a.indexOf(r) === i && (det.races || []).indexOf(r) < 0; });
+    if (!add.length) return done();
+    var D = draftFrom(e);
+    rpc('saveRace', { key: D.key, title: D.title, type: D.type, date: D.date, place: D.place, meetTime: fmtTime(D.meetTime), meetPlace: D.meetPlace, target: D.target, fee: D.fee, deadline: D.deadline, races: D.races.concat(add), items: D.items, notes: D.notes,
+      organizer: D.organizer, applyBy: D.applyBy, applyHow: D.applyHow, payBy: D.payBy, reception: D.reception, url: D.url }, function (st) { ST = fillDefaults(st); saveState(st); done(); }, function (err) { S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
+  }
   /** この行（種目・区分）にエントリーしている子 */
   function entrants(e, row) { return ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加' && raceMatch(row, x) && groupMatch(row.group, k); }).sort(byGrade); }
   /** この行に出る子。前のラウンドがある決勝・準決勝は、「決勝へ」を押した（進んだ）子だけ */
@@ -2922,6 +2971,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       if (!m) return;
       var head = m[1].trim(), relay = /^リレー/.test(head) || isRelay(head);
       var race = relay ? relayRace : (eventRaces(e).filter(function (r) { return sameRace(r, head); })[0] || head);
+      // 時刻表で部に分かれていたら、「男子の部」「女子の部」に合う部へ
+      var sx = /男女|混合/.test(head) ? '男女' : /男/.test(head) ? '男' : /女/.test(head) ? '女' : '';
+      if (sx) { var hit = raceOptions(e, race).filter(function (o) { var q = raceQual(o); return q && (sx === '男女' ? /男女|混合/.test(q) : !/男女|混合/.test(q) && q.indexOf(sx) >= 0); }); if (hit.length === 1) race = hit[0]; }
       var people = m[2].split(/[,、，\/／]/).map(function (x) {
         x = x.replace(/[（(][1-6][)）]/g, '').trim();
         var num = (x.match(/\s(\d{1,4})$/) || x.match(/^(\d{1,4})\s/) || [])[1] || '';
@@ -2958,7 +3010,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#rosterGo', function () {
       var rows = S.rpaste.rows, steps = [], det = e.detail || { races: [] };
       // 1) 大会の種目にないものを足す（エントリーは大会の種目しか入らないため）
-      var add = rows.map(function (r) { return r.race; }).filter(function (r, i, a) { return a.indexOf(r) === i && !(det.races || []).some(function (x) { return sameRace(x, r); }); });
+      var add = rows.map(function (r) { return r.race; }).filter(function (r, i, a) { return a.indexOf(r) === i && !(det.races || []).some(function (x) { return raceQual(r) ? x === r : sameRace(x, r); }); });
       if (add.length) {
         var D = draftFrom(e);
         steps.push(['saveRace', { key: D.key, title: D.title, type: D.type, date: D.date, place: D.place, meetTime: fmtTime(D.meetTime), meetPlace: D.meetPlace, target: D.target, fee: D.fee, deadline: D.deadline, races: D.races.concat(add), items: D.items, notes: D.notes,
@@ -2969,7 +3021,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rows.forEach(function (r) { r.people.forEach(function (x) { if (x.kid) (want[x.kid.name] = want[x.kid.name] || []).push(r.race); }); });
       Object.keys(want).forEach(function (n) {
         var x = entryOf(e.key, n), races = (x && x.join === '参加' ? x.races.slice() : []);
-        want[n].forEach(function (r) { if (!races.some(function (q) { return sameRace(q, r); })) races.push(r); });
+        want[n].forEach(function (r) { if (raceQual(r)) races = races.filter(function (q) { return q !== raceBase(r); }); if (!races.some(function (q) { return raceQual(r) ? q === r : sameRace(q, r); })) races.push(r); });
         steps.push(['saveEntry', { key: e.key, child: n, join: '参加', races: races }]);
       });
       // 3) リレーのオーダー、4) ナンバー

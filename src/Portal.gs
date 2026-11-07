@@ -411,7 +411,8 @@ function saveEntryAction_(ctx, p) {
   const detail = race ? raceToObj_(race) : { races: [], deadline: '' };
   if (!mgr && detail.deadline && today_() > detail.deadline) throw new Error('エントリーの締切（' + formatDate_(detail.deadline) + '）を過ぎています。役員に連絡してください。');
   if (p.join !== '参加' && p.join !== '不参加') throw new Error('参加か不参加を選んでください。');
-  const okRace = (r) => !detail.races.length || detail.races.indexOf(r) >= 0;
+  // 「クロカンリレー（男子）」のように部を付けたものは、もとの種目が大会にあればよい
+  const okRace = (r) => !detail.races.length || detail.races.indexOf(r) >= 0 || detail.races.indexOf(String(r).replace(/\s*[（(][^）)]*[）)]\s*$/, '').trim()) >= 0;
   let races = [];
   withLock_(() => {
     const rows = readRows_(SHEETS.ENTRIES);

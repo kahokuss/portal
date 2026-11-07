@@ -114,6 +114,9 @@ test('ポータル: 予定の取り込み・エントリー・締切・集金', 
   assert.deepStrictEqual(plain(st.entries[0].races), [], '保護者が送った種目は使わない');
   st = gas.ctx.api(kAdmin, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m', '砲丸投げ'] });
   assert.deepStrictEqual(plain(st.entries[0].races), ['100m'], '役員はよその子の種目も登録できる。大会にない種目は入れない');
+  st = gas.ctx.api(kAdmin, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m（5〜6年男子）'] });
+  assert.deepStrictEqual(plain(st.entries[0].races), ['100m（5〜6年男子）'], '部つきの種目も入る（もとの種目が大会にあれば）');
+  st = gas.ctx.api(kAdmin, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['100m'] });
   st = gas.ctx.api(kParent, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: ['走り幅跳び'] });
   assert.deepStrictEqual(plain(st.entries[0].races), ['100m'], '保護者が参加を押し直しても、役員の種目はそのまま');
   assert.strictEqual(gas.rows('エントリー').length, 1, '同じ子は上書き');
@@ -1549,6 +1552,9 @@ test('種目の見分け：リレーの種類・距離・ハードルを分け�
   assert.ok(!S('クロカン', 'クロカンリレー'), 'クロカンとクロカンリレーは別');
   assert.ok(!S('60m', '60mH') && !S('100m', '1000m') && S('100m', '3年100m') && S('走り幅跳び', '走幅跳'));
   assert.ok(!gas.ctx.groupMatchGs_('保護者', { grade: 4, sex: '男' }) && gas.ctx.groupMatchGs_('男子', { grade: 4, sex: '男' }));
+  // 部つきの種目（クロカンリレー（男子））は、時刻表のその部の行だけ
+  assert.ok(gas.ctx.qualOkGs_('クロカンリレー（男子）', '男子') && !gas.ctx.qualOkGs_('クロカンリレー（男子）', '1・2・3・4年男女'));
+  assert.ok(gas.ctx.qualOkGs_('クロカンリレー（1〜4年男女）', '1・2・3・4年男女') && gas.ctx.qualOkGs_('クロカンリレー', '女子'));
 });
 
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {

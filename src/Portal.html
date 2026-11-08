@@ -2989,8 +2989,23 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     }).join('') + '</div>';
     return h + '</section>';
   }
+  /** 種目の並び：時刻表のいちばん早い時刻の順（部つきはその部の行で）。時刻表にないものは、大会の種目の順で後ろに */
+  function raceFirstTime(e, race) {
+    var t = '99:99';
+    ttRows(e).forEach(function (r) { if (sameRace(r.race, race) && (!raceQual(race) || sameGroup(raceQual(race), r.group)) && tkey(r.start) < t) t = tkey(r.start); });
+    return t;
+  }
+  function raceOrder(e) {
+    var order = eventRaces(e);
+    return function (a, b) {
+      var ta = raceFirstTime(e, a), tb = raceFirstTime(e, b);
+      if (ta !== tb) return ta < tb ? -1 : 1;
+      var ia = order.findIndex(function (x) { return sameRace(x, a); }), ib = order.findIndex(function (x) { return sameRace(x, b); });
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a < b ? -1 : 1);
+    };
+  }
   function racesTab(e) {
-    var list = eventRaces(e);
+    var list = eventRaces(e).slice().sort(raceOrder(e));
     if (!list.length) return '<section class="card"><div class="sub">種目がまだ決まっていません。役員が「案内を直す」で種目を選ぶと、ここに種目ごとのカードが出ます。</div></section>';
     return '<div class="hint">種目ごとに、時刻・招集・出る子・結果をまとめています。リレーはオーダー（予選・決勝）もここで。</div>' + (canManage(e.key) ? rosterPasteCard(e) : '') + list.map(function (r) { return raceCard(e, r); }).join('');
   }
@@ -4846,10 +4861,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     // 種目ごとにまとめる（リレーは区の順、ほかは順位・記録の順）。わが家の子は色をつける
     var byRace = {}, order = eventRaces(e);
     list.forEach(function (r) { (byRace[r.race] = byRace[r.race] || []).push(r); });
-    var races = Object.keys(byRace).sort(function (a, b) {
-      var ia = order.findIndex(function (x) { return sameRace(x, a); }), ib = order.findIndex(function (x) { return sameRace(x, b); });
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a < b ? -1 : 1);
-    });
+    var races = Object.keys(byRace).sort(raceOrder(e));
     var legOf = function (r) { var m = String(r.memo || '').match(/^(\d+)[区走]/); return m ? +m[1] : 99; };
     var mine = myNames();
     h += '<section class="card"><h2>この大会の結果<small>' + list.length + '件</small></h2>' + (races.length ? races.map(function (race) {

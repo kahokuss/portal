@@ -1599,6 +1599,22 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors);
       await q.close();
     });
+    await step('役員: 速報・リザルトを貼り付けると、まとめて結果に入る（名簿にいない子・入力済みは入れない）', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'respaste');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="結果"]');
+      await q.fill('#rpIn', 'クロカンリレー（男子） | 鈴木 けんた | 3.06 | 14 | 1区\n800m\t佐藤 さくら(4)\t4:02\t6\nクロカンリレー（男子） | だれか いない | 2:35 | 16');
+      await q.click('#rpRead');
+      const t = await q.textContent('#resPaste');
+      assert.ok(t.includes('3:06') && t.includes('名簿にいない') && t.includes('2件を結果に入れる'), t);
+      await q.click('#rpGo');
+      await q.waitForFunction(() => /件の結果を入れました|一部うまく/.test(document.body.textContent), null, { timeout: 15000 });
+      const rs = gas.rows('結果');
+      assert.ok(rs.some((r) => r['子ども'] === '鈴木けんた' && r['種目'] === 'クロカンリレー（男子）' && r['記録'] === '3:06' && r['順位'] === '14' && r['メモ'] === '1区'), '鈴木');
+      assert.ok(rs.some((r) => r['子ども'] === '佐藤さくら' && r['種目'] === '800m' && r['記録'] === '4:02'), '佐藤');
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

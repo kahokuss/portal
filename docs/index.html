@@ -755,7 +755,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "3b1c93e344";
+var BUILD = "433e8b94bd";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2995,7 +2995,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   // ---- 名簿・オーダーを貼り付けて、エントリー・リレーのオーダー・ナンバーをまとめて入れる（役員・当番） ----
   // 1行に1つ：「種目: 名前, 名前 …」。名前のあとの数字はナンバー（ゼッケン）。「リレー …: 」で始まる行は、その順で1区（1走）から
-  function normName(n) { return toHalf(n || '').replace(/[\s　]/g, ''); }
+  // 名前の見くらべ：空白を無視し、𠮷→吉・髙→高・﨑→崎 などの異体字も同じに
+  function normName(n) { return toHalf(n || '').replace(/[\s　]/g, '').replace(/𠮷/g, '吉').replace(/髙/g, '高').replace(/[﨑嵜]/g, '崎').replace(/德/g, '徳').replace(/濵/g, '濱'); }
   function parseRosterPaste(e, text) {
     var relayRace = eventRaces(e).filter(isRelay)[0] || 'リレー', out = [];
     toHalf(text || '').split(/\n/).forEach(function (line) {
@@ -4840,6 +4841,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<label>メモ（なくてもOK）<input id="rs-memo" placeholder="例：自己ベスト！、向かい風" value="' + esc(R.memo || '') + '"></label>' +
         '<button class="btn" type="submit">記録する</button><div class="hint">走る種目は「15.21」「1:01.27」、跳ぶ・投げる種目は「3m20」のように入れると、自己ベストを自動で出します。</div></form></section>';
     }
+    if (canManage(e.key)) h += resPasteCard(e);
     var byChild = {};
     list.forEach(function (r) { (byChild[r.child] = byChild[r.child] || []).push(r); });
     var names = Object.keys(byChild).sort(function (a, b) { return byGrade(kidInfo(a), kidInfo(b)); });
@@ -4854,7 +4856,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return h;
   }
   /** 記録の入れ方：文字で打つ（15.21、1:01.27、3m20）か、選んで入れる（秒・1/100、分・秒、m・cm）。±ボタンで少しずつ */
-  function recKind(race) { return higherBetter(race) ? 'field' : /800|1000|1500|2000|3000|km|駅伝|マラソン|ロード|クロス/.test(toHalf(race)) ? 'long' : 'short'; }
+  function recKind(race) { return higherBetter(race) ? 'field' : /800|1000|1500|2000|3000|km|駅伝|マラソン|ロード|クロス|クロカン/.test(toHalf(race)) ? 'long' : 'short'; }
   function recParts(race, rec) {
     var k = recKind(race), v = markValue(rec);
     if (v === null) {
@@ -4880,7 +4882,57 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="lbl">または選んで入れる</div><div class="recpick">' + pick + '</div>' +
       '<div class="quick">' + steps.map(function (x) { return '<button type="button" data-rstep="' + x[1] + '">' + x[0] + '</button>'; }).join('') + '</div>';
   }
+  // ---- 速報・リザルトを貼り付けて、まとめて結果に入れる（役員・当番） ----
+  // 1行に1件：「種目 | 名前 | 記録 | 順位 | メモ」（| のかわりにタブでもOK）。順位・メモはなくてもよい
+  function parseResPaste(e, text) {
+    return String(text || '').split(/\n/).map(function (line) {
+      var c = line.split(/\s*[|｜\t]\s*/).map(function (x, i) { return (i === 0 || i === 4 ? x : toHalf(x)).trim(); });
+      if (c.length < 3 || !c[0] || !c[1] || !c[2]) return null;
+      var name = c[1].replace(/[（(][1-6][)）]/g, '').trim(), kid = ST.kids.filter(function (k) { return normName(k.name) === normName(name); })[0];
+      var rec = c[2].replace(/^(\d+)\.(\d\d)$/, function (m, a, b) { return recKind(c[0]) === 'long' ? a + ':' + b : m; });
+      var dup = kid && ST.results.some(function (r) { return r.key === e.key && r.child === kid.name && r.race === c[0] && r.record === rec; });
+      return { race: c[0], name: kid ? kid.name : name, kid: kid, record: rec, place: (c[3] || '').replace(/[^0-9]/g, ''), memo: c[4] || '', dup: dup };
+    }).filter(Boolean);
+  }
+  function resPasteCard(e) {
+    var P = S.rpRes && S.rpRes.key === e.key ? S.rpRes : { key: e.key, text: '', rows: null };
+    var h = '<section class="card" id="resPaste"><h2>速報・リザルトを貼り付けて入れる<small>役員</small></h2>' +
+      '<div class="sub">1行に1件：<b>種目 | 名前 | 記録 | 順位 | メモ</b>（順位・メモはなくてもOK）。エクセルからコピーした表（タブ区切り）もそのまま貼れます。</div>' +
+      '<label class="fld"><textarea id="rpIn" rows="5" placeholder="クロカンリレー（男子） | 山田 たろう | 3:06 | 14 | 1区&#10;800m | 佐藤 さくら | 4:02 | 6">' + esc(P.text) + '</textarea></label>' +
+      '<button class="btn small ghost" type="button" id="rpRead" style="justify-self:start">読み取る</button>';
+    if (P.rows) {
+      var ok = P.rows.filter(function (r) { return r.kid && !r.dup; });
+      h += '<div class="list">' + P.rows.map(function (r) {
+        return '<div class="between"><span' + (r.kid ? '' : ' style="color:var(--track)"') + '>' + esc(r.name) + ' <span class="sub">' + esc(r.race) + '</span> <b>' + esc(r.record) + '</b>' + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + (r.memo ? ' <span class="sub">' + esc(r.memo) + '</span>' : '') + '</span>' +
+          (r.dup ? '<span class="pill p-gray">入力済み</span>' : r.kid ? '' : '<span class="pill p-warn">名簿にいない</span>') + '</div>';
+      }).join('') + '</div>' +
+        (ok.length ? '<button class="btn" type="button" id="rpGo">' + ok.length + '件を結果に入れる</button>' : '<div class="sub">入れられる行がありません。</div>');
+    }
+    return h + '</section>';
+  }
+  function bindResPaste(e) {
+    var ta = document.getElementById('rpIn');
+    if (!ta) return;
+    ta.addEventListener('input', function () { S.rpRes = S.rpRes && S.rpRes.key === e.key ? S.rpRes : { key: e.key, text: '', rows: null }; S.rpRes.text = this.value; });
+    on('#rpRead', function () { S.rpRes = { key: e.key, text: ta.value, rows: parseResPaste(e, ta.value) }; render(); flashTo('resPaste'); });
+    on('#rpGo', function () {
+      var steps = S.rpRes.rows.filter(function (r) { return r.kid && !r.dup; }).map(function (r) { return { key: e.key, child: r.kid.name, race: r.race, round: '', record: r.record, place: r.place, memo: r.memo, kind: '公式' }; });
+      if (!steps.length) return;
+      var errs = [], i = 0, busy = document.getElementById('busy');
+      busy.hidden = false;
+      (function next() {
+        if (i >= steps.length - 1) {
+          busy.hidden = true;
+          return call('saveResult', steps[steps.length - 1], function () { S.rpRes = null; S.toast = errs.length ? '⚠ 一部うまくいきませんでした：' + errs.join(' ／ ') : '✅ ' + steps.length + '件の結果を入れました'; S.toastErr = !!errs.length; });
+        }
+        var p2 = steps[i++];
+        busy.textContent = '入れています… ' + i + '/' + steps.length;
+        rpc('saveResult', p2, next, function (err) { errs.push(p2.child + '：' + err.message); next(); });
+      })();
+    });
+  }
   function bindResults(e) {
+    bindResPaste(e);
     var R = S.res;
     var recIn = document.getElementById('rs-rec');
     var fromPick = function () {

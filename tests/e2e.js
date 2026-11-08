@@ -1613,6 +1613,7 @@ async function openPortal(browser, gas, userId, name) {
       const rs = gas.rows('結果');
       assert.ok(rs.some((r) => r['子ども'] === '鈴木けんた' && r['種目'] === 'クロカンリレー（男子）' && r['記録'] === '3:06' && r['順位'] === '14' && r['メモ'] === '1区'), '鈴木');
       assert.ok(rs.some((r) => r['子ども'] === '佐藤さくら' && r['種目'] === '800m' && r['記録'] === '4:02'), '佐藤');
+      if (SHOTS) await q.locator('.card:has-text("この大会の結果")').screenshot({ path: path.join(shotDir, 'admin-results-grouped.png') });
       await q.close();
     });
     await step('画面のエラーなし', async () => {

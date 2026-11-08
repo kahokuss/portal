@@ -191,6 +191,10 @@ form.f, .f { display: grid; gap: 8px; }
 .tt-time { flex: none; width: 3.4em; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .tt .main { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .tt-kids { display: grid; gap: 4px; }
+.resgrp { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line); }
+.resgrp:first-of-type { border-top: 0; }
+.resgrp > .between:first-child b { color: var(--track); }
+.resgrp .mine > span:first-child { font-weight: 700; }
 .ttnow { display: flex; align-items: center; gap: 8px; color: var(--track); font-weight: 800; font-size: 12.5px; }
 .ttnow::before, .ttnow::after { content: ''; flex: 1; height: 2px; background: var(--track); }
 .ttedit { cursor: pointer; }
@@ -755,7 +759,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "433e8b94bd";
+var BUILD = "7dafffb34a";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -4842,15 +4846,26 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<button class="btn" type="submit">記録する</button><div class="hint">走る種目は「15.21」「1:01.27」、跳ぶ・投げる種目は「3m20」のように入れると、自己ベストを自動で出します。</div></form></section>';
     }
     if (canManage(e.key)) h += resPasteCard(e);
-    var byChild = {};
-    list.forEach(function (r) { (byChild[r.child] = byChild[r.child] || []).push(r); });
-    var names = Object.keys(byChild).sort(function (a, b) { return byGrade(kidInfo(a), kidInfo(b)); });
-    h += '<section class="card"><h2>この大会の結果<small>' + list.length + '件</small></h2>' + (names.length ? '<div class="list">' + names.map(function (n) {
-      return '<div><b>' + esc(n) + '</b>' + byChild[n].map(function (r) {
-        return '<div class="between"><span>' + esc(r.race) + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + ' <b>' + esc(r.record) + '</b>' + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + (r.memo ? ' <span class="sub">' + esc(r.memo) + '</span>' : '') + '</span>' +
+    // 種目ごとにまとめる（リレーは区の順、ほかは順位・記録の順）。わが家の子は色をつける
+    var byRace = {}, order = eventRaces(e);
+    list.forEach(function (r) { (byRace[r.race] = byRace[r.race] || []).push(r); });
+    var races = Object.keys(byRace).sort(function (a, b) {
+      var ia = order.findIndex(function (x) { return sameRace(x, a); }), ib = order.findIndex(function (x) { return sameRace(x, b); });
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || (a < b ? -1 : 1);
+    });
+    var legOf = function (r) { var m = String(r.memo || '').match(/^(\d+)[区走]/); return m ? +m[1] : 99; };
+    var mine = myNames();
+    h += '<section class="card"><h2>この大会の結果<small>' + list.length + '件</small></h2>' + (races.length ? races.map(function (race) {
+      var rows = byRace[race].slice().sort(function (a, b) { return legOf(a) - legOf(b) || (+a.place || 999) - (+b.place || 999) || (markValue(a.record) || 0) - (markValue(b.record) || 0); });
+      // リレー：全員のメモに同じ「チーム◯位 タイム」があれば見出しに出す
+      var team = (String(rows[0].memo || '').match(/チーム\s*\d+位\s*\S*/) || [''])[0];
+      if (team && !rows.every(function (r) { return String(r.memo || '').indexOf(team) >= 0; })) team = '';
+      return '<div class="resgrp"><div class="between"><b>' + esc(race) + '</b><span class="sub">' + (team ? esc(team) : rows.length + '件') + '</span></div>' + rows.map(function (r) {
+        var memo = team ? String(r.memo || '').replace(team, '').replace(/[／/・\s]+$/, '') : r.memo;
+        return '<div class="between' + (mine.indexOf(r.child) >= 0 ? ' mine' : '') + '"><span>' + esc(r.child) + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + ' <b>' + esc(r.record) + '</b>' + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + (memo ? ' <span class="sub">' + esc(memo) + '</span>' : '') + '</span>' +
           (r.id && canResult(e, r.child) ? '<button class="icon-btn" type="button" data-rdel="' + esc(r.id) + '" aria-label="消す">×</button>' : '') + '</div>';
       }).join('') + '</div>';
-    }).join('') + '</div>' : '<div class="sub">まだ結果はありません。</div>') + '</section>';
+    }).join('') : '<div class="sub">まだ結果はありません。</div>') + '</section>';
     var t = taskOf(e.key, 'リザルト', '') || { photos: [] };
     h += '<section class="card"' + dropAttr('photo', e.key, 'リザルト', '', true) + '><h2>リザルトの写真</h2>' + photosHtml(t.photos) + DROP_HINT + '<div class="row">' + photoBtn('リザルト', '', 'リザルトを撮って載せる') + '</div><div class="hint">掲示されたリザルトの写真です。メンバー全員が見られます。</div></section>';
     return h;

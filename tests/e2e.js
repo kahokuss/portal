@@ -1586,6 +1586,8 @@ async function openPortal(browser, gas, userId, name) {
       const q = await openPortal(browser, g2, 'U1', 'ttnow');
       await q.evaluate(() => { const off = new Date('2026-10-14T10:40:00+09:00').getTime() - Date.now(); const o = Date.now.bind(Date); Date.now = () => o() + off; });
       await q.click('[data-nav="events"]');
+      await q.waitForTimeout(300);
+      assert.ok(await q.$eval('#evToday', (el) => { const t = el.getBoundingClientRect().top; const atEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2; return el.nextElementSibling.textContent.includes('今日の記録会') && t >= 0 && (t < 200 || atEnd) && window.scrollY > 0; }), '予定一覧は今日のところまで動く');
       await q.click('.ev:has-text("今日の記録会")');
       await q.click('[data-et="タイムテーブル"]');
       await q.waitForTimeout(300);

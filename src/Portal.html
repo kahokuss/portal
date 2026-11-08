@@ -84,6 +84,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 .ev .main { flex: 1; min-width: 0; }
 .ev .ttl { font-weight: 700; }
 .ev.past { opacity: .55; }
+.evnow { display: flex; align-items: center; gap: 8px; color: var(--track); font-weight: 800; font-size: 12.5px; margin: 2px 0; }
+.evnow::before, .evnow::after { content: ''; flex: 1; height: 2px; background: var(--track); }
 .ev.cancel .ttl { text-decoration: line-through; }
 .month { font-family: var(--font-display); font-weight: 700; color: var(--muted); font-size: 12px; margin: 4px 2px -4px; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -869,7 +871,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return st;
   }
   function go(tab, key) {
-    S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false;
+    S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false; S.evNowDone = false;
     // 自主トレを開いたときは、日付を今日に（前に入れた日のままにしない。直している途中は除く）
     if (tab === 'train' && S.trForm && !S.trForm.id) S.trForm.date = ST.today;
     render(); window.scrollTo(0, 0);
@@ -1422,13 +1424,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.event) { var e = evByKey(S.event); if (e) return eventDetail(e); S.event = null; }
     if (S.calView) return eventsCalendar();
     var h = toastHtml() + viewTabs();
-    var month = '', open = false;
+    var month = '', open = false, todayMark = false;
     ST.events.forEach(function (e) {
       if (S.onlyRace && !isRace(e)) return;
       if (!S.onlyRace && !isRace(e) && e.date < addDays(ST.today, -7)) return;
       var m = e.date.slice(0, 7);
       if (m !== month) { if (open) h += '</div></section>'; month = m; open = true; h += '<div class="month">' + Number(m.slice(5)) + '月</div><section class="card"><div class="list">'; }
       var cls = (e.date < ST.today ? ' past' : '') + (e.cancelled ? ' cancel' : '');
+      // 今日（なければ次の予定）の前に「今日」の線
+      if (!todayMark && e.date >= ST.today) { todayMark = true; h += '<div class="evnow" id="evToday"><span>' + (e.date === ST.today ? '今日' : '今日 ' + md(ST.today)) + '</span></div>'; }
       h += '<button class="ev' + cls + '" type="button" data-ev="' + e.key + '"><div class="date' + (isRace(e) ? ' race' : '') + '"><b>' + d(e.date).getUTCDate() + '</b><span>' + WD[d(e.date).getUTCDay()] + '</span></div>' +
         '<div class="main"><div class="ttl">' + esc(e.title) + '</div><div class="sub">' + typePill(e) + (e.cancelled ? ' <span class="pill p-gray">中止</span>' : '') +
         (!e.cancelled && e.date >= ST.today && absentOn(e.date).length && !isRace(e) ? ' <span class="pill p-warn">休み' + absentOn(e.date).length + '</span>' : '') +
@@ -1442,6 +1446,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     view.innerHTML = h;
     bindCommon();
     bindViewTabs();
+    // 一覧を開いたときは、今日のところまで動く（1回だけ。上に過去の大会が並ぶため）
+    var tm = document.getElementById('evToday');
+    if (tm && !S.evNowDone) {
+      S.evNowDone = true;
+      var goT = function () { if (!tm.isConnected) return; window.scrollTo({ top: Math.max(0, tm.getBoundingClientRect().top + window.scrollY - 70), behavior: 'instant' }); };
+      setTimeout(goT, 0); setTimeout(goT, 250);
+    }
   }
 
   function eventDetail(e) {
@@ -1496,7 +1507,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '写真') bindPhotos(e);
     if (S.etab === '結果') bindResults(e);
     if (S.etab === '種目') { bindRoster(e); bindRelay(e); bindDeadlines(e); bindTimetable(e); bindPhotos(e); }
-    on('#back', function () { ttStash(e); S.event = null; S.toast = ''; S.relay = null; S.ttNowDone = null; render(); });
+    on('#back', function () { ttStash(e); S.event = null; S.toast = ''; S.relay = null; S.ttNowDone = null; S.evNowDone = false; render(); });
     on('[data-sgo]', function () {
       var p = this.dataset.sgo.split('|');
       S.etab = p[0]; S.toast = ''; render();
@@ -2614,7 +2625,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     else return;
     var el = document.getElementById('ttNow');
     // 上に出ている「概要・エントリー…」の帯の下に来るように
-    var go = function () { var bar = view.querySelector('.etabs'), off = (bar ? bar.offsetHeight : 0) + 24; window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off), behavior: 'instant' }); };
+    var go = function () { if (!el.isConnected) return; var bar = view.querySelector('.etabs'), off = (bar ? bar.offsetHeight : 0) + 24; window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off), behavior: 'instant' }); };
     setTimeout(go, 0); setTimeout(go, 250);
   }
   function bindTimetable(e) {

@@ -201,6 +201,8 @@ async function openPortal(browser, gas, userId, name) {
       await q.click('[data-nav="events"]');
       await q.click('.ev:has-text("秋季記録会")');
       await q.click('[data-et="エントリー"]');
+      assert.ok(await q.$eval('#nansCard', (el) => el.classList.contains('staffcard') && el.textContent.includes('準備中') && el.textContent.includes('レイアウト')), 'NANS21V のカード（準備中）');
+      assert.ok(!(await p.$('#nansCard')), '保護者には出ない');
       await q.click('[data-ereg="鈴木けんた|100m"]');
       await q.idle();
       await q.click('[data-ereg="鈴木けんた|走幅跳"]');

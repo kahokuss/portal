@@ -1544,6 +1544,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         }).join('') + (det.races.length > 1 ? '<div class="hint">保護者は「参加・不参加」だけ答えてください。出る種目は役員が登録します。</div>' : '') + '</section>';
     }
     if (canManage(e.key) && det.races.length > 1) h += entryRegCard(e, det);
+    if (canManage(e.key) && e.date >= ST.today) h += nansCard(e, det);
     var all = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });
     var joined = all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
     var paid = joined.filter(function (k) { return entryOf(e.key, k.name).paid; });
@@ -1568,6 +1569,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     x.races.forEach(function (r) { if (out.indexOf(r) < 0) out.push(r); });
     return out;
+  }
+  /** NANS21V（ニシ・スポーツのWeb申込み）：申込みサイトへのリンクと、申込み用CSVの書き出し（準備中） */
+  function nansCard(e, det) {
+    var n = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; }).length;
+    return '<section class="card" id="nansCard"><h2>NANS21V で申込む<small>役員</small></h2>' +
+      '<div class="sub">鳥取陸協などの大会は、ニシ・スポーツの「NANS21V Web登録サービス」で申し込みます' + (det.applyBy ? '（申込期限 <b>' + md(det.applyBy) + '</b>）' : '') + '。</div>' +
+      '<a class="btn small ghost" href="https://nishi-nans21v.com/" target="_blank" rel="noopener" style="justify-self:start;text-decoration:none">申込みサイトを開く ↗</a>' +
+      '<div class="row"><button class="btn small" type="button" disabled>📄 申込み用CSVを書き出す（' + n + '人）</button><span class="pill p-gray">準備中</span></div>' +
+      '<div class="hint">⚠ 準備中です。この画面のエントリー（出る子と種目）から、NANS21V にそのまま読み込めるCSVを作る予定です。' +
+      '使えるようにするには、<b>NANS21V のCSVのレイアウト（列の並び）</b>が必要です。申込み画面の選手データの「CSV出力」か「CSVのひな形」をダウンロードして、ポータルの係に送ってください。' +
+      '読み込めるのは鳥取陸協などに<b>登録済みの選手</b>だけなので、登録番号も名簿に必要になります。</div></section>';
   }
   function entryRegCard(e, det) {
     var kids = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });

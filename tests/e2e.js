@@ -208,6 +208,13 @@ async function openPortal(browser, gas, userId, name) {
       await q.click('[data-ereg="鈴木けんた|走幅跳"]');
       await q.idle();
       if (SHOTS) await q.locator('#entryReg').screenshot({ path: path.join(shotDir, 'admin-entry-reg.png') });
+      // Excel用にコピー：出る子と種目の表が出る
+      q.on('dialog', (d) => d.accept());
+      await q.click('[data-applycopy]');
+      await q.waitForSelector('#nansCard table');
+      const tb = await q.textContent('#nansCard table');
+      assert.ok(tb.includes('鈴木けんた') && tb.includes('100m') && tb.includes('走幅跳'), tb);
+      if (SHOTS) await q.locator('#nansCard').screenshot({ path: path.join(shotDir, 'admin-apply-excel.png') });
       a.errors.push(...q.errors);
       await q.close();
       const e = gas.rows('エントリー').find((r) => r['子ども'] === '鈴木けんた');

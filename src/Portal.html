@@ -1570,16 +1570,32 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     x.races.forEach(function (r) { if (out.indexOf(r) < 0) out.push(r); });
     return out;
   }
-  /** NANS21V（ニシ・スポーツのWeb申込み）：申込みサイトへのリンクと、申込み用CSVの書き出し（準備中） */
+  /** 大会への申込み：鳥取陸協は東部が NANS21V（Web）か Excel、中部・西部は Excel（メール）。Excel用のコピーは使える。様式への書き込み・CSVは準備中 */
+  function applyRows(e) {
+    var rows = [];
+    ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; }).sort(byGrade).forEach(function (k) {
+      var x = entryOf(e.key, k.name);
+      (x.races.length ? x.races : ['']).forEach(function (r) {
+        var b = r ? (bests(k.name, '公式')[canon(r)] || bests(k.name)[canon(r)]) : null;
+        rows.push([k.name, k.grade ? k.grade + '年' : '', k.sex === '男' ? '男' : k.sex === '女' ? '女' : '', raceBase(r), b ? b.record : '']);
+      });
+    });
+    return rows;
+  }
   function nansCard(e, det) {
-    var n = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; }).length;
-    return '<section class="card" id="nansCard"><h2>NANS21V で申込む<small>役員</small></h2>' +
-      '<div class="sub">鳥取陸協などの大会は、ニシ・スポーツの「NANS21V Web登録サービス」で申し込みます' + (det.applyBy ? '（申込期限 <b>' + md(det.applyBy) + '</b>）' : '') + '。</div>' +
+    var rows = applyRows(e), open = S.applyCopy === e.key;
+    var h = '<section class="card" id="nansCard"><h2>大会に申し込む（Excel・NANS21V）<small>役員</small></h2>' +
+      '<div class="sub">鳥取陸協の大会は、<b>中部・西部は Excel の申込様式をメール</b>、東部は NANS21V（Web）か Excel です。大会要項で確かめてください' + (det.applyBy ? '（申込期限 <b>' + md(det.applyBy) + '</b>）' : '') + '。</div>' +
+      '<div class="lbl">Excel で申し込む</div>' +
+      '<button class="btn small" type="button" data-applycopy="' + e.key + '" style="justify-self:start"' + (rows.length ? '' : ' disabled') + '>📋 Excel用にコピー（' + rows.length + '行）</button>' +
+      '<div class="hint">名前・学年・男女・種目・自己ベストを、Excel に貼れる形（タブ区切り）でコピーします。申込様式の列の順に合わないときは、列ごとに貼ってください。<b>様式の書式は変えないでください</b>（陸協の決まり）。</div>';
+    if (open && rows.length) h += '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>学年</th><th>男女</th><th>種目</th><th>自己ベスト</th></tr></thead><tbody>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+    h += '<div class="row"><button class="btn small ghost" type="button" disabled>📄 申込様式（Excel）に書き込んでダウンロード</button><span class="pill p-gray">準備中</span></div>' +
+      '<div class="lbl">NANS21V で申し込む（東部）</div>' +
       '<a class="btn small ghost" href="https://nishi-nans21v.com/" target="_blank" rel="noopener" style="justify-self:start;text-decoration:none">申込みサイトを開く ↗</a>' +
-      '<div class="row"><button class="btn small" type="button" disabled>📄 申込み用CSVを書き出す（' + n + '人）</button><span class="pill p-gray">準備中</span></div>' +
-      '<div class="hint">⚠ 準備中です。この画面のエントリー（出る子と種目）から、NANS21V にそのまま読み込めるCSVを作る予定です。' +
-      '使えるようにするには、<b>NANS21V のCSVのレイアウト（列の並び）</b>が必要です。申込み画面の選手データの「CSV出力」か「CSVのひな形」をダウンロードして、ポータルの係に送ってください。' +
-      '読み込めるのは鳥取陸協などに<b>登録済みの選手</b>だけなので、登録番号も名簿に必要になります。</div></section>';
+      '<div class="row"><button class="btn small ghost" type="button" disabled>📄 NANS21V用のCSVを書き出す</button><span class="pill p-gray">準備中</span></div>' +
+      '<div class="hint">⚠ 準備中の2つは、<b>レイアウト（列の並び・書き込む場所）</b>がわかれば作れます。大会要項についている<b>申込様式の Excel ファイル</b>、または NANS21V の選手データの「CSV出力」か「ひな形」を、ポータルの係に送ってください。様式によっては、ふりがな・生年月日・陸協の登録番号も名簿に必要になります。</div></section>';
+    return h;
   }
   function entryRegCard(e, det) {
     var kids = eligible(e).slice().sort(function (a, b) { return b.grade - a.grade || (a.name < b.name ? -1 : 1); });
@@ -1597,6 +1613,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return h + '</div></section>';
   }
   function bindEntry(e) {
+    on('[data-applycopy]', function () {
+      var rows = applyRows(e);
+      S.applyCopy = e.key; render();
+      copyText(['名前', '学年', '男女', '種目', '自己ベスト'].join('\t') + '\n' + rows.map(function (r) { return r.join('\t'); }).join('\n'));
+    });
     on('[data-ereg]', function () {
       var p = this.dataset.ereg.split('|'), child = p[0], r = p.slice(1).join('|'), x = entryOf(e.key, child);
       var races = x && x.join === '参加' ? x.races.slice() : [], i = races.indexOf(r);

@@ -1563,9 +1563,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var out = [];
     (det.races || []).forEach(function (r) {
       if (raceQual(r) && (det.races || []).indexOf(raceBase(r)) >= 0) return; // 部つきは、もとの種目のところで出す
-      var opts = raceOptions(e, r);
-      if (opts.length > 1) { if (x.races.indexOf(r) >= 0) out.push(r); opts.forEach(function (o) { if (groupMatch(raceQual(o).replace('〜', '~'), k) || x.races.indexOf(o) >= 0) out.push(o); }); }
-      else out.push(r);
+      var opts = raceOptions(e, r), fit = opts.filter(function (o) { return groupMatch(raceQual(o).replace('〜', '~'), k); });
+      // その子に合う部が1つだけなら、部なしの種目1つで出す（時刻表は学年・男女で絞られるので同じ）。前にその部で登録していればそれを出す
+      if (opts.length > 1 && fit.length > 1) { if (x.races.indexOf(r) >= 0) out.push(r); opts.forEach(function (o) { if (fit.indexOf(o) >= 0 || x.races.indexOf(o) >= 0) out.push(o); }); }
+      else out.push(fit.length === 1 && x.races.indexOf(fit[0]) >= 0 ? fit[0] : r);
     });
     x.races.forEach(function (r) { if (out.indexOf(r) < 0) out.push(r); });
     return out;
@@ -1627,7 +1628,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         // 部を選んだら、部のない同じ種目（ひとかたまりの登録）は外す
         if (raceQual(r)) races = races.filter(function (q) { return q !== raceBase(r); });
       }
-      ensureEventRaces(e, races, function () { quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); }); });
+      var save = function () { quick('saveEntry', { key: e.key, child: child, join: '参加', races: races }, function (st) { qEntry(st, e.key, child, '参加', races); }); };
+      // 新しいサーバーは部つきの種目をそのまま受け付けるので、1回の保存で済む（押したらすぐ画面が変わる）
+      if (!serverOld()) return save();
+      // 古いサーバーのとき：先に画面を変えてから、大会の種目に足して保存
+      qEntry(ST, e.key, child, '参加', races); render();
+      ensureEventRaces(e, races, save);
     });
     on('[data-enot]', function () {
       var child = this.dataset.enot, x = entryOf(e.key, child);

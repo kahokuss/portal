@@ -1572,7 +1572,7 @@ async function openPortal(browser, gas, userId, name) {
       await q.click('[data-nav="events"]');
       await q.click('.ev:has-text("秋季記録会")');
       await q.click('[data-et="種目"]');
-      await q.fill('#rosterText', 'リレー 男子の部（黒）: 鈴木 けんた(6), だれか いない(5)\n800mタイムトライアル: 佐藤 さくら(4) 11');
+      await q.fill('#rosterText', 'リレー 男子の部（黒）: 鈴木 けんた(6), だれか いない(5)\n800mタイムトライアル: 佐藤 さくら(4) 11\n100m: 鈴木 けんた 186 2組5レーン');
       await q.click('#rosterRead');
       const t = await q.textContent('#rosterPaste');
       assert.ok(t.includes('名簿にいない名前：だれかいない') || t.includes('名簿にいない名前：だれか いない'), t);
@@ -1583,6 +1583,10 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(ent && ent['回答'] === '参加' && /800m/.test(ent['種目']), JSON.stringify(ent));
       assert.ok(/800m/.test(gas.rows('大会').find((r) => r['集合場所'] === '正面スタンド下')['種目']), '大会の種目に足す');
       assert.ok(gas.rows('手続き').some((x) => x['種類'] === 'ナンバー' && x['対象'] === '佐藤さくら' && x['メモ'] === '11'), 'ナンバー');
+      const laneOk = () => gas.rows('手続き').some((x) => x['種類'] === 'レーン' && /^鈴木けんた\|/.test(x['対象']) && x['メモ'] === '2組5レーン');
+      for (let w = 0; w < 25 && !laneOk(); w++) await q.waitForTimeout(200);
+      assert.ok(laneOk(), '組・レーン ' + JSON.stringify(gas.rows('手続き').filter((x) => x['種類'] === 'レーン')));
+      assert.ok(gas.rows('手続き').some((x) => x['種類'] === 'ナンバー' && x['対象'] === '鈴木けんた' && x['メモ'] === '186'), 'ナンバー（組・レーンといっしょ）');
       const relay = gas.rows('手続き').find((x) => /リレー/.test(x['種類']) && /男子の部/.test(x['対象']));
       assert.ok(relay && relay['メモ'].startsWith('1走 鈴木けんた／2走 だれか いない'), JSON.stringify(relay));
       await q.close();

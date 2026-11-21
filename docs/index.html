@@ -759,7 +759,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "b867089f97";
+var BUILD = "376584d09e";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -3066,11 +3066,16 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var sx = /男女|混合/.test(head) ? '男女' : /男/.test(head) ? '男' : /女/.test(head) ? '女' : '';
       if (sx) { var hit = raceOptions(e, race).filter(function (o) { var q = raceQual(o); return q && (sx === '男女' ? /男女|混合/.test(q) : !/男女|混合/.test(q) && q.indexOf(sx) >= 0); }); if (hit.length === 1) race = hit[0]; }
       var people = m[2].split(/[,、，\/／]/).map(function (x) {
-        x = x.replace(/[（(][1-6][)）]/g, '').trim();
-        var num = (x.match(/\s(\d{1,4})$/) || x.match(/^(\d{1,4})\s/) || [])[1] || '';
-        var name = x.replace(/(^\d{1,4}\s+|\s+\d{1,4}$)/g, '').trim();
+        // 名前のあとに、ナンバー（数字）と、組・レーン（「1組4レーン」「8レーン」「15番」）を書ける
+        var num = '', lane = '', words = [];
+        x.replace(/[（(][1-6][)）]/g, '').trim().split(/\s+/).forEach(function (w) {
+          if (/^(\d+組)?(\d+(レーン|番|走))?$/.test(w) && /組|レーン|番|走/.test(w)) lane = w;
+          else if (/^\d{1,4}$/.test(w) && !num) num = w;
+          else words.push(w);
+        });
+        var name = words.join(' ').trim();
         var kid = ST.kids.filter(function (k) { return normName(k.name) === normName(name); })[0];
-        return { name: kid ? kid.name : name, kid: kid, num: num };
+        return { name: kid ? kid.name : name, kid: kid, num: num, lane: lane };
       }).filter(function (x) { return x.name; });
       if (people.length) out.push({ head: head, race: race, relay: relay, team: relay ? (ST.club || '') + ' ' + head.replace(/^リレー\s*/, '') : '', people: people });
     });
@@ -3079,14 +3084,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function rosterPasteCard(e) {
     var P = S.rpaste && S.rpaste.key === e.key ? S.rpaste : { key: e.key, text: '', rows: null };
     var h = '<section class="card" id="rosterPaste"><h2>名簿・オーダーを貼り付けて登録<small>役員</small></h2>' +
-      '<div class="sub">大会のプログラム（参加者名簿）から、うちのクラブの分を1行ずつ。エントリー（参加・種目）、リレーのオーダー、ナンバーがまとめて入ります。</div>' +
-      '<label class="fld"><textarea id="rosterText" rows="5" placeholder="リレー 男子の部: 山田 たろう, 鈴木 けんた, …（1区から順に）&#10;800m: 佐藤 さくら 11, 田中 じろう 32（数字はナンバー）">' + esc(P.text) + '</textarea></label>' +
+      '<div class="sub">大会のプログラム（参加者名簿）から、うちのクラブの分を1行ずつ。エントリー（参加・種目）、リレーのオーダー、ナンバー、組・レーンがまとめて入ります（組・レーンは時刻表を入れてから）。</div>' +
+      '<label class="fld"><textarea id="rosterText" rows="5" placeholder="リレー 男子の部: 山田 たろう, 鈴木 けんた, …（1区から順に）&#10;800m: 佐藤 さくら 11, 田中 じろう 32（数字はナンバー）&#10;100m: 山田 たろう 186 1組4レーン（組・レーンも入れられる）">' + esc(P.text) + '</textarea></label>' +
       '<button class="btn small ghost" type="button" id="rosterRead" style="justify-self:start">読み取る</button>';
     if (P.rows) {
       var miss = [];
       h += '<div class="list">' + P.rows.map(function (r) {
         r.people.forEach(function (x) { if (!x.kid) miss.push(x.name); });
-        return '<div class="kid"><b>' + esc(r.relay ? r.team + '（' + r.race + '）' : r.race) + '</b><div class="sub">' + r.people.map(function (x, i) { return (r.relay ? (i + 1) + legWord(e) + ' ' : '') + '<span' + (x.kid ? '' : ' style="color:var(--track)"') + '>' + esc(x.name) + '</span>' + (x.num ? ' <span class="pill p-gray">' + esc(x.num) + '</span>' : ''); }).join('　') + '</div></div>';
+        return '<div class="kid"><b>' + esc(r.relay ? r.team + '（' + r.race + '）' : r.race) + '</b><div class="sub">' + r.people.map(function (x, i) { return (r.relay ? (i + 1) + legWord(e) + ' ' : '') + '<span' + (x.kid ? '' : ' style="color:var(--track)"') + '>' + esc(x.name) + '</span>' + (x.num ? ' <span class="pill p-gray">' + esc(x.num) + '</span>' : '') + (x.lane ? ' <span class="pill p-gray">' + esc(x.lane) + '</span>' : ''); }).join('　') + '</div></div>';
       }).join('') + '</div>' +
         (miss.length ? '<div class="toast err">名簿にいない名前：' + miss.map(esc).join('、') + '（赤）。エントリーには入りません（リレーのオーダーには名前のまま入ります）。名前の字がちがうときは直してから読み取ってください。</div>' : '') +
         (P.rows.length ? '<button class="btn" type="button" id="rosterGo">この内容で登録する</button>' : '<div class="sub">読み取れる行がありません。「種目: 名前, 名前」の形で書いてください。</div>');
@@ -3116,10 +3121,17 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         steps.push(['saveEntry', { key: e.key, child: n, join: '参加', races: races }]);
       });
       // 3) リレーのオーダー、4) ナンバー
-      var W = legWord(e), kind = relayRounds(e)[0];
+      var W = legWord(e), kind = relayRounds(e)[0], noRow = [];
       rows.forEach(function (r) {
         if (r.relay) steps.push(['setTask', { key: e.key, kind: kind, target: r.team.trim(), memo: r.people.map(function (x, i) { return (i + 1) + W + ' ' + x.name; }).join('／') }]);
         r.people.forEach(function (x) { if (x.kid && x.num) steps.push(['setTask', { key: e.key, kind: 'ナンバー', target: x.kid.name, memo: x.num }]); });
+        // 組・レーン：時刻表のその子の行（種目・学年・男女が合う最初の行）に入れる
+        r.people.forEach(function (x) {
+          if (!x.kid || !x.lane) return;
+          var row = ttRows(e).filter(function (t) { return sameRace(t.race, r.race) && (!raceQual(r.race) || sameGroup(raceQual(r.race), t.group)) && groupMatch(t.group, x.kid); })[0];
+          if (row) steps.push(['setTask', { key: e.key, kind: 'レーン', target: x.kid.name + '|' + row.id, memo: x.lane }]);
+          else noRow.push(x.kid.name);
+        });
       });
       if (!steps.length) return;
       if (!confirm(steps.length + '件を登録します。よろしいですか？')) return;
@@ -3129,7 +3141,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         if (i >= steps.length - 1) {
           busy.hidden = true;
           var last = steps[steps.length - 1];
-          return call(last[0], last[1], function (st) { S.rpaste = null; S.toast = (errs.length ? '⚠ 一部うまくいきませんでした：' + errs.join(' ／ ') : '✅ 名簿の内容を登録しました（' + steps.length + '件）'); S.toastErr = !!errs.length; });
+          return call(last[0], last[1], function (st) { S.rpaste = null; S.toast = (errs.length ? '⚠ 一部うまくいきませんでした：' + errs.join(' ／ ') : '✅ 名簿の内容を登録しました（' + steps.length + '件）') + (noRow.length ? '。時刻表に行がないので組・レーンを入れられなかった子：' + noRow.join('、') + '（先に時刻表を入れてください）' : ''); S.toastErr = !!(errs.length || noRow.length); });
         }
         var s2 = steps[i++];
         busy.textContent = '登録しています… ' + i + '/' + steps.length;

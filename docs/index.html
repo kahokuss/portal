@@ -759,7 +759,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "376584d09e";
+var BUILD = "c906c7c35c";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -3133,7 +3133,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           else noRow.push(x.kid.name);
         });
       });
-      if (!steps.length) return;
+      // 入れられるものがないときも、だまらずに知らせる
+      if (!steps.length) { S.toast = '⚠ 登録できるものがありません。名前がポータルの名簿と合っているか確かめてください（赤い名前は名簿にいない子です）。'; S.toastErr = true; render(); flashTo('rosterPaste'); return; }
       if (!confirm(steps.length + '件を登録します。よろしいですか？')) return;
       var errs = [], i = 0, busy = document.getElementById('busy');
       busy.hidden = false;

@@ -3130,7 +3130,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
           else noRow.push(x.kid.name);
         });
       });
-      if (!steps.length) return;
+      // 入れられるものがないときも、だまらずに知らせる
+      if (!steps.length) { S.toast = '⚠ 登録できるものがありません。名前がポータルの名簿と合っているか確かめてください（赤い名前は名簿にいない子です）。'; S.toastErr = true; render(); flashTo('rosterPaste'); return; }
       if (!confirm(steps.length + '件を登録します。よろしいですか？')) return;
       var errs = [], i = 0, busy = document.getElementById('busy');
       busy.hidden = false;

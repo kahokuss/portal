@@ -850,6 +850,12 @@ async function openPortal(browser, gas, userId, name) {
       const gt = await q.textContent('#view');
       assert.ok(/重なり \d+件|重なりはありません/.test(gt), gt.slice(0, 300));
       await q.shot('12b-gantt');
+      // 行を押すと、その競技の詳しい時刻へ（わが家の一覧のその行が光る）
+      const gid = await q.$eval('.gantt [data-ganttgo]', (el) => el.dataset.ganttgo.split('|')[0]);
+      await q.click('.gantt [data-ganttgo]');
+      assert.ok(await q.$('[data-ttf="わが家"][aria-pressed="true"]'), 'わが家の一覧へ');
+      assert.ok(await q.$eval('.tt[data-ttid="' + gid + '"]', (el) => el.classList.contains('flash')), 'その競技の行が光る');
+      await q.click('[data-ttf="重なり"]');
       // 学年と男女でしぼる
       await q.click('[data-ttf="全部"]');
       await q.click('[data-ttsex="女"]');

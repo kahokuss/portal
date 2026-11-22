@@ -593,7 +593,11 @@ tr.sel td { background: var(--sky-soft); }
 .gtrack { position: relative; height: 30px; }
 .gax .gtrack { height: 16px; }
 .gtick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.gtick.half { font-size: 9.5px; opacity: .75; }
 .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.gline.minor { opacity: .45; }
+.gseg.warm, .gseg.call { font-size: 10px; line-height: 16px; padding-left: 3px; white-space: nowrap; color: var(--sky); font-weight: 700; }
+.gseg.call { color: var(--warn); line-height: 14px; }
 .grow2 { padding: 3px 0; border-top: 1px solid var(--line); }
 .grow2 .gnm { font-weight: 600; font-size: 12px; }
 .grow2 .gnm small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -605,6 +609,9 @@ tr.sel td { background: var(--sky-soft); }
 .grow2.bad .gnm { background: var(--track-soft); color: var(--track); }
 .gkids { color: var(--muted); }
 .grow2.bad .gnm { color: var(--track); }
+.grow2[data-ganttgo] { cursor: pointer; }
+.grow2[data-ganttgo]:active { background: var(--sky-soft); }
+.tt.flash { animation: flashcard 1.8s ease-out; border-radius: 8px; }
 .gseg { position: absolute; top: 5px; height: 16px; border-radius: 4px; overflow: hidden; }
 .gseg.warm { background: var(--sky-soft); }
 .gseg.call { background: var(--warn-soft); border: 1px solid var(--warn); }
@@ -2518,7 +2525,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     // 役員・当番は、時刻や種目名を押すと時刻表の入力（その行が開いた状態）へ
     var ed = canManage(e.key) && r.id ? ' data-ttopen="' + esc(e.key + '|' + r.id) + '" role="button" tabindex="0" title="押すと直せます"' : '';
     var who = [r.group, r.heat].filter(Boolean).join(' ') || (ed ? '全学年・男女とも' : '');
-    var h = '<div class="tt" data-tts="' + tkey(r.start) + '"><div class="tt-time' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.start || '—') + '</div><div class="main"><div class="ttl' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.race) + ' <span class="sub">' + esc(who) + '</span>' + (ed ? ' <span class="ttpen" aria-hidden="true">✎</span>' : '') + '</div>' +
+    var h = '<div class="tt" data-tts="' + tkey(r.start) + '" data-ttid="' + esc(r.id || '') + '"><div class="tt-time' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.start || '—') + '</div><div class="main"><div class="ttl' + (ed ? ' ttedit' : '') + '"' + ed + '>' + esc(r.race) + ' <span class="sub">' + esc(who) + '</span>' + (ed ? ' <span class="ttpen" aria-hidden="true">✎</span>' : '') + '</div>' +
       '<div class="sub">' + (r.call ? '<b class="callt">招集 ' + shortRange(r.call) + '</b>　' : '') + (warm ? 'アップ ' + shortRange(warm) + (r.warm ? '' : '頃') : '') + (r.memo ? '　' + esc(r.memo) : '') + '</div>';
     if (kids.length) h += '<div class="tt-kids">' + kids.map(function (k) {
       var lane = taskOf(e.key, 'レーン', k.name + '|' + r.id), mine = myNames().indexOf(k.name) >= 0;
@@ -2591,11 +2598,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var ticks = []; for (var t = t0; t <= t1; t += 30) ticks.push(t);
     var W = Math.max(280, Math.round(span * 2.4)), cols = ' style="grid-template-columns:7.5em ' + W + 'px"';
     h += clash.length ? '<div class="toast err">⚠ 重なり ' + clash.length + '件：' + clash.slice(0, 4).map(function (c) { return esc(c.k.name) + '（' + esc(c.a.r.race) + ' ' + hm(c.a.race[0]) + '／' + esc(c.b.r.race) + ' ' + hm(c.b.race[0]) + '）'; }).join('、') + (clash.length > 4 ? ' ほか' : '') + '<br><span class="sub">早めに抜けられるよう、当番や係の人と確かめておきましょう。</span></div>' : '<div class="toast">✓ 重なりはありません</div>';
-    var axis = '<div class="gax"' + cols + '><span class="gnm"></span><div class="gtrack">' + ticks.map(function (t) { return '<span class="gtick" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%">' + (t % 60 ? '' : hm(t)) + '</span>'; }).join('') + '</div></div>';
+    var axis = '<div class="gax"' + cols + '><span class="gnm"></span><div class="gtrack">' + ticks.map(function (t) { return '<span class="gtick' + (t % 60 ? ' half' : '') + '" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%">' + hm(t) + '</span>'; }).join('') + '</div></div>';
     var lines = ticks.map(function (t) { return '<i class="gline" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%"></i>'; }).join('');
+    // 10分ごとの細い線（アップや招集が何分かを目で数えられるように）
+    for (var mt = t0 + 10; mt < t1; mt += 10) if (mt % 30) lines += '<i class="gline minor" style="left:' + ((mt - t0) * 100 / span).toFixed(2) + '%"></i>';
     var bar = function (x, label, bad) {
       var tip = label + '｜アップ ' + hm(x.warm[0]) + '〜 ・招集 ' + hm(x.call[0]) + '〜' + hm(x.call[1]) + '・競技 ' + hm(x.race[0]) + (x.maybe ? '（進んだら）' : '');
-      return '<span class="gseg warm' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.warm[0], x.warm[1]) + '"></span><span class="gseg call' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.call[0], x.call[1]) + '"></span>' +
+      var wm = Math.round(x.warm[1] - x.warm[0]), cm = Math.round(x.call[1] - x.call[0]);
+      return '<span class="gseg warm' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.warm[0], x.warm[1]) + '">' + (wm >= 20 ? 'アップ' + wm + '分' : wm > 0 ? wm + '分' : '') + '</span><span class="gseg call' + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.call[0], x.call[1]) + '">' + (cm >= 8 ? '招集' : '') + '</span>' +
         '<span class="gseg race' + (bad ? ' clash' : '') + (x.maybe ? ' maybe' : '') + '" style="' + pos(x.race[0], x.race[1]) + '" data-tip="' + esc(tip) + '"></span>';
     };
     var rowLabel = function (r) { return esc(r.race) + (r.heat ? ' <small>' + esc(r.heat) + '</small>' : '') + '<small>' + esc(r.start || '') + (r.group ? '・' + esc(r.group) : '') + '</small>'; };
@@ -2605,7 +2615,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += order.map(function (k) {
         var list = kids[k.name].sort(function (a, b) { return a.race[0] - b.race[0]; }), bad = list.filter(function (x) { return x.clash; }).length;
         return '<div class="gkid' + (bad ? ' bad' : '') + '"' + cols + '><span class="gnm">' + esc(k.name) + '<small>' + (k.grade || '') + '年・' + list.length + '種目</small></span><span class="gkm">' + (bad ? '⚠ 重なりあり' : '✓ 重なりなし') + '</span></div>' +
-          list.map(function (x) { return '<div class="grow2' + (x.clash ? ' bad' : '') + '"' + cols + '><span class="gnm">' + rowLabel(x.r) + '</span><div class="gtrack">' + lines + bar(x, k.name + '｜' + x.r.race, x.clash) + '</div></div>'; }).join('');
+          list.map(function (x) { return '<div class="grow2' + (x.clash ? ' bad' : '') + '"' + cols + ' data-ganttgo="' + esc(x.r.id + '|' + k.name) + '" role="button" tabindex="0"><span class="gnm">' + rowLabel(x.r) + '</span><div class="gtrack">' + lines + bar(x, k.name + '｜' + x.r.race, x.clash) + '</div></div>'; }).join('');
       }).join('');
     } else {
       // 出る子全員：時刻表の競技を1行ずつ。重なっている子がいる競技は赤
@@ -2614,11 +2624,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rorder.sort(function (a, b) { return tMin(a.start) - tMin(b.start); });
       h += rorder.map(function (r) {
         var list = byRow[r.id], bad = list.filter(function (x) { return x.clash; }).map(function (x) { return x.k.name; });
-        return '<div class="grow2' + (bad.length ? ' bad' : '') + '"' + cols + '><span class="gnm">' + rowLabel(r) + '<small class="gkids">' + list.map(function (x) { return (bad.indexOf(x.k.name) >= 0 ? '⚠' : '') + esc(x.k.name.split(/[\s　]/).pop()); }).join('・') + '</small></span><div class="gtrack">' + lines + bar(list[0], r.race + '｜' + list.map(function (x) { return x.k.name; }).join('・'), bad.length) + '</div></div>';
+        return '<div class="grow2' + (bad.length ? ' bad' : '') + '"' + cols + ' data-ganttgo="' + esc(r.id + '|') + '" role="button" tabindex="0"><span class="gnm">' + rowLabel(r) + '<small class="gkids">' + list.map(function (x) { return (bad.indexOf(x.k.name) >= 0 ? '⚠' : '') + esc(x.k.name.split(/[\s　]/).pop()); }).join('・') + '</small></span><div class="gtrack">' + lines + bar(list[0], r.race + '｜' + list.map(function (x) { return x.k.name; }).join('・'), bad.length) + '</div></div>';
       }).join('');
     }
     h += '</div>' +
-      '<div class="glegend"><span><i class="gseg warm"></i>アップ</span><span><i class="gseg call"></i>招集</span><span><i class="gseg race"></i>競技</span><span><i class="gseg race clash"></i>重なり</span><span><i class="gseg race maybe"></i>決勝（進んだら）</span></div>' +
+      '<div class="glegend"><span><i class="gseg warm"></i>アップ</span><span><i class="gseg call"></i>招集</span><span><i class="gseg race"></i>競技</span><span><i class="gseg race clash"></i>重なり</span><span><i class="gseg race maybe"></i>決勝（進んだら）</span></div><div class="hint">行を押すと、その競技の招集・アップ・組・レーンへ</div>' +
       '<div class="hint">横にスクロールできます。招集が空のときはトラック20分前・フィールド40分前、アップは招集の' + ST.choices.warmMinutes + '分前、競技はトラック10分・長い距離15分・フィールド60分として描いています。棒を押すと時刻が出ます。</div></section>';
     return h;
   }
@@ -2691,6 +2701,19 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function bindTimetable(e) {
     bindTTOpen();
+    // 重なり：行を押すと、その競技の詳しい時刻（招集・アップ・組・レーン）へ
+    on('[data-ganttgo]', function () {
+      var p = this.dataset.ganttgo.split('|'), id = p[0], kid = p.slice(1).join('|');
+      S.ttf = kid && myNames().indexOf(kid) >= 0 ? 'わが家' : '全部'; S.ttNowDone = e.key + '|' + S.ttf + (S.ttsex || '');
+      render();
+      var cand = [].slice.call(view.querySelectorAll('.tt[data-ttid="' + id + '"]'));
+      var el = cand.filter(function (x) { var c = x.closest('.card'), h2 = c && c.querySelector('h2'); return kid && h2 && h2.textContent.indexOf(kid) === 0; })[0] || cand[0];
+      if (!el) return;
+      var bar = view.querySelector('.etabs'), off = (bar ? bar.offsetHeight : 0) + 24;
+      window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - off), behavior: 'instant' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    });
+    view.querySelectorAll('[data-ganttgo]').forEach(function (el) { el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') el.click(); }); });
     if (S.etab === 'タイムテーブル') ttScrollNow(e);
     on('[data-gall]', function () { S.ganttAll = !!this.dataset.gall; render(); });
     // ガント：最初の重なり（なければ最初の競技）が見えるところまで横に送る

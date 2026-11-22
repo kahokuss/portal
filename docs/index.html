@@ -766,7 +766,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "8a67eaf797";
+var BUILD = "37db60653d";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2572,6 +2572,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var warm = tRange(r.warm) || [call[0] - ST.choices.warmMinutes, call[0]];
     return { r: r, k: k, warm: warm, call: call, race: [st, st + dur], busy: [call[0], st + dur], maybe: needsAdvance(e, r) && !advanced(e, r, k) };
   }
+  /** 短い名前：名字だけ（空白で区切った前）。同じ名字の子がいっしょに並ぶときはフルネーム */
+  function shortName(name, others) {
+    var fam = String(name).split(/[\s　]/)[0];
+    var dup = (others || []).some(function (o) { return o !== name && String(o).split(/[\s　]/)[0] === fam; });
+    return dup ? String(name).replace(/[\s　]+/, '') : fam;
+  }
   function ganttHtml(e, rows) {
     var staff = canManage(e.key), mineNames = myNames(), all = staff && (S.ganttAll || !mineNames.length);
     var kids = {}, order = [];
@@ -2627,7 +2633,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       rorder.sort(function (a, b) { return tMin(a.start) - tMin(b.start); });
       h += rorder.map(function (r) {
         var list = byRow[r.id], bad = list.filter(function (x) { return x.clash; }).map(function (x) { return x.k.name; });
-        return '<div class="grow2' + (bad.length ? ' bad' : '') + '"' + cols + ' data-ganttgo="' + esc(r.id + '|') + '" role="button" tabindex="0"><span class="gnm">' + rowLabel(r) + '<small class="gkids">' + list.map(function (x) { return (bad.indexOf(x.k.name) >= 0 ? '⚠' : '') + esc(x.k.name.split(/[\s　]/).pop()); }).join('・') + '</small></span><div class="gtrack">' + lines + bar(list[0], r.race + '｜' + list.map(function (x) { return x.k.name; }).join('・'), bad.length) + '</div></div>';
+        return '<div class="grow2' + (bad.length ? ' bad' : '') + '"' + cols + ' data-ganttgo="' + esc(r.id + '|') + '" role="button" tabindex="0"><span class="gnm">' + rowLabel(r) + '<small class="gkids">' + list.map(function (x) { return (bad.indexOf(x.k.name) >= 0 ? '⚠' : '') + esc(shortName(x.k.name, list.map(function (y) { return y.k.name; }))); }).join('・') + '</small></span><div class="gtrack">' + lines + bar(list[0], r.race + '｜' + list.map(function (x) { return x.k.name; }).join('・'), bad.length) + '</div></div>';
       }).join('');
     }
     h += '</div>' +

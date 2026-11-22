@@ -3,7 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
 <style>
 :root {
   --bg: #e9eef0; --surface: #ffffff; --surface-2: #f3f6f7; --fg: #182328; --muted: #5f7079; --line: #d6dfe3;
@@ -15,7 +15,7 @@
   --goal-a: #26457f; --goal-b: #172c55; --goal-gold: #ffc94d; --goal-ink: #ffffff; --goal-soft: #e6ecf7;
   --staff: #6a4fb0; --staff-soft: #f1ecfa;
   --font-display: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
-  --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+  --font-body: "Hiragino Sans", "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif; /* 本文はスマホに入っている日本語の字（ダウンロードしない） */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -796,21 +796,39 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       return;
     }
     // text/plain で送ると、ブラウザの事前確認（CORS のプリフライト）なしで Apps Script に届く
+    var t0 = Date.now();
     fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: action, key: KEY, payload: payload || {} }) })
-      .then(function (r) { return r.json(); })
+      .then(function (r) { return r.text(); })
+      .then(function (txt) { netLog(action, Date.now() - t0, txt.length); return JSON.parse(txt); })
       .then(function (res) { if (res.error) ng(new Error(res.error)); else ok(res.ok); })
       .catch(function () { ng(new Error('通信できませんでした。電波のよいところで「更新」を押してください。')); });
   }
+  /** 通信の速さを覚えておく（役員の運用チェックに出す。遅いときの原因さがし用） */
+  var NET = [];
+  function netLog(action, ms, len) { NET.unshift({ a: action, ms: ms, kb: Math.round(len / 1024), at: nowHM() }); NET.length = Math.min(NET.length, 8); }
+  function netText() {
+    if (!NET.length) return '';
+    var open = NET.filter(function (x) { return x.a === 'bootstrap' || x.a === 'refresh'; })[0], save = NET.filter(function (x) { return x.a !== 'bootstrap' && x.a !== 'refresh'; })[0];
+    var f = function (x) { return (x.ms / 1000).toFixed(1) + '秒・' + x.kb + 'KB'; };
+    return '通信の速さ（このスマホ）：' + (open ? '最新にする ' + f(open) : '') + (open && save ? '／' : '') + (save ? '保存 ' + f(save) : '');
+  }
+  var LASTJS = '';
   function call(action, payload, done) {
     document.getElementById('busy').hidden = false;
     rpc(action, payload, function (st) {
         document.getElementById('busy').hidden = true;
         document.getElementById('busy').textContent = '保存しています…';
-        ST = fillDefaults(st);
-        saveState(st);
-        if (st.message) { S.toast = '✅ ' + st.message; S.toastErr = false; }
-        if (done) done(st);
-        render();
+        var js = JSON.stringify(st);
+        // 開いたときの「最新にする」で中身が前と同じなら、描き直さない（画面がちらつかない・すぐ使える）
+        var same = action === 'bootstrap' && js === LASTJS && !st.message && ST;
+        LASTJS = js;
+        if (!same) {
+          ST = fillDefaults(st);
+          if (st.message) { S.toast = '✅ ' + st.message; S.toastErr = false; }
+          if (done) done(st);
+          render();
+        } else if (done) done(st);
+        setTimeout(function () { saveStateJs(js); }, 0); // 覚えるのは画面を出してから
       }, function (err) {
         document.getElementById('busy').hidden = true;
         document.getElementById('busy').textContent = '保存しています…';
@@ -1203,7 +1221,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!list.length) return '<section class="card"><div class="todo-done">✓ 運用に足りないものはありません</div></section>';
     var hi = list.filter(function (x) { return x.pri === 1; }).length;
     return '<section class="card ops"><h2>運用チェック<small>' + (hi ? '急ぎ ' + hi + '件・' : '') + '全部で ' + list.length + '件</small></h2><div class="list">' + list.slice(0, 5).map(opsItem).join('') + '</div>' +
-      (list.length > 5 ? '<button class="link" type="button" id="opsAll">すべて見る（' + list.length + '件） ›</button>' : '') + '</section>';
+      (list.length > 5 ? '<button class="link" type="button" id="opsAll">すべて見る（' + list.length + '件） ›</button>' : '') + (netText() ? '<div class="hint">' + netText() + '</div>' : '') + '</section>';
   }
   function bindOps() {
     var list = opsChecks();
@@ -5959,11 +5977,12 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function clearKey() { try { localStorage.removeItem(STORE); localStorage.removeItem(STATE); } catch (e) {} KEY = ''; }
   // 前回の画面を覚えておき、次に開いたときすぐ出す（そのあと裏で最新にする）
   var STATE = 'clubPortalState';
-  function saveState(st) { try { localStorage.setItem(STATE, JSON.stringify({ k: String(KEY).slice(0, 8), st: st })); } catch (e) {} }
+  function saveState(st) { saveStateJs(JSON.stringify(st)); }
+  function saveStateJs(js) { try { localStorage.setItem(STATE, '{"k":' + JSON.stringify(String(KEY).slice(0, 8)) + ',"st":' + js + '}'); } catch (e) {} }
   function loadState() { try { var s = JSON.parse(localStorage.getItem(STATE) || 'null'); return s && s.k === String(KEY).slice(0, 8) ? s.st : null; } catch (e) { return null; } }
   function openFast() {
     var cached = loadState();
-    if (cached && cached.me) { try { ST = fillDefaults(cached); render(); } catch (e) { ST = null; } }
+    if (cached && cached.me) { try { LASTJS = JSON.stringify(cached); ST = fillDefaults(cached); render(); } catch (e) { ST = null; } }
     call('bootstrap', null, pendingJoin);
     if (ST) document.getElementById('busy').textContent = '最新にしています…';
   }

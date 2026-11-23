@@ -443,7 +443,7 @@ async function openPortal(browser, gas, userId, name) {
       await p.idle();
       assert.strictEqual(gas.rows('結果').length, 2);
       const t2 = await p.textContent('#view');
-      assert.ok(/14\.98\s*2位\s*自己ベスト/.test(t2), t2);
+      assert.ok(/2位\s*14\.98\s*鈴木けんた\s*自己ベスト/.test(t2), t2);
       await p.shot('8-results');
       await p.click('[data-nav="family"]');
       assert.ok(/100m\s*14\.98/.test(await p.textContent('#view')), 'わが家の記録の表に自己ベスト');

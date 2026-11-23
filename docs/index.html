@@ -195,6 +195,9 @@ form.f, .f { display: grid; gap: 8px; }
 .resgrp:first-of-type { border-top: 0; }
 .resgrp > .between:first-child b { color: var(--track); }
 .resgrp .mine > span:first-child { font-weight: 700; }
+.ressub { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface-2); border-radius: 6px; padding: 2px 8px; margin-top: 4px; }
+.resl .rpl { display: inline-block; min-width: 2.6em; color: var(--track); }
+.resl .rtm { display: inline-block; min-width: 3.6em; font-variant-numeric: tabular-nums; }
 .ttnow { display: flex; align-items: center; gap: 8px; color: var(--track); font-weight: 800; font-size: 12.5px; }
 .ttnow::before, .ttnow::after { content: ''; flex: 1; height: 2px; background: var(--track); }
 .ttedit { cursor: pointer; }
@@ -780,7 +783,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "aafcc702b0";
+var BUILD = "8ee7a5082b";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -5043,10 +5046,31 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       // リレー：全員のメモに同じ「チーム◯位 タイム」があれば見出しに出す
       var team = (String(rows[0].memo || '').match(/チーム\s*\d+位\s*\S*/) || [''])[0];
       if (team && !rows.every(function (r) { return String(r.memo || '').indexOf(team) >= 0; })) team = '';
-      return '<div class="resgrp"><div class="between"><b>' + esc(race) + '</b><span class="sub">' + (team ? esc(team) : rows.length + '件') + '</span></div>' + rows.map(function (r) {
-        var memo = team ? String(r.memo || '').replace(team, '').replace(/[／/・\s]+$/, '') : r.memo;
-        return '<div class="between' + (mine.indexOf(r.child) >= 0 ? ' mine' : '') + '"><span>' + esc(r.child) + (r.round ? ' <span class="sub">' + esc(r.round) + '</span>' : '') + ' <b>' + esc(r.record) + '</b>' + (r.place ? ' <span class="sub">' + esc(r.place) + '位</span>' : '') + kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + (memo ? ' <span class="sub">' + esc(memo) + '</span>' : '') + '</span>' +
+      var line = function (r, memo) {
+        return '<div class="between resl' + (mine.indexOf(r.child) >= 0 ? ' mine' : '') + '"><span><b class="rpl">' + (r.place ? esc(r.place) + '位' : '—') + '</b> <b class="rtm">' + esc(r.record) + '</b> ' + esc(r.child) +
+          kindPill(r) + (isPB(r) ? ' <span class="pill p-race">' + pbText(r) + '</span>' : '') + (memo ? ' <span class="sub">' + esc(memo) + '</span>' : '') + '</span>' +
           (r.id && canResult(e, r.child) ? '<button class="icon-btn" type="button" data-rdel="' + esc(r.id) + '" aria-label="消す">×</button>' : '') + '</div>';
+      };
+      var head = '<div class="between"><b>' + esc(race) + '</b><span class="sub">' + (team ? esc(team) : rows.length + '件') + '</span></div>';
+      // リレー（区の順）はそのまま。ほかは、時刻表の部（時刻・学年・男女・ラウンド）ごとに分けて、順位・タイムの順
+      if (team || isRelay(race)) return '<div class="resgrp">' + head + rows.map(function (r) { return line(r, team ? String(r.memo || '').replace(team, '').replace(/[／/・\s]+$/, '') : r.memo); }).join('') + '</div>';
+      var subs = {}, sorder = [];
+      rows.forEach(function (r) {
+        var k = kidInfo(r.child);
+        var row = ttRows(e).filter(function (t) { return sameRace(t.race, r.race) && (!raceQual(r.race) || sameGroup(raceQual(r.race), t.group)) && groupMatch(t.group, k) && (!r.round || !roundOf(t) || roundOf(t) === r.round); })[0];
+        var key = row ? row.id : 'g' + (k.grade || 0) + (k.sex || '');
+        if (!subs[key]) {
+          subs[key] = { rows: [], at: row ? tkey(row.start) : '99:99', g: k.grade || 0,
+            label: row ? [row.start, row.group, row.heat].filter(Boolean).join(' ') : (k.grade ? k.grade + '年' : '') + (k.sex === '男' ? '男子' : k.sex === '女' ? '女子' : '') };
+          sorder.push(key);
+        }
+        subs[key].rows.push(r);
+      });
+      sorder.sort(function (a, b) { return subs[a].at < subs[b].at ? -1 : subs[a].at > subs[b].at ? 1 : subs[a].g - subs[b].g; });
+      return '<div class="resgrp">' + head + sorder.map(function (key) {
+        var sg = subs[key];
+        sg.rows.sort(function (a, b) { return (+a.place || 999) - (+b.place || 999) || (markValue(a.record) || 0) - (markValue(b.record) || 0); });
+        return '<div class="ressub">' + esc(sg.label) + '</div>' + sg.rows.map(function (r) { return line(r, r.memo); }).join('');
       }).join('') + '</div>';
     }).join('') : '<div class="sub">まだ結果はありません。</div>') + '</section>';
     var t = taskOf(e.key, 'リザルト', '') || { photos: [] };

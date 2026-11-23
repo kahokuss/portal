@@ -766,7 +766,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "37db60653d";
+var BUILD = "8337e83379";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -3340,12 +3340,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var diffY = collected - paidOut;
       if (collected) h += '<div class="sub">集めた額 ' + yen(collected) + ' − 払った額 ' + yen(paidOut) + ' ＝ <b>' + (diffY >= 0 ? yen(diffY) : '−' + yen(-diffY)) + '</b>' + (diffY ? '（欠場の返金や、ほかの費用がないか確かめてください）' : '') + '</div>';
     }
+    if (man && !list.length && t && t.done) h += '<div class="between"><span class="sub">金額の記録なしで「済」にしています。</span><button class="btn small ghost" type="button" id="payUndo">「済」を取り消す</button></div>';
     if (man) {
       var P = S.pay || (S.pay = {});
       h += '<form class="f" id="payForm"' + dropAttr('form', '', 'pay', '') + '><div class="lbl">領収書を記録する</div><div class="two"><label>金額（円）<input id="py-amount" inputmode="numeric" value="' + esc(P.amount || '') + '" placeholder="' + (collected || '') + '"></label><label>日付<input type="date" id="py-date" value="' + esc(P.date || e.date) + '"></label></div>' +
         '<label>払った先<input id="py-payee" value="' + esc(P.payee || '') + '" placeholder="例：大会の主催者"></label><label>但し書き<input id="py-note" value="' + esc(P.note || '参加料') + '"></label>' +
         '<label class="btn small ghost upl" style="justify-self:start">📷 領収書の写真<input type="file" accept="image/*" id="py-photo" hidden></label><span class="hint" id="py-file">' + (P.file ? '写真を選びました' : '写真はなくてもOK') + '</span>' +
-        '<button class="btn" type="submit">記録する</button><div class="hint">会計の履歴（管理メニュー）にも残ります。</div></form>';
+        '<button class="btn" type="submit">記録する</button><div class="hint">会計の履歴（管理メニュー）にも残ります。</div>' +
+        '<button class="btn small ghost" type="button" id="payDoneOnly" style="justify-self:start">金額なしで「済」にする</button><div class="hint">当日受付で払って金額がまだわからない、無料だった、などのとき。</div></form>';
     } else if (!done) h += '<div class="hint">役員・当番の人が払って、領収書を記録します。</div>';
     return h + '</section>';
   }
@@ -3358,8 +3360,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var file = this.files && this.files[0]; if (!file) return;
       readImage(file, function (data) { P.data = data; P.file = !!data; document.getElementById('py-file').textContent = data ? '写真を選びました' : '写真を読み込めませんでした'; });
     });
+    // 金額がわからない・0円のとき（当日受付で払った、無料だった など）は、記録なしで「済」にだけする
+    on('#payUndo', function () { call('setTask', { key: e.key, kind: '参加費支払い', target: '', done: false }); });
+    on('#payDoneOnly', function () { call('setTask', { key: e.key, kind: '参加費支払い', target: '', done: true }); });
     f.addEventListener('submit', function (x) {
       x.preventDefault(); keep();
+      var amt = Number(toHalf(P.amount || document.getElementById('py-amount').placeholder || '').replace(/[^0-9]/g, ''));
+      if (!amt) { if (confirm('金額が0円です。領収書の記録はせず、「済」にだけしますか？')) call('setTask', { key: e.key, kind: '参加費支払い', target: '', done: true }); return; }
       call('saveLedger', { key: e.key, kind: '支払い', amount: P.amount || document.getElementById('py-amount').placeholder, date: P.date, payee: P.payee, note: P.note, data: P.data || '' }, function () { S.pay = null; });
     });
   }

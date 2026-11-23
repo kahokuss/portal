@@ -1636,6 +1636,23 @@ async function openPortal(browser, gas, userId, name) {
       if (SHOTS) await q.locator('.card:has-text("この大会の結果")').screenshot({ path: path.join(shotDir, 'admin-results-grouped.png') });
       await q.close();
     });
+    await step('役員: 参加費の支払いは、金額なしでも「済」にできる（取り消しも）', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'paydone');
+      q.on('dialog', (d) => d.accept());
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('[data-et="手続き"]');
+      const before = gas.rows('会計').filter((x) => x['種類'] === '支払い').length;
+      if (!(await q.$('#payDoneOnly'))) { await q.close(); return; } // すでに記録がある大会
+      await q.click('#payDoneOnly');
+      await q.idle();
+      assert.ok(gas.rows('手続き').some((x) => x['種類'] === '参加費支払い' && x['状態'] === '済'), '済になる');
+      assert.strictEqual(gas.rows('会計').filter((x) => x['種類'] === '支払い').length, before, '会計には入れない');
+      await q.click('#payUndo');
+      await q.idle();
+      assert.ok(gas.rows('手続き').some((x) => x['種類'] === '参加費支払い' && x['状態'] === ''), '取り消せる');
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

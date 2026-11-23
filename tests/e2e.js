@@ -1653,6 +1653,31 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(gas.rows('手続き').some((x) => x['種類'] === '参加費支払い' && x['状態'] === ''), '取り消せる');
       await q.close();
     });
+    await step('大会の日：重なりに、いまの線と「招集の時間なのにまだ」「もうすぐ招集」が出る', async () => {
+      const { gas: g3 } = setupClub();
+      g3.calendar.add({ title: '今日の記録会', start: new Date('2026-10-14T00:00:00+09:00'), end: new Date('2026-10-15T00:00:00+09:00'), allDay: true, location: '市営陸上競技場' });
+      const k1 = g3.login('U1').key, k2 = g3.login('U2').key;
+      const ev = g3.ctx.api(k1, 'bootstrap').events.find((x) => x.title === '今日の記録会');
+      g3.ctx.api(k1, 'saveTimetable', { key: ev.key, rows: [{ start: '10:50', race: '100m', group: '5年', call: '10:30' }, { start: '11:10', race: '走幅跳', group: '5年', call: '10:50' }] });
+      g3.ctx.api(k2, 'saveEntry', { key: ev.key, child: '鈴木けんた', join: '参加', races: ['100m', '走幅跳'] });
+      g3.ctx.api(k1, 'saveEntry', { key: ev.key, child: '鈴木けんた', join: '参加', races: ['100m', '走幅跳'] });
+      const q = await openPortal(browser, g3, 'U2', 'ganttnow');
+      await q.evaluate(() => { const off = new Date('2026-10-14T10:40:00+09:00').getTime() - Date.now(); const o = Date.now.bind(Date); Date.now = () => o() + off; });
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("今日の記録会")');
+      await q.click('[data-et="タイムテーブル"]');
+      await q.click('[data-ttf="重なり"]');
+      const t = await q.textContent('#view');
+      assert.ok(t.includes('いま 10:40'), 'いまの時刻');
+      assert.ok(/招集の時間です[\s\S]*鈴木けんた・100m 招集10:30/.test(t), '招集の時間なのにまだ ' + t.slice(0, 400));
+      assert.ok(/もうすぐ招集[\s\S]*走幅跳 招集10:50（あと10分）/.test(t), 'もうすぐ招集');
+      assert.ok(await q.$('.gantt .gline.gnow'), 'いまの線');
+      if (SHOTS) await q.locator('.card:has(.gantt)').screenshot({ path: path.join(shotDir, 'parent-gantt-now.png') });
+      await q.click('.toast.err [data-ganttgo]');
+      assert.ok(await q.$('.tt.flash'), '押すとその競技の行へ（招集したボタンのあるところ）');
+      a.errors.push(...q.errors);
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

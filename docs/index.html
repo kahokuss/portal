@@ -599,6 +599,10 @@ tr.sel td { background: var(--sky-soft); }
 .gtick.half { font-size: 9.5px; opacity: .75; }
 .gline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
 .gline.minor { opacity: .45; }
+.gline.gnow { width: 2px; background: var(--track); z-index: 1; }
+.gtick.gnowt { color: var(--track); font-weight: 800; z-index: 2; background: var(--surface); padding: 0 2px; }
+.gnowbar { font-size: 13px; color: var(--track); }
+.gnowbar b { font-size: 16px; }
 .gseg.warm, .gseg.call { font-size: 10px; line-height: 16px; padding-left: 3px; white-space: nowrap; color: var(--sky); font-weight: 700; }
 .gseg.call { color: var(--warn); line-height: 14px; }
 .grow2 { padding: 3px 0; border-top: 1px solid var(--line); }
@@ -766,7 +770,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "8337e83379";
+var BUILD = "ef6eec7737";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2607,10 +2611,27 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var ticks = []; for (var t = t0; t <= t1; t += 30) ticks.push(t);
     var W = Math.max(280, Math.round(span * 2.4)), cols = ' style="grid-template-columns:7.5em ' + W + 'px"';
     h += clash.length ? '<div class="toast err">⚠ 重なり ' + clash.length + '件：' + clash.slice(0, 4).map(function (c) { return esc(c.k.name) + '（' + esc(c.a.r.race) + ' ' + hm(c.a.race[0]) + '／' + esc(c.b.r.race) + ' ' + hm(c.b.race[0]) + '）'; }).join('、') + (clash.length > 4 ? ' ほか' : '') + '<br><span class="sub">早めに抜けられるよう、当番や係の人と確かめておきましょう。</span></div>' : '<div class="toast">✓ 重なりはありません</div>';
-    var axis = '<div class="gax"' + cols + '><span class="gnm"></span><div class="gtrack">' + ticks.map(function (t) { return '<span class="gtick' + (t % 60 ? ' half' : '') + '" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%">' + hm(t) + '</span>'; }).join('') + '</div></div>';
+    // 大会の日：いまの時刻の線と、招集の時間なのに「招集した」になっていない子
+    var today = e.date === ST.today, now = tMin(nowHM()), nowIn = today && now >= t0 && now <= t1;
+    if (today) {
+      var late = [], soon = [];
+      segs.forEach(function (x) {
+        if (x.maybe || !x.r.call) return;
+        var t = taskOf(e.key, '招集', x.k.name + '|' + x.r.id);
+        if (t && t.done) return;
+        if (x.call[0] <= now && now < x.race[0] + 5) late.push(x); else if (x.call[0] > now && x.call[0] - now <= 15) soon.push(x);
+      });
+      var item = function (x, w) { return '<button type="button" class="link" data-ganttgo="' + esc(x.r.id + '|' + x.k.name) + '">' + esc(x.k.name) + '・' + esc(x.r.race) + ' 招集' + hm(x.call[0]) + w + ' ›</button>'; };
+      h += '<div class="gnowbar">🕘 いま <b>' + hm(now) + '</b></div>';
+      if (late.length) h += '<div class="toast err">⚠ 招集の時間です。まだ「招集した」になっていません<div class="list">' + late.map(function (x) { return item(x, ''); }).join('') + '</div></div>';
+      if (soon.length) h += '<div class="toast">⏰ もうすぐ招集<div class="list">' + soon.map(function (x) { return item(x, '（あと' + (x.call[0] - now) + '分）'); }).join('') + '</div></div>';
+    }
+    var nowX = nowIn ? ((now - t0) * 100 / span).toFixed(2) : '';
+    var axis = '<div class="gax"' + cols + '><span class="gnm"></span><div class="gtrack">' + ticks.map(function (t) { return '<span class="gtick' + (t % 60 ? ' half' : '') + '" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%">' + hm(t) + '</span>'; }).join('') + (nowIn ? '<span class="gtick gnowt" style="left:' + nowX + '%">いま</span>' : '') + '</div></div>';
     var lines = ticks.map(function (t) { return '<i class="gline" style="left:' + ((t - t0) * 100 / span).toFixed(2) + '%"></i>'; }).join('');
     // 10分ごとの細い線（アップや招集が何分かを目で数えられるように）
     for (var mt = t0 + 10; mt < t1; mt += 10) if (mt % 30) lines += '<i class="gline minor" style="left:' + ((mt - t0) * 100 / span).toFixed(2) + '%"></i>';
+    if (nowIn) lines += '<i class="gline gnow" style="left:' + nowX + '%"></i>';
     var bar = function (x, label, bad) {
       var tip = label + '｜アップ ' + hm(x.warm[0]) + '〜 ・招集 ' + hm(x.call[0]) + '〜' + hm(x.call[1]) + '・競技 ' + hm(x.race[0]) + (x.maybe ? '（進んだら）' : '');
       var wm = Math.round(x.warm[1] - x.warm[0]), cm = Math.round(x.call[1] - x.call[0]);
@@ -2727,7 +2748,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-gall]', function () { S.ganttAll = !!this.dataset.gall; render(); });
     // ガント：最初の重なり（なければ最初の競技）が見えるところまで横に送る
     var gw = view.querySelector('.gantt');
-    if (gw) { var tg = gw.querySelector('.gseg.clash') || gw.querySelector('.gseg.race'); if (tg) { var gr = gw.getBoundingClientRect(), tr = tg.getBoundingClientRect(); gw.scrollLeft += tr.left - gr.left - 120; } }
+    if (gw) { var tg = gw.querySelector('.gline.gnow') || gw.querySelector('.gseg.clash') || gw.querySelector('.gseg.race'); if (tg) { var gr = gw.getBoundingClientRect(), tr = tg.getBoundingClientRect(); gw.scrollLeft += tr.left - gr.left - 120; } }
     bindTips();
     on('[data-ttf]', function () { S.ttf = this.dataset.ttf; render(); });
     on('[data-ttsex]', function () { S.ttsex = this.dataset.ttsex; render(); });

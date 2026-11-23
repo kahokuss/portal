@@ -672,6 +672,11 @@ tr.sel td { background: var(--sky-soft); }
 .check .ng { color: var(--muted); width: 1.2em; }
 .callink { font-size: 12.5px; color: var(--sky); text-decoration: none; justify-self: start; }
 .relay-round { border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 4px; }
+.askbg { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 0; }
+.ask { background: var(--surface); border-radius: 16px; padding: 16px; width: 100%; max-width: 420px; display: grid; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.ask-ttl { font-family: var(--font-display); font-weight: 800; font-size: 17px; }
+.ask input { font-size: 18px; border: 2px solid var(--sky); border-radius: 10px; padding: 10px 12px; width: 100%; background: var(--surface); color: var(--fg); }
+.ask input:focus { outline: 3px solid var(--sky-soft); }
 .mcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .mcal .wd { font-size: 11px; color: var(--muted); text-align: center; padding: 2px 0; }
 .mcal .sun { color: var(--track); }
@@ -1424,6 +1429,29 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function bindViewTabs() { on('[data-f]', function () { S.calView = this.dataset.f === 'カレンダー'; S.onlyRace = this.dataset.f === '大会だけ'; render(); }); }
   /** 月のカレンダー表示。練習は青、大会は赤、中止は灰色。日にちを押すとその日の予定 */
+  /**
+   * 入力の小窓（ブラウザの prompt のかわり）。ページの中に出し、入れる欄にすぐカーソルを置く。
+   * fields: [{ label, value, placeholder, inputmode, chips }]、done(値の配列)。やめたら何もしない
+   */
+  function askForm(o, done) {
+    var old = document.getElementById('askBg'); if (old) old.remove();
+    var bg = document.createElement('div'); bg.id = 'askBg'; bg.className = 'askbg';
+    bg.innerHTML = '<form class="ask" role="dialog" aria-modal="true"><div class="ask-ttl">' + esc(o.title) + '</div>' + (o.hint ? '<div class="sub">' + esc(o.hint) + '</div>' : '') +
+      o.fields.map(function (f, i) {
+        return '<label class="fld">' + (f.label ? '<span class="fl">' + esc(f.label) + '</span>' : '') + '<input data-ask="' + i + '" value="' + esc(f.value || '') + '" placeholder="' + esc(f.placeholder || '') + '"' + (f.inputmode ? ' inputmode="' + f.inputmode + '"' : '') + ' autocomplete="off"></label>' +
+          (f.chips && f.chips.length ? '<div class="quick">' + f.chips.map(function (c) { return '<button type="button" data-askc="' + i + '|' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div>' : '');
+      }).join('') +
+      '<div class="row"><button class="btn" type="submit">' + esc(o.ok || '保存する') + '</button><button class="btn ghost" type="button" data-askx>やめる</button></div></form>';
+    document.body.appendChild(bg);
+    var form = bg.querySelector('form'), inputs = bg.querySelectorAll('[data-ask]');
+    var close = function () { bg.remove(); };
+    bg.addEventListener('click', function (ev) { if (ev.target === bg) close(); });
+    bg.querySelector('[data-askx]').addEventListener('click', close);
+    bg.querySelectorAll('[data-askc]').forEach(function (b) { b.addEventListener('click', function () { var p = this.dataset.askc.split('|'); var inp = inputs[+p[0]]; inp.value = p.slice(1).join('|'); inp.focus(); }); });
+    form.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') close(); });
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); var v = [].map.call(inputs, function (x) { return x.value; }); close(); done(v); });
+    setTimeout(function () { var f = inputs[0]; if (f) { f.focus(); try { f.setSelectionRange(f.value.length, f.value.length); } catch (x) {} } }, 30);
+  }
   function calTime(t) { var m = String(t || '').match(/^0?(\d{1,2}):(\d{2})/); return !m ? '練習' : m[2] === '00' ? m[1] + '時' : m[1] + ':' + m[2]; }
   function eventsCalendar() {
     var mon = S.calMonth || (S.calMonth = ST.today.slice(0, 7)), y = +mon.slice(0, 4), m = +mon.slice(5, 7);
@@ -2763,8 +2791,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('#ttDraftClear', function () { if (confirm('「ボタンでつくる」の下書きを消しますか？（大会の時刻表はそのまま）')) call('saveTimetableDraft', { key: e.key, clear: true }); });
     on('[data-call]', function () { call('setTask', { key: e.key, kind: '招集', target: this.dataset.call, done: !!this.dataset.done }); });
     on('[data-adv]', function () { call('setTask', { key: e.key, kind: '進出', target: this.dataset.adv, done: !!this.dataset.on }); });
-    on('[data-lane]', function () { var v = prompt('組とレーンを入れてください（例：2組 5レーン）', this.dataset.cur); if (v !== null) call('setTask', { key: e.key, kind: 'レーン', target: this.dataset.lane, memo: toHalf(v).trim() }); });
-    on('[data-bib]', function () { var v = prompt('ナンバー（ゼッケン）を入れてください', this.dataset.cur); if (v !== null) call('setTask', { key: e.key, kind: 'ナンバー', target: this.dataset.bib, memo: toHalf(v).trim() }); });
+    on('[data-lane]', function () { var t = this.dataset.lane; askForm({ title: '組・レーン', hint: t.split('|')[0], fields: [{ value: this.dataset.cur, placeholder: '例：2組 5レーン', chips: ['1組', '2組', '3組'] }] }, function (v) { call('setTask', { key: e.key, kind: 'レーン', target: t, memo: toHalf(v[0]).trim() }); }); });
+    on('[data-bib]', function () { var t = this.dataset.bib; askForm({ title: 'ナンバー（ゼッケン）', hint: t, fields: [{ value: this.dataset.cur, placeholder: '例：186', inputmode: 'numeric' }] }, function (v) { call('setTask', { key: e.key, kind: 'ナンバー', target: t, memo: toHalf(v[0]).trim() }); }); });
     bindTTEditor(e);
   }
   function blankTT() { return { id: '', start: '', race: '', group: '', heat: '', call: '', warm: '', memo: '' }; }
@@ -3549,7 +3577,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     return h + '</section>';
   }
   function bindJinchi(e) {
-    on('[data-jin]', function () { var v = prompt('陣地の場所（例：本部に向かって右側の階段）', this.dataset.jin); if (v !== null) call('setTask', { key: e.key, kind: '陣地', target: '', memo: v.trim(), done: !!v.trim() }); });
+    on('[data-jin]', function () { askForm({ title: '陣地の場所', hint: 'みんなが迷わないように、目じるしと向きを書いてください。', fields: [{ value: this.dataset.jin, placeholder: '例：本部に向かって右側の階段' }] }, function (v) { call('setTask', { key: e.key, kind: '陣地', target: '', memo: v[0].trim(), done: !!v[0].trim() }); }); });
   }
 
   // ---- 大会の状況・資料・履歴 ----
@@ -3752,9 +3780,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     on('[data-applyfix]', function () {
       var c = ST.comments.find(function (x) { return x.id === this.dataset.applyfix; }, this), sg = c.suggest || {};
-      var st = prompt('始まりの時刻（例：16:50）', sg.start || ''); if (st === null) return;
-      var pl = prompt('場所', sg.place || (c.key && evByKey(c.key) ? evByKey(c.key).place : '') || ''); if (pl === null) return;
-      call('applyNotice', { id: c.id, start: fmtTime(st), place: pl });
+      askForm({ title: '直して予定に入れる', fields: [{ label: '始まりの時刻', value: sg.start || '', placeholder: '例：16:50', inputmode: 'numeric' }, { label: '場所', value: sg.place || (c.key && evByKey(c.key) ? evByKey(c.key).place : '') || '', chips: places() }] }, function (v) {
+        call('applyNotice', { id: c.id, start: fmtTime(v[0]), place: v[1] });
+      });
     });
   }
   function commentHtml(c, withEvent) {
@@ -5340,7 +5368,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       render();
     });
     document.getElementById('tb-ev').addEventListener('change', function () { T.key = this.value; ttbLoad(T); render(); });
-    on('#tb-callcfg', function () { var a = prompt('トラックの招集は、競技開始の何分前から？', T.trackCall); if (a === null) return; var b = prompt('フィールドの招集は、競技開始の何分前から？', T.fieldCall); if (b === null) return; T.trackCall = +a || 30; T.fieldCall = +b || 40; keepTop(); render(); });
+    on('#tb-callcfg', function () { askForm({ title: '招集は競技開始の何分前から？', fields: [{ label: 'トラック（分）', value: T.trackCall, inputmode: 'numeric', chips: ['20', '30', '40'] }, { label: 'フィールド（分）', value: T.fieldCall, inputmode: 'numeric', chips: ['30', '40', '60'] }] }, function (v) { T.trackCall = +toHalf(v[0]) || 30; T.fieldCall = +toHalf(v[1]) || 40; keepTop(); render(); }); });
     on('[data-tfg]', function () { keepTop(); var g = +this.dataset.tfg, i = F.grades.indexOf(g); if (i >= 0) F.grades.splice(i, 1); else F.grades.push(g); render(); });
     on('[data-tfs]', function () { keepTop(); F.sex = this.dataset.tfs; render(); });
     on('[data-tfr]', function () { keepTop(); F.race = this.dataset.tfr; document.getElementById('tb-race').value = ''; render(); });

@@ -416,11 +416,17 @@ async function openPortal(browser, gas, userId, name) {
     });
     await step('保護者: レーンとナンバーを入れ、結果を記録すると自己ベストが出る', async () => {
       await p.click('[data-et="タイムテーブル"]');
-      p.once('dialog', (d) => d.accept('186'));
+      // ページの中の入力窓（カーソルが入った状態で出る）
       await p.click('[data-bib="鈴木けんた"]');
+      await p.waitForFunction(() => document.activeElement && document.activeElement.matches('.ask input'), null, { timeout: 3000 }); // 入れる欄にカーソルがある
+      if (SHOTS) await p.screenshot({ path: path.join(shotDir, 'parent-ask-bib.png') });
+      await p.keyboard.type('186');
+      await p.click('.ask button[type=submit]');
       await p.idle();
-      p.once('dialog', (d) => d.accept('2組 5レーン'));
       await p.click('[data-lane^="鈴木けんた|"] >> nth=0');
+      await p.click('.ask [data-askc^="0|2組"]');
+      await p.keyboard.type(' 5レーン');
+      await p.keyboard.press('Enter');
       await p.idle();
       const text = await p.textContent('#view');
       assert.ok(text.includes('186') && text.includes('2組 5レーン'), text);

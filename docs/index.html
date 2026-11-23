@@ -386,6 +386,7 @@ form.f, .f { display: grid; gap: 8px; }
 .hr .gap { font-size: 12px; white-space: nowrap; }
 .hr.cmp { grid-template-columns: minmax(5em, 9em) minmax(7em, 11em) minmax(30px, 1fr) 5.2em; cursor: default; }
 .hr.cmp .rv { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hr.cmp .cmplast { display: block; font-size: 11px; }
 .hr .bar i.neg { background: var(--muted); opacity: .5; }
 /* スマホ：名前の下に「前 → 後」、右に伸び（文字が重ならないよう2行に） */
 @media (max-width: 899px) {
@@ -783,7 +784,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "8ee7a5082b";
+var BUILD = "60f5375663";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -4735,29 +4736,31 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var C = cmpState(), hb = higherBetter(rname), rows = [];
     var kind = C.kind || kindFilter;
     kids.forEach(function (k) {
-      var a = null, b = null;
+      var a = null, b = null, last = null;
       ST.results.forEach(function (r) {
         if (r.child !== k.name || canon(r.race) !== race || (kind && r.kind !== kind) || markValue(r.record) === null) return;
         if (r.date >= C.a1 && r.date <= C.a2 && (!a || isBetter(r.race, r.record, a.record))) a = r;
         if (r.date >= C.b1 && r.date <= C.b2 && (!b || isBetter(r.race, r.record, b.record))) b = r;
+        if (r.date >= C.b1 && r.date <= C.b2 && (!last || r.date >= last.date)) last = r; // いちばん新しい記録（ベストでなくても出す）
       });
-      if (a || b) rows.push({ k: k, a: a, b: b, g: a && b ? (hb ? markValue(b.record) - markValue(a.record) : markValue(a.record) - markValue(b.record)) : null });
+      if (a || b) rows.push({ k: k, a: a, b: b, last: last, g: a && b ? (hb ? markValue(b.record) - markValue(a.record) : markValue(a.record) - markValue(b.record)) : null });
     });
     rows.sort(function (x, y) { return (y.g === null ? -1e9 : y.g) - (x.g === null ? -1e9 : x.g) || byGrade(x.k, y.k); });
     var both = rows.filter(function (r) { return r.g !== null; }), up = both.filter(function (r) { return r.g > 0; });
     var avg = both.length ? both.reduce(function (s0, r) { return s0 + r.g; }, 0) / both.length : 0;
     var avgTxt = both.length ? (avg >= 0 ? '<span class="up">▲' : '<span class="down">▼') + (hb ? round2(Math.abs(avg)) + 'm' : round2(Math.abs(avg)) + '秒') + '</span>' : '';
-    var h = '<section class="card c12" id="dCmp"><h2>' + esc(rname) + ' 期間で比べる（全員）<small>伸びた ' + up.length + '人／比べられた ' + both.length + '人' + (both.length ? '・平均 ' + avgTxt : '') + '</small></h2>' + cmpControls(C);
+    var h = '<section class="card c12" id="dCmp"><h2>' + esc(rname) + ' 伸びくらべ（みんな）<small>伸びた ' + up.length + '人／比べられた ' + both.length + '人' + (both.length ? '・平均 ' + avgTxt : '') + '</small></h2>' + cmpControls(C);
     if (!rows.length) return h + '<div class="sub">この期間の' + esc(rname) + 'の記録はありません。</div></section>';
     var gmax = Math.max.apply(null, both.map(function (r) { return Math.abs(r.g); }).concat([0.01]));
     h += '<div class="hrank">' + rows.map(function (r, i) {
       var w = r.g === null ? 0 : Math.round(Math.abs(r.g) / gmax * 100);
       var tip = r.k.name + '｜前 ' + (r.a ? r.a.record + '（' + md(r.a.date) + '）' : 'なし') + ' → 後 ' + (r.b ? r.b.record + '（' + md(r.b.date) + '）' : 'なし');
-      return '<div class="hr cmp" data-tip="' + esc(tip) + '"><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span>' +
-        '<span class="rv">' + (r.a ? esc(r.a.record) : '—') + ' → <b>' + (r.b ? esc(r.b.record) : '—') + '</b></span>' +
+      var latest = r.last && r.b && r.last !== r.b ? '<span class="sub cmplast">最新 ' + esc(r.last.record) + '（' + md(r.last.date) + '）</span>' : '';
+      return '<div class="hr cmp' + (myNames().indexOf(r.k.name) >= 0 ? ' on' : '') + '" data-tip="' + esc(tip) + '"><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span>' +
+        '<span class="rv"><span class="sub">前</span> ' + (r.a ? esc(r.a.record) : '—') + ' → <span class="sub">最近</span> <b>' + (r.b ? esc(r.b.record) : '—') + '</b>' + latest + '</span>' +
         '<span class="bar">' + (r.g !== null ? '<i class="' + (r.g >= 0 ? 'g' : 'neg') + '" style="width:' + Math.max(3, w) + '%"></i>' : '') + '</span>' +
         '<span class="gap">' + (r.g !== null ? gapText(rname, r.b.record, r.a.record) : '<span class="sub">' + (r.b ? 'はじめて' : '後は記録なし') + '</span>') + '</span></div>';
-    }).join('') + '</div><div class="hint">それぞれの期間の中のベストどうしを比べ、伸びの大きい順に並べています。棒は伸びの大きさ（緑＝伸びた、灰＝前より下）。</div></section>';
+    }).join('') + '</div><div class="hint">「前」と「最近」は、それぞれの期間の中の<b>いちばんよい記録（ベスト）</b>です。伸びた順に並べています（▲緑＝伸びた、▼灰＝前より下）。最近の記録がベストより悪いときは「最新」として小さく出します（向かい風などで遅くなることもあります）。わが家の子は色がついています。</div></section>';
     return h;
   }
   function dash() {
@@ -4775,7 +4778,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var sessions = {}; inP.forEach(function (x) { if (x.r.kind === '練習') sessions[x.r.key || x.r.date] = 1; });
     var diffTxt = function (a, b) { if (!P[2]) return ''; var d0 = a - b; return '<span class="' + (d0 > 0 ? 'up' : 'down') + '">' + (d0 >= 0 ? '+' : '') + d0 + '</span> 前の' + P[1] + 'より'; };
     var staff = ST.me.admin || ST.me.coach;
-    var h = '<button class="link" id="dBack" type="button">‹ ' + ({ train: '自主トレ', family: 'わが家', admin: '管理メニュー' }[S.dashFrom] || 'ホーム') + '</button>' + toastHtml() +
+    var h = '<button class="link" id="dBack" type="button">‹ ' + ({ train: '自主トレ', family: 'わが家', admin: '管理メニュー', events: '大会の結果' }[S.dashFrom] || 'ホーム') + '</button>' + toastHtml() +
       '<section class="card dfil"><div class="dhead"><h2 style="margin:0">記録ダッシュボード<small>' + (P[2] ? md(from) + '〜' + md(ST.today) : 'すべての期間（' + md(from) + '〜）') + '</small></h2>' +
       '<div class="tabs" role="group" aria-label="期間">' + DASH_PERIODS.map(function (x) { return '<button type="button" data-dp="' + x[0] + '" aria-pressed="' + (x[0] === P[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="tabs" role="group" aria-label="記録の種類">' + [['', '公式＋練習'], ['公式', '公式（大会）'], ['練習', '練習']].map(function (x) { return '<button type="button" data-dk="' + x[0] + '" aria-pressed="' + (D.kind === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
@@ -4856,7 +4859,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     bindCompare();
   }
   function bindDash(D) {
-    on('#dBack', function () { var f = S.dashFrom || 'home'; if (f === 'admin') S.admin = 'menu'; if (f === 'admin' && !ST.me.admin) f = 'home'; go(f); });
+    on('#dBack', function () { var f = S.dashFrom || 'home'; if (f === 'events' && S.dashEv) { var k = S.dashEv; go('events', k); S.etab = '結果'; render(); return; } if (f === 'admin') S.admin = 'menu'; if (f === 'admin' && !ST.me.admin) f = 'home'; go(f); });
     on('[data-dp]', function () { D.period = this.dataset.dp; render(); });
     on('[data-dk]', function () { D.kind = this.dataset.dk; render(); });
     on('[data-dr]', function (ev) { ev.stopPropagation(); D.race = this.dataset.dr; D.kid = ''; render(); });
@@ -5073,6 +5076,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         return '<div class="ressub">' + esc(sg.label) + '</div>' + sg.rows.map(function (r) { return line(r, r.memo); }).join('');
       }).join('') + '</div>';
     }).join('') : '<div class="sub">まだ結果はありません。</div>') + '</section>';
+    if (list.length) h += '<button class="btn small ghost" type="button" id="toDashRes" style="justify-self:start">📊 みんなの記録の伸びくらべ・ランキングを見る</button>';
     var t = taskOf(e.key, 'リザルト', '') || { photos: [] };
     h += '<section class="card"' + dropAttr('photo', e.key, 'リザルト', '', true) + '><h2>リザルトの写真</h2>' + photosHtml(t.photos) + DROP_HINT + '<div class="row">' + photoBtn('リザルト', '', 'リザルトを撮って載せる') + '</div><div class="hint">掲示されたリザルトの写真です。メンバー全員が見られます。</div></section>';
     return h;
@@ -5154,6 +5158,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
   }
   function bindResults(e) {
+    on('#toDashRes', function () { S.dashFrom = 'events'; S.dashEv = e.key; go('dash'); });
     bindResPaste(e);
     var R = S.res;
     var recIn = document.getElementById('rs-rec');

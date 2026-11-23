@@ -1074,7 +1074,7 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-dk="練習"]');
       assert.ok((await a.textContent('#view')).includes('50m'), '練習で測った記録も入る');
       assert.ok((await a.textContent('#view')).includes('練習に参加した時間'), '練習時間の積み上げ');
-      assert.ok((await a.textContent('#view')).includes('期間で比べる（全員）'), '全員の期間比較');
+      assert.ok((await a.textContent('#view')).includes('伸びくらべ（みんな）'), '全員の期間比較');
       await a.click('#dCmp [data-cmpp="fy"]');
       assert.strictEqual(await a.getAttribute('#dCmp [data-cmpp="fy"]', 'aria-pressed'), 'true');
       await a.shot('25-dash');
@@ -1644,6 +1644,11 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(rs.some((r) => r['子ども'] === '鈴木けんた' && r['種目'] === 'クロカンリレー（男子）' && r['記録'] === '3:06' && r['順位'] === '14' && r['メモ'] === '1区'), '鈴木');
       assert.ok(rs.some((r) => r['子ども'] === '佐藤さくら' && r['種目'] === '800m' && r['記録'] === '4:02'), '佐藤');
       if (SHOTS) await q.locator('.card:has-text("この大会の結果")').screenshot({ path: path.join(shotDir, 'admin-results-grouped.png') });
+      // 結果から、みんなの伸びくらべへ行って戻る
+      await q.click('#toDashRes');
+      assert.ok((await q.textContent('#view')).includes('記録ダッシュボード'), 'ダッシュボードへ');
+      await q.click('#dBack');
+      assert.ok(await q.$('[data-et="結果"][aria-pressed="true"]'), '大会の結果へもどる');
       await q.close();
     });
     await step('役員: 参加費の支払いは、金額なしでも「済」にできる（取り消しも）', async () => {

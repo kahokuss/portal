@@ -1328,7 +1328,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '3626b68bc4';
+const SERVER_VERSION = '577619e039';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2796,9 +2796,12 @@ function buildState_(ctx) {
   // 記録はクラブの子どもの分をすべて（自己ベストを出すため）。LINEの「結果」コマンドで入れた分も入る
   const kidNames = {};
   children.forEach((c) => (kidNames[c.name] = true));
+  // 区分が空の古い記録：練習の日の記録は「練習」、加速走も「練習」
+  const pracKeys = {};
+  readRows_(SHEETS.EVENTS).forEach((e) => { if (!races[e.eventKey] && (e['種別'] || guessType_(e['タイトル'])) === '練習') pracKeys[e.eventKey] = true; });
   const results = readRows_(SHEETS.RESULTS)
     .filter((x) => kidNames[x['子ども']] && x['記録'])
-    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'], kind: x['区分'] || (x.eventKey ? '公式' : '練習') }));
+    .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'], kind: /加速/.test(String(x['メモ'] || '')) ? '練習' : x['区分'] || (x.eventKey && !pracKeys[x.eventKey] ? '公式' : '練習') }));
 
   const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
@@ -3570,7 +3573,8 @@ function saveResultAction_(ctx, p) {
   const data = {
     eventKey: ev.eventKey, '大会・練習': ev['日付'] + ' ' + ev['タイトル'], '子ども': child, '種目': race, '記録': record,
     '順位': String(p.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(p.round) >= 0 ? p.round : '',
-    '区分': p.kind === '公式' || p.kind === '練習' ? p.kind : dutyType_(ev) === '大会' ? '公式' : '練習',
+    // 加速走（助走つきの計測）は公式記録にしない
+    '区分': /加速/.test(String(p.memo || '') + String(p.race || '')) ? '練習' : p.kind === '公式' || p.kind === '練習' ? p.kind : dutyType_(ev) === '大会' ? '公式' : '練習',
     'メモ': String(p.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
   };
   withLock_(() => {

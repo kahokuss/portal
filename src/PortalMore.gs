@@ -415,7 +415,8 @@ function saveResultAction_(ctx, p) {
   const data = {
     eventKey: ev.eventKey, '大会・練習': ev['日付'] + ' ' + ev['タイトル'], '子ども': child, '種目': race, '記録': record,
     '順位': String(p.place || '').replace(/[^0-9]/g, '').slice(0, 3), 'ラウンド': CHOICES.ROUNDS.indexOf(p.round) >= 0 ? p.round : '',
-    '区分': p.kind === '公式' || p.kind === '練習' ? p.kind : dutyType_(ev) === '大会' ? '公式' : '練習',
+    // 加速走（助走つきの計測）は公式記録にしない
+    '区分': /加速/.test(String(p.memo || '') + String(p.race || '')) ? '練習' : p.kind === '公式' || p.kind === '練習' ? p.kind : dutyType_(ev) === '大会' ? '公式' : '練習',
     'メモ': String(p.memo || '').slice(0, 100), userId: ctx.userId, '表示名': ctx.name, '日時': now_(),
   };
   withLock_(() => {

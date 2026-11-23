@@ -1201,6 +1201,10 @@ test('練習の出席（✓）と休みは入れかわる・練習のタイム�
   assert.strictEqual(st.attends.length, 0, '休みにすると出席は消える');
   // タイム
   assert.throws(() => gas.ctx.api(k2, 'saveTimes', { key: prac.key, name: '加速走', run: 1, rows: [{ child: '鈴木けんた', race: '50m', record: '9.43' }] }), /当番/);
+  // 加速走は、区分が空の古い記録でも「練習」に（公式にしない）
+  gas.sheet('結果').data.push(['2026-10-01 10:00', 'race-x', '2026-10-01 記録会', '鈴木けんた', '50m', '8.90', '加速走 2本目', 'U1', '山田', 'old1', '', '', '']);
+  const oldR = gas.ctx.api(kA, 'bootstrap').results.find((r) => r.id === 'old1');
+  assert.ok(oldR && oldR.kind === '練習', '加速走は練習 ' + JSON.stringify(oldR));
   gas.ctx.api(kA, 'saveTimes', { key: prac.key, name: '加速走', run: 1, rows: [{ child: '鈴木けんた', race: '50m', record: '9.43' }, { child: '山田たろう', race: '100m', record: '１７．１４' }, { child: 'だれか', race: '50m', record: '1' }] });
   gas.ctx.api(kA, 'saveTimes', { key: prac.key, name: '加速走', run: 1, rows: [{ child: '鈴木けんた', race: '50m', record: '9.38' }, { child: '山田たろう', race: '100m', record: '' }] });
   gas.ctx.api(kA, 'saveTimes', { key: prac.key, name: '加速走', run: 2, rows: [{ child: '鈴木けんた', race: '50m', record: '9.48' }] });

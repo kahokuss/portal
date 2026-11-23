@@ -1617,6 +1617,8 @@ async function openPortal(browser, gas, userId, name) {
       await q.waitForTimeout(300);
       assert.ok(await q.$eval('#evToday', (el) => { const t = el.getBoundingClientRect().top; const atEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2; return el.nextElementSibling.textContent.includes('今日の記録会') && t >= 0 && (t < 200 || atEnd) && window.scrollY > 0; }), '予定一覧は今日のところまで動く');
       await q.click('.ev:has-text("今日の記録会")');
+      // 大会の状況：いまの日時の線が、まだ来ていない手順（大会）の前に出る
+      assert.ok(await q.$eval('#secStatus .snowl', (el) => el.textContent.includes('いま') && el.textContent.includes('10:40') && /大会/.test(el.nextElementSibling.textContent)), '大会の状況にいまの線');
       await q.click('[data-et="タイムテーブル"]');
       await q.waitForTimeout(300);
       const next = await q.$eval('#ttNow', (el) => el.nextElementSibling && el.nextElementSibling.dataset.tts);

@@ -387,6 +387,11 @@ form.f, .f { display: grid; gap: 8px; }
 .hr.cmp { grid-template-columns: minmax(5em, 9em) minmax(7em, 11em) minmax(30px, 1fr) 5.2em; cursor: default; }
 .hr.cmp .rv { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hr.cmp .cmplast { display: block; font-size: 11px; }
+.hr.cmp { cursor: pointer; }
+.spark { display: block; width: 100px; height: 20px; margin-top: 2px; overflow: visible; }
+.spark polyline { fill: none; stroke: var(--viz-line); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.spark circle { fill: var(--viz-pb); }
+.spark .sp-mid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 2; }
 .hr .bar i.neg { background: var(--muted); opacity: .5; }
 /* スマホ：名前の下に「前 → 後」、右に伸び（文字が重ならないよう2行に） */
 @media (max-width: 899px) {
@@ -784,7 +789,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "60f5375663";
+var BUILD = "b961c9780c";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -4736,14 +4741,15 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var C = cmpState(), hb = higherBetter(rname), rows = [];
     var kind = C.kind || kindFilter;
     kids.forEach(function (k) {
-      var a = null, b = null, last = null;
+      var a = null, b = null, last = null, pts = [];
       ST.results.forEach(function (r) {
         if (r.child !== k.name || canon(r.race) !== race || (kind && r.kind !== kind) || markValue(r.record) === null) return;
+        if (r.date >= C.a1 && r.date <= C.b2) pts.push(r);
         if (r.date >= C.a1 && r.date <= C.a2 && (!a || isBetter(r.race, r.record, a.record))) a = r;
         if (r.date >= C.b1 && r.date <= C.b2 && (!b || isBetter(r.race, r.record, b.record))) b = r;
         if (r.date >= C.b1 && r.date <= C.b2 && (!last || r.date >= last.date)) last = r; // いちばん新しい記録（ベストでなくても出す）
       });
-      if (a || b) rows.push({ k: k, a: a, b: b, last: last, g: a && b ? (hb ? markValue(b.record) - markValue(a.record) : markValue(a.record) - markValue(b.record)) : null });
+      if (a || b) rows.push({ k: k, a: a, b: b, last: last, pts: pts.sort(function (x, y) { return x.date < y.date ? -1 : 1; }), g: a && b ? (hb ? markValue(b.record) - markValue(a.record) : markValue(a.record) - markValue(b.record)) : null });
     });
     rows.sort(function (x, y) { return (y.g === null ? -1e9 : y.g) - (x.g === null ? -1e9 : x.g) || byGrade(x.k, y.k); });
     var both = rows.filter(function (r) { return r.g !== null; }), up = both.filter(function (r) { return r.g > 0; });
@@ -4755,12 +4761,20 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     h += '<div class="hrank">' + rows.map(function (r, i) {
       var w = r.g === null ? 0 : Math.round(Math.abs(r.g) / gmax * 100);
       var tip = r.k.name + '｜前 ' + (r.a ? r.a.record + '（' + md(r.a.date) + '）' : 'なし') + ' → 後 ' + (r.b ? r.b.record + '（' + md(r.b.date) + '）' : 'なし');
+      // 小さな折れ線：前の期間〜最近の記録を日付の順に（上ほどよい記録。最後の点は最新）
+      var spark = '';
+      if (r.pts.length >= 2) {
+        var vs = r.pts.map(function (p) { return markValue(p.record); }), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs), sp = hi - lo || 1;
+        var d0 = +new Date(C.a1), d1 = +new Date(C.b2), mid = (+new Date(C.b1) - d0) / Math.max(1, d1 - d0) * 96 + 2;
+        var xy = r.pts.map(function (p, j) { var x = (+new Date(p.date) - d0) / Math.max(1, d1 - d0) * 96 + 2, f = (vs[j] - lo) / sp, y = 2 + (hb ? 1 - f : f) * 16; return x.toFixed(1) + ',' + y.toFixed(1); });
+        spark = '<svg class="spark" viewBox="0 0 100 20" aria-hidden="true"><line x1="' + mid.toFixed(1) + '" x2="' + mid.toFixed(1) + '" y1="0" y2="20" class="sp-mid"/><polyline points="' + xy.join(' ') + '"/><circle cx="' + xy[xy.length - 1].split(',')[0] + '" cy="' + xy[xy.length - 1].split(',')[1] + '" r="2.2"/></svg>';
+      }
       var latest = r.last && r.b && r.last !== r.b ? '<span class="sub cmplast">最新 ' + esc(r.last.record) + '（' + md(r.last.date) + '）</span>' : '';
-      return '<div class="hr cmp' + (myNames().indexOf(r.k.name) >= 0 ? ' on' : '') + '" data-tip="' + esc(tip) + '"><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span>' +
-        '<span class="rv"><span class="sub">前</span> ' + (r.a ? esc(r.a.record) : '—') + ' → <span class="sub">最近</span> <b>' + (r.b ? esc(r.b.record) : '—') + '</b>' + latest + '</span>' +
+      return '<div class="hr cmp' + (myNames().indexOf(r.k.name) >= 0 ? ' on' : '') + '" data-tip="' + esc(tip) + '" data-dkid="' + esc(r.k.name) + '" data-dkgo="1" role="button" tabindex="0"><span class="nm">' + esc(r.k.name) + ' <span class="sub">' + (r.k.grade ? r.k.grade + '年' : '') + '</span></span>' +
+        '<span class="rv"><span class="sub">前</span> ' + (r.a ? esc(r.a.record) : '—') + ' → <span class="sub">最近</span> <b>' + (r.b ? esc(r.b.record) : '—') + '</b>' + latest + spark + '</span>' +
         '<span class="bar">' + (r.g !== null ? '<i class="' + (r.g >= 0 ? 'g' : 'neg') + '" style="width:' + Math.max(3, w) + '%"></i>' : '') + '</span>' +
         '<span class="gap">' + (r.g !== null ? gapText(rname, r.b.record, r.a.record) : '<span class="sub">' + (r.b ? 'はじめて' : '後は記録なし') + '</span>') + '</span></div>';
-    }).join('') + '</div><div class="hint">「前」と「最近」は、それぞれの期間の中の<b>いちばんよい記録（ベスト）</b>です。伸びた順に並べています（▲緑＝伸びた、▼灰＝前より下）。最近の記録がベストより悪いときは「最新」として小さく出します（向かい風などで遅くなることもあります）。わが家の子は色がついています。</div></section>';
+    }).join('') + '</div><div class="hint">「前」と「最近」は、それぞれの期間の中の<b>いちばんよい記録（ベスト）</b>です。伸びた順に並べています（▲緑＝伸びた、▼灰＝前より下）。最近の記録がベストより悪いときは「最新」として小さく出します（向かい風などで遅くなることもあります）。わが家の子は色がついています。線は前〜最近の記録の動き（点線から右が最近、上ほどよい記録）。名前を押すと、上の推移のグラフにその子の線が出ます。</div></section>';
     return h;
   }
   function dash() {
@@ -4830,7 +4844,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         '<span class="bar"><i style="width:' + w + '%"></i></span><span class="rec">' + esc(x.cur.record) + '</span><span class="gap">' + (x.prev && P[2] ? gapText(rname, x.cur.record, x.prev.record) : x.cur.kind === '練習' && !D.kind ? '<span class="pill p-prac">練習</span>' : '') + '</span></button>';
     }).join('') + '</div><div class="hint">名前を押すと、推移のグラフにその子の線が出ます（もう一度押すと消えます）。棒は記録のちがいが見えるよう、いちばん下の子の少し下から測っています。▲はこの期間より前のベストからの伸び。</div></section>';
     var cmp = D.cmp || 'grade';
-    h += '<section class="card c6"><h2>' + esc(rname) + ' の推移<small>月ごとの平均</small></h2><div class="tabs" role="group" aria-label="比べる">' + [['team', 'チーム全体'], ['grade', '学年ごと'], ['sex', '男女ごと']].map(function (x) { return '<button type="button" data-dcmp="' + x[0] + '" aria-pressed="' + (cmp === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+    h += '<section class="card c6" id="dTrend"><h2>' + esc(rname) + ' の推移<small>月ごとの平均</small></h2><div class="tabs" role="group" aria-label="比べる">' + [['team', 'チーム全体'], ['grade', '学年ごと'], ['sex', '男女ごと']].map(function (x) { return '<button type="button" data-dcmp="' + x[0] + '" aria-pressed="' + (cmp === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       dashTrendChart(rname, months, rAll.filter(function (r) { return r.date >= from; }), D.kid, cmp) +
       (D.kid ? recordChart(D.kid, race, rname, true).replace('<div class="rtip">記録の点をタップすると、日付と大会が出ます</div>', '<div class="rtip">' + esc(D.kid) + 'のすべての記録。点に合わせると日付と大会が出ます</div>') : '') + '</section>';
     h += dashCompareCard(kids, race, rname, D.kind);
@@ -4864,7 +4878,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-dk]', function () { D.kind = this.dataset.dk; render(); });
     on('[data-dr]', function (ev) { ev.stopPropagation(); D.race = this.dataset.dr; D.kid = ''; render(); });
     on('[data-dcmp]', function () { D.cmp = this.dataset.dcmp; render(); });
-    on('[data-dkid]', function () { D.kid = D.kid === this.dataset.dkid ? '' : this.dataset.dkid; render(); });
+    on('[data-dkid]', function () { var go2 = this.dataset.dkgo; D.kid = go2 ? this.dataset.dkid : D.kid === this.dataset.dkid ? '' : this.dataset.dkid; render(); if (go2) flashTo('dTrend'); });
     var g = document.getElementById('dGrade'); if (g) g.addEventListener('change', function () { D.grade = +this.value; render(); });
     var x = document.getElementById('dSex'); if (x) x.addEventListener('change', function () { D.sex = this.value; render(); });
     bindTips();

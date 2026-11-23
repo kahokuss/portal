@@ -1076,6 +1076,11 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await a.textContent('#view')).includes('練習に参加した時間'), '練習時間の積み上げ');
       assert.ok((await a.textContent('#view')).includes('伸びくらべ（みんな）'), '全員の期間比較');
       await a.click('#dCmp [data-cmpp="fy"]');
+      await a.click('[data-dk=""]');
+      await a.click('#dCmp [data-cmpp="fy"]');
+      assert.ok(await a.$('#dCmp .spark'), '小さな折れ線');
+      if (SHOTS) await a.locator('#dCmp').screenshot({ path: path.join(shotDir, 'admin-dash-cmp.png') });
+      if (await a.$('#dCmp .spark')) { await a.click('#dCmp .hr.cmp >> nth=0'); assert.ok(await a.$('#dTrend'), '名前を押すと推移のグラフへ'); }
       assert.strictEqual(await a.getAttribute('#dCmp [data-cmpp="fy"]', 'aria-pressed'), 'true');
       await a.shot('25-dash');
       await a.click('#dBack');

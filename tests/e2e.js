@@ -623,6 +623,8 @@ async function openPortal(browser, gas, userId, name) {
       await a.click('[data-nav="events"]');
       await a.click('[data-f="カレンダー"]');
       assert.ok((await a.textContent('#view')).includes('2026年10月'));
+      if (SHOTS) await a.locator('.mcal').screenshot({ path: path.join(shotDir, 'admin-14b-calendar-grid.png') });
+      assert.ok((await a.textContent('.mcal')).includes('17時'), '練習は始まりの時（17時）');
       await a.click('[data-cd="2026-10-17"]');
       const text = await a.textContent('#view');
       assert.ok(text.includes('10/17(土)') && text.includes('市民グラウンド'), text);

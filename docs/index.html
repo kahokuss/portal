@@ -685,7 +685,7 @@ tr.sel td { background: var(--sky-soft); }
 .mcal .day.today { box-shadow: inset 0 0 0 2px var(--track); }
 .mcal .day.sel { background: var(--track-soft); }
 .mcal .n { font-size: 12px; font-weight: 700; line-height: 1.2; }
-.mcal .chip { font-size: 9.5px; line-height: 1.35; border-radius: 4px; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcal .chip { font-size: 10px; line-height: 1.4; border-radius: 4px; padding: 0 1px; white-space: nowrap; overflow: hidden; text-align: center; letter-spacing: -.03em; font-weight: 700; }
 .mcal .c-prac { background: var(--sky-soft); color: var(--sky); }
 .mcal .c-race { background: var(--track); color: #fff; }
 .mcal .c-x { background: var(--surface-2); color: var(--muted); text-decoration: line-through; }
@@ -693,6 +693,9 @@ tr.sel td { background: var(--sky-soft); }
 .mcal .mk { font-size: 10px; line-height: 1; }
 .mcal .duty { font-size: 9px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mcal .duty.me { color: var(--track); font-weight: 700; }
+.mcal .duty { text-align: center; }
+.mcal .duty .dn { font-style: normal; }
+@media (max-width: 560px) { .mcal .duty .dn { display: none; } } /* スマホでは当番の名前は出さない（日にちを押すと下に出る） */
 .rchart { width: 100%; height: auto; display: block; }
 .rchart .grid { stroke: var(--line); stroke-width: 1; }
 .rchart .ax { fill: var(--muted); font-size: 10px; }
@@ -770,7 +773,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "ef6eec7737";
+var BUILD = "28da68e881";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "3626b68bc4";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1424,6 +1427,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function bindViewTabs() { on('[data-f]', function () { S.calView = this.dataset.f === 'カレンダー'; S.onlyRace = this.dataset.f === '大会だけ'; render(); }); }
   /** 月のカレンダー表示。練習は青、大会は赤、中止は灰色。日にちを押すとその日の予定 */
+  function calTime(t) { var m = String(t || '').match(/^0?(\d{1,2}):(\d{2})/); return !m ? '練習' : m[2] === '00' ? m[1] + '時' : m[1] + ':' + m[2]; }
   function eventsCalendar() {
     var mon = S.calMonth || (S.calMonth = ST.today.slice(0, 7)), y = +mon.slice(0, 4), m = +mon.slice(5, 7);
     var days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = d(mon + '-01').getUTCDay(), byDay = {};
@@ -1437,12 +1441,13 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var mine = list.some(function (e) { return dutyOf(e.key).some(function (x) { return x.fam === ST.me.fam; }); });
       var off = absentOn(ds).some(function (a) { return myNames().indexOf(a.child) >= 0; });
       h += '<button type="button" class="day' + (ds === ST.today ? ' today' : '') + (ds === sel ? ' sel' : '') + (ds < ST.today ? ' past' : '') + '" data-cd="' + ds + '"><span class="n' + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + n + '</span>' +
-        list.slice(0, 2).map(function (e) { return '<span class="chip ' + (e.cancelled ? 'c-x' : isRace(e) ? 'c-race' : 'c-prac') + '">' + esc(isRace(e) ? e.title.slice(0, 5) : (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') : '練習')) + '</span>'; }).join('') +
+        // マスはせまいので短く：大会は種類（大会・記録会）、練習は始まりの時（17時・17:30）
+        list.slice(0, 2).map(function (e) { return '<span class="chip ' + (e.cancelled ? 'c-x' : isRace(e) ? 'c-race' : 'c-prac') + '">' + esc(isRace(e) ? (e.type === '練習試合' ? '試合' : e.type || '大会') : calTime(e.start)) + '</span>'; }).join('') +
         (list.length > 2 ? '<span class="more">+' + (list.length - 2) + '</span>' : '') +
-        list.filter(function (e) { return !e.cancelled; }).slice(0, 1).map(function (e) { var ds2 = dutyOf(e.key); return ds2.length ? '<span class="duty' + (mine ? ' me' : '') + '">🧹' + esc(ds2.map(function (x) { return famName(x.fam).split('・')[0]; }).join('・')) + '</span>' : ''; }).join('') +
+        list.filter(function (e) { return !e.cancelled; }).slice(0, 1).map(function (e) { var ds2 = dutyOf(e.key); return ds2.length ? '<span class="duty' + (mine ? ' me' : '') + '">🧹' + (mine ? 'わが家' : '') + '<i class="dn">' + esc(ds2.map(function (x) { return famName(x.fam).split('・')[0]; }).join('・')) + '</i></span>' : ''; }).join('') +
         (off ? '<span class="mk" title="休み">🙋</span>' : '') + '</button>';
     }
-    h += '</div><div class="hint">🟦練習　🟥大会・記録会　⬜中止　🧹当番（赤字はわが家）　🙋休みの連絡ずみ</div></section>';
+    h += '</div><div class="hint">🟦練習（始まりの時刻）　🟥大会・記録会　⬜中止　🧹当番（赤字はわが家）　🙋休みの連絡ずみ。日にちを押すと、下にくわしく出ます。</div></section>';
     if (sel) {
       var dl = byDay[sel] || [];
       h += '<section class="card"><h2>' + md(sel) + '</h2>' + (dl.length ? '<div class="list">' + dl.map(function (e) {

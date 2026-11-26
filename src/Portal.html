@@ -832,6 +832,9 @@ var API_URL = <?!= JSON.stringify(apiUrl) ?>;
 var BUILD = <?!= JSON.stringify(build) ?>;
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = <?!= JSON.stringify(server) ?>;
+// 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
+var LITE = <?!= JSON.stringify(lite) ?>;
+var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -1308,6 +1311,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function opsItem(x, i) {
     return '<button type="button" class="opsit" data-ops="' + i + '"><span class="pill ' + PRI[x.pri][1] + '">' + PRI[x.pri][0] + '</span><span class="main"><b>' + esc(x.t) + '</b>' + (x.sub ? '<span class="sub">' + esc(x.sub) + '</span>' : '') + '</span><span class="go">›</span></button>';
   }
+  /** 軽い版のホーム（役員だけ）：役員ページへの入口 */
+  function staffLinkCard() {
+    if (!ST.me.admin) return '';
+    return '<section class="card staffcard"><div class="between"><b>🛠 役員ページ</b><a class="btn small" href="' + staffUrl('menu') + '" style="text-decoration:none">開く ›</a></div><div class="sub">係ごとの「今やること」と、当番カレンダー・会計・記録などの道具は役員ページにあります。</div></section>';
+  }
   function opsCard() {
     var list = opsChecks();
     if (!ST.me.admin) return '';
@@ -1357,7 +1365,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function home() {
     var h = serverBanner() + toastHtml();
-    h += startCard() + opsCard() + todoCard() + botCard();
+    h += startCard() + (LITE ? staffLinkCard() : opsCard()) + todoCard() + botCard();
     var info = '';
     if (ST.notices.length) {
       var shown = homeNotices();
@@ -1449,7 +1457,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     on('[data-ack]', function () { call('ackAbsence', { id: this.dataset.ack }); });
     on('[data-unabs]', function () { call('cancelAbsence', { id: this.dataset.unabs }); });
     on('#absAll', function () { S.tab = 'admin'; S.admin = 'absences'; S.toast = ''; render(); window.scrollTo(0, 0); });
-    bindTodo(); bindBotCard(); bindOps(); bindStart(); bindPolls(); bindRsvp(); markSeen();
+    bindTodo(); bindBotCard(); if (!LITE) bindOps(); bindStart(); bindPolls(); bindRsvp(); markSeen();
   }
 
   function eligible(e) {
@@ -1833,7 +1841,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
 
   // ---- 管理（役員） ----
+  function staffUrl(adm) { return 'staff/' + (adm && adm !== 'menu' ? '?adm=' + encodeURIComponent(adm) : ''); }
   function admin() {
+    if (LITE && STAFF_KEEP.indexOf(S.admin) < 0) { view.innerHTML = '<section class="card"><div class="sub">役員ページを開いています…</div><a class="btn" href="' + staffUrl(S.admin) + '">役員ページを開く</a></section>'; location.href = staffUrl(S.admin); return; }
     if (S.admin === 'race') return adminRace();
     if (S.admin === 'notes') return adminNotes();
     if (S.admin === 'dutycal') return adminDutyCal();
@@ -6437,7 +6447,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // GitHub Pages の画面に LINE ログインから戻ってきたとき（?code=&state=）
   var q = new URLSearchParams(location.search);
   if (q.get('tab') && /^(home|events|album|family|train|admin|dash)$/.test(q.get('tab'))) S.tab = q.get('tab');
-  if (q.get('adm') && /^(dutycal|duty|testfam|notes)$/.test(q.get('adm'))) { S.tab = 'admin'; S.admin = q.get('adm'); q.delete('adm'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  // 役員ページ（staff/）は、役員ページから開く
+  if (/\/staff\/?$/.test(location.pathname) && !q.get('tab') && !q.get('ev')) { S.tab = 'admin'; S.admin = 'menu'; }
+  if (q.get('adm') && /^[a-z]{2,12}$/.test(q.get('adm'))) { S.tab = 'admin'; S.admin = q.get('adm'); q.delete('adm'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
   if (q.get('trv') && /^(goal|log|video)$/.test(q.get('trv'))) S.trView = q.get('trv');
   if (q.get('ev') && /^[\w-]{6,40}$/.test(q.get('ev'))) { S.tab = 'events'; S.event = q.get('ev'); S.etab = /^(概要|エントリー|種目|タイムテーブル|手続き|結果|写真)$/.test(q.get('et') || '') ? q.get('et') : '概要'; }
   if (q.get('v') || q.get('tab') || q.get('ev')) { q.delete('v'); q.delete('tab'); q.delete('ev'); q.delete('et'); q.delete('trv'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }

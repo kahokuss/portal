@@ -341,6 +341,8 @@ function handleDuty_(ev) {
 
 /** 当番カレンダー（輪番づくり・役員）を開くアドレス */
 function dutyCalUrl_() {
+  // GitHub Pages のポータルなら、役員ページ（staff/）を直接開く
+  if (CONFIG.PORTAL_URL) return String(CONFIG.PORTAL_URL).replace(/\/?$/, '/') + 'staff/?adm=dutycal';
   const u = portalUrl_();
   return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'adm=dutycal';
 }

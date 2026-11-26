@@ -23,6 +23,7 @@ function doGet(e) {
   t.apiUrl = '';
   t.build = '';
   t.server = '';
+  t.lite = false; // Apps Script の画面は全部入り（役員の画面もふくむ）
   t.home = ScriptApp.getService().getUrl();
   t.club = CONFIG.CLUB_NAME;
   return t.evaluate()

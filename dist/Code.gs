@@ -346,6 +346,8 @@ function handleDuty_(ev) {
 
 /** 当番カレンダー（輪番づくり・役員）を開くアドレス */
 function dutyCalUrl_() {
+  // GitHub Pages のポータルなら、役員ページ（staff/）を直接開く
+  if (CONFIG.PORTAL_URL) return String(CONFIG.PORTAL_URL).replace(/\/?$/, '/') + 'staff/?adm=dutycal';
   const u = portalUrl_();
   return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'adm=dutycal';
 }
@@ -1351,7 +1353,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '027eff7b9e';
+const SERVER_VERSION = '17c2b4db1c';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2152,6 +2154,7 @@ function doGet(e) {
   t.apiUrl = '';
   t.build = '';
   t.server = '';
+  t.lite = false; // Apps Script の画面は全部入り（役員の画面もふくむ）
   t.home = ScriptApp.getService().getUrl();
   t.club = CONFIG.CLUB_NAME;
   return t.evaluate()

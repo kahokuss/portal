@@ -808,8 +808,31 @@ async function openPortal(browser, gas, userId, name) {
       await g.reload();
       await g.waitForSelector('#nav:not([hidden])');
       if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pages-home.png'), fullPage: true });
+      // 軽い版（役員だけの画面を外した版）でも、保護者の画面はひととおり動く
+      assert.ok(html.includes('var LITE = true') && !/function adminDutyCal\(/.test(html), '軽い版');
+      for (const n of ['events', 'album', 'family', 'train', 'home']) { await g.click('[data-nav="' + n + '"]'); await g.waitForTimeout(150); }
+      await g.click('[data-nav="events"]');
+      await g.click('.ev:has-text("秋季記録会")');
+      for (const t of ['エントリー', 'タイムテーブル', '結果', '写真', '概要']) { await g.click('[data-et="' + t + '"]'); await g.waitForTimeout(150); }
       assert.deepStrictEqual(errs, []);
       await g.close();
+      // 役員が軽い版で「管理」を押すと、役員ページ（staff/）に移る
+      const staffHtml = fs.readFileSync(path.join(__dirname, '../docs/staff/index.html'), 'utf8');
+      const g2 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      const errs2 = []; g2.on('pageerror', (e) => errs2.push(e.message));
+      await g2.route('**/fonts.googleapis.com/**', (r) => r.abort());
+      await g2.route(PAGES + '**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: /\/staff\//.test(r.request().url()) ? staffHtml : html }));
+      await g2.route(apiUrl, (r) => { const out = gas.ctx.doPost({ parameter: {}, postData: { contents: r.request().postData() } }); r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out.text }); });
+      await g2.addInitScript((k) => { try { localStorage.setItem('clubPortalKey', k); } catch (e) {} }, gas.login('U1').key);
+      await g2.goto(PAGES);
+      await g2.waitForSelector('#nav:not([hidden])');
+      assert.ok((await g2.textContent('#view')).includes('役員ページ'), 'ホームに役員ページの入口');
+      await g2.click('[data-nav="admin"]');
+      await g2.waitForURL(/\/staff\//);
+      await g2.waitForSelector('.staffhead');
+      assert.ok((await g2.textContent('#view')).includes('今やること'), '役員ページが開く（ログインはそのまま）');
+      assert.deepStrictEqual(errs2, []);
+      await g2.close();
     });
     await step('家族: 招待番号を入れると、夫婦で子どもの登録が共通になる', async () => {
       await p.close();
@@ -1300,7 +1323,8 @@ async function openPortal(browser, gas, userId, name) {
       const errs = [];
       g.on('pageerror', (e) => errs.push(e.message));
       await g.route('**/fonts.googleapis.com/**', (r) => r.abort());
-      await g.route(PAGES + '**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
+      const staffHtml = fs.readFileSync(path.join(__dirname, '../docs/staff/index.html'), 'utf8');
+      await g.route(PAGES + '**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: /\/staff\//.test(r.request().url()) ? staffHtml : html }));
       await g.route(apiUrl, (r) => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: gas.ctx.doPost({ parameter: {}, postData: { contents: r.request().postData() } }).text }));
       await g.goto(PAGES);
       await g.waitForSelector('#codeForm');
@@ -1311,6 +1335,7 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await g.textContent('#me')).includes('山田'));
       if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pc-home.png') });
       await g.click('[data-nav="admin"]');
+      await g.waitForURL(/\/staff\//); // 管理は役員ページ（全部入りの版）へ
       const href = await g.getAttribute('a:has-text("Apps Scriptを開く")', 'href');
       assert.ok(href.includes('/home/projects/TESTSCRIPTID/edit'), 'Apps Scriptのエディタへのショートカット: ' + href);
       assert.ok((await g.textContent('#view')).includes('サーバー（Apps Script）の更新'));
@@ -1730,9 +1755,8 @@ async function openPortal(browser, gas, userId, name) {
       await q.fill('.ask [data-ask="0"]', '第5回 布勢スプリント');
       await q.fill('.ask [data-ask="1"]', 'エントリーは先着順');
       await q.click('.ask button[type=submit]');
-      await q.idle();
+      await q.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').textContent.includes('布勢スプリント'), null, { timeout: 20000 });
       const fuseOk = () => gas.rows('大会の引き継ぎ').some((r) => r['大会名'] === '布勢スプリント');
-      for (let w = 0; w < 25 && !fuseOk(); w++) await q.waitForTimeout(200);
       assert.ok(fuseOk(), '去年の大会も名前で書ける');
       const p2 = await openPortal(browser, gas, 'U3', 'racenote2');
       await p2.click('[data-nav="events"]');

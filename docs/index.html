@@ -800,9 +800,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "56110f7eea";
+var BUILD = "62e7b7bcb9";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "11c21c4ad7";
+var EXPECT_SERVER = "8f3ec22b36";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -1838,10 +1838,10 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function adminTestFam() {
     var list = ST.testFamilies || [];
     view.innerHTML = backBtn() + toastHtml() + '<section class="card"><h2>🧪 テスト家族（親A〜D）<small>' + list.length + '家族</small></h2>' +
-      '<div class="sub">本番で、当番・エントリー・休みの連絡などを試すための<b>架空の家族</b>です（子ども：テストA 3年男子、テストB 5年女子、テストC 6年男子・テストC2 1年女子、テストD 4年女子）。LINEには何も送りません。</div>' +
+      '<div class="sub">本番で、当番・エントリー・休みの連絡などを試すための<b>架空の家族</b>です。保護者は家族ごとに1〜2人（父母・祖父母）で、同じ家族として子どもに紐付いています。LINEには何も送りません。</div>' +
       '<div class="toast err">⚠ 入れているあいだは、名簿・当番表・エントリーの一覧に出て、当番の自動割り当てにも入ります。試し終わったら必ず「まとめて消す」を押してください。</div>' +
-      (list.length ? '<div class="list">' + list.map(function (f) { return '<div class="between"><span><b>' + esc(f.name) + '</b> <span class="sub">' + esc(f.kids.join('・')) + '</span></span><button class="btn small" type="button" data-tview="' + esc(f.id) + '">この家族として見る</button></div>'; }).join('') + '</div>' : '') +
-      '<div class="row">' + (list.length < 4 ? '<button class="btn" type="button" id="tfOn">テスト家族を入れる</button>' : '') + (list.length ? '<button class="btn ghost" type="button" id="tfOff">まとめて消す</button>' : '') + '</div>' +
+      (list.length ? '<div class="list">' + list.map(function (f) { return '<div class="kid"><div><b>子ども：</b>' + esc(f.kids.join('・')) + '</div><div class="row">' + f.guardians.map(function (g) { return '<button class="btn small ghost" type="button" data-tview="' + esc(g.id) + '">' + esc(g.name) + 'として見る</button>'; }).join('') + '</div></div>'; }).join('') + '</div>' : '') +
+      '<div class="row"><button class="btn" type="button" id="tfOn">' + (list.length ? '足りない保護者・子どもを入れなおす' : 'テスト家族を入れる') + '</button>' + (list.length ? '<button class="btn ghost" type="button" id="tfOff">まとめて消す</button>' : '') + '</div>' +
       '<div class="hint">「この家族として見る」で、保護者の画面（ホーム・わが家・エントリー・当番）を確かめられます。上の帯の「役員にもどる」で元にもどります。</div></section>';
     bindBack();
     on('#tfOn', function () { call('testFamilies', { on: true }); });

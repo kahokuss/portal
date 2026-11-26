@@ -1737,11 +1737,11 @@ async function openPortal(browser, gas, userId, name) {
       await q.click('[data-go="testfam"]');
       await q.click('#tfOn');
       await q.idle();
-      assert.ok((await q.textContent('#view')).includes('親A'), '入った');
-      await q.click('[data-tview="TEST_C"]');
+      assert.ok((await q.textContent('#view')).includes('親A（父）として見る'), '入った（保護者ごとのボタン）');
+      await q.click('[data-tview="TEST_C2"]');
       await q.waitForSelector('#testBar');
       await q.idle();
-      assert.ok((await q.textContent('#me')).includes('親C') && (await q.textContent('#testBar')).includes('親C'), '親Cとして見ている');
+      assert.ok((await q.textContent('#me')).includes('親C（祖母）') && (await q.textContent('#me')).includes('テストC2'), '親C（祖母）として、子ども2人が見える');
       if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-testfam-as.png') });
       await q.click('#tbBack');
       await q.idle();

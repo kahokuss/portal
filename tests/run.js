@@ -1597,16 +1597,22 @@ test('テスト家族（親A〜D）：入れる・その家族で使う（LINE�
   assert.throws(() => gas.ctx.api(gas.login('U2').key, 'testFamilies', { on: true }), /役員/);
   let st = gas.ctx.api(kA, 'testFamilies', { on: true });
   assert.strictEqual(plain(st.testFamilies).length, 4);
+  assert.strictEqual(plain(st.testFamilies).find((f) => f.id === 'TEST_C').guardians.length, 2, '親Cは父と祖母');
   assert.ok(st.kids.some((k) => k.name === 'テストC2'));
   const t = gas.ctx.api(kA, 'testLogin', { id: 'TEST_B' });
   const before = gas.fetches.length;
   const sb = gas.ctx.api(t.key, 'bootstrap');
-  assert.strictEqual(sb.me.name, '親B');
+  assert.strictEqual(sb.me.name, '親B（母）');
+  // 同じ家族の2人目（祖母）も、子ども2人の保護者として紐付いている
+  const tc2 = gas.ctx.api(gas.ctx.api(kA, 'testLogin', { id: 'TEST_C2' }).key, 'bootstrap');
+  assert.deepStrictEqual(plain(tc2.me.children).map((k) => k.name).sort(), ['テストC', 'テストC2']);
   assert.ok(!gas.fetches.slice(before).some((f) => /TEST_/.test(f.url + JSON.stringify(f.payload || ''))), 'LINEに聞かない・送らない');
   const race = sb.events.find((e) => e.title === '秋季記録会');
   gas.ctx.api(t.key, 'saveEntry', { key: race.key, child: 'テストB', join: '参加' });
   gas.ctx.api(t.key, 'reportAbsence', { child: 'テストB', date: race.date, reason: '体調不良' });
   gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_B', on: true });
+  gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_C', on: true });
+  assert.ok(gas.ctx.api(gas.ctx.api(kA, 'testLogin', { id: 'TEST_C2' }).key, 'bootstrap').me.canManage.indexOf(race.key) >= 0, '家族の当番は祖母にも');
   assert.throws(() => gas.ctx.api(kA, 'testLogin', { id: 'U2' }), /テスト家族だけ/);
   st = gas.ctx.api(kA, 'testFamilies', { off: true });
   assert.ok(/消しました/.test(st.message), st.message);

@@ -1328,7 +1328,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '11c21c4ad7';
+const SERVER_VERSION = '8f3ec22b36';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -5708,11 +5708,12 @@ function appRequestsFor_(ctx) {
  * 本番で試すための「テスト家族」（親A〜親D）。役員が管理画面から入れて、まとめて消す。
  * userId は TEST_ で始め、LINE には送らない（グループの確認・通知の対象にしない）。
  */
+// 保護者は家族ごとに1〜2人（父母・祖父母）。同じ家族ID で紐付け、子どもの保護者にも全員を入れる
 const TEST_FAMILIES = [
-  { id: 'TEST_A', parent: '親A', kids: [{ name: 'テストA', grade: 3, sex: '男' }] },
-  { id: 'TEST_B', parent: '親B', kids: [{ name: 'テストB', grade: 5, sex: '女' }] },
-  { id: 'TEST_C', parent: '親C', kids: [{ name: 'テストC', grade: 6, sex: '男' }, { name: 'テストC2', grade: 1, sex: '女' }] },
-  { id: 'TEST_D', parent: '親D', kids: [{ name: 'テストD', grade: 4, sex: '女' }] },
+  { id: 'TEST_A', guardians: [['TEST_A', '親A（母）'], ['TEST_A2', '親A（父）']], kids: [{ name: 'テストA', grade: 3, sex: '男' }] },
+  { id: 'TEST_B', guardians: [['TEST_B', '親B（母）']], kids: [{ name: 'テストB', grade: 5, sex: '女' }] },
+  { id: 'TEST_C', guardians: [['TEST_C', '親C（父）'], ['TEST_C2', '親C（祖母）']], kids: [{ name: 'テストC', grade: 6, sex: '男' }, { name: 'テストC2', grade: 1, sex: '女' }] },
+  { id: 'TEST_D', guardians: [['TEST_D', '親D（母）'], ['TEST_D2', '親D（祖父）']], kids: [{ name: 'テストD', grade: 4, sex: '女' }] },
 ];
 
 function isTestUser_(userId) {
@@ -5726,12 +5727,20 @@ function testKidNames_() {
   return names;
 }
 
-/** テスト家族の一覧（役員の画面用） */
+/** テスト家族の一覧（役員の画面用）：家族ごとに、保護者（その人として見られる）と子ども */
 function testFamiliesFor_(ctx) {
   if (!ctx.admin) return [];
-  const fams = readRows_(SHEETS.FAMILIES).filter((f) => isTestUser_(f.userId));
+  const rows = readRows_(SHEETS.FAMILIES).filter((f) => isTestUser_(f.userId));
   const kids = readRows_(SHEETS.CHILDREN);
-  return fams.map((f) => ({ id: f.userId, name: f['表示名'], kids: kids.filter((c) => splitNames_(c['保護者userId']).indexOf(f.userId) >= 0).map((c) => c['名前']) }));
+  const out = [];
+  rows.forEach((f) => {
+    const id = famIdOf_(f);
+    let fam = out.find((x) => x.id === id);
+    if (!fam) { fam = { id: id, guardians: [], kids: [] }; out.push(fam); }
+    fam.guardians.push({ id: f.userId, name: f['表示名'] });
+    kids.filter((c) => splitNames_(c['保護者userId']).indexOf(f.userId) >= 0).forEach((c) => { if (fam.kids.indexOf(c['名前']) < 0) fam.kids.push(c['名前']); });
+  });
+  return out;
 }
 
 /** 入れる（on）／まとめて消す（off） */
@@ -5741,17 +5750,21 @@ function testFamiliesAction_(ctx, p) {
   withLock_(() => {
     const fams = readRows_(SHEETS.FAMILIES), kids = readRows_(SHEETS.CHILDREN);
     TEST_FAMILIES.forEach((t) => {
-      if (!fams.some((f) => f.userId === t.id)) {
-        appendRow_(SHEETS.FAMILIES, { userId: t.id, '表示名': t.parent, 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_() });
-        added++;
-      }
+      const ids = t.guardians.map((g) => g[0]);
+      t.guardians.forEach((g) => {
+        const f = fams.find((x) => x.userId === g[0]);
+        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id }); added++; }
+        else if (f['家族ID'] !== t.id) { f['家族ID'] = t.id; updateRow_(SHEETS.FAMILIES, f); }
+      });
+      // 子どもに、家族の保護者をみんな紐付ける
       t.kids.forEach((k) => {
-        if (kids.some((c) => c['名前'] === k.name)) return;
-        appendRow_(SHEETS.CHILDREN, { '名前': k.name, '学年': String(k.grade), '保護者userId': t.id, '更新日時': now_(), '性別': k.sex, '名簿': '○' });
+        const c = kids.find((x) => x['名前'] === k.name);
+        if (!c) appendRow_(SHEETS.CHILDREN, { '名前': k.name, '学年': String(k.grade), '保護者userId': ids.join(','), '更新日時': now_(), '性別': k.sex, '名簿': '○' });
+        else if (ids.some((u) => splitNames_(c['保護者userId']).indexOf(u) < 0)) { c['保護者userId'] = splitNames_(c['保護者userId']).concat(ids).filter((u, i, a) => a.indexOf(u) === i).join(','); updateRow_(SHEETS.CHILDREN, c); }
       });
     });
   });
-  return added ? 'テスト家族（親A〜親D）を入れました。試したら「まとめて消す」を押してください' : 'テスト家族はもう入っています';
+  return added ? 'テスト家族（親A〜親D、保護者' + added + '人）を入れました。試したら「まとめて消す」を押してください' : 'テスト家族はもう入っています';
 }
 
 /** テスト家族と、その子・家族にかかわる行（当番・エントリー・休み・記録・手続きなど）をまとめて消す */

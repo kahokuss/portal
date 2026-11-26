@@ -349,7 +349,7 @@ function familiesList_(familyRows, children) {
   // 空白入りで登録された子の名字（「海野 そら」→ 海野）。空白なしの子の名字さがしに使う
   const knownSur = children.map((c) => String(c.name).trim().split(/[\s　]+/)).filter((x) => x.length > 1).map((x) => x[0]);
   return Object.keys(byId).map((id) => byId[id]).filter((x) => x.kids.length)
-    .map((x) => ({ id: x.id, label: familyLabel_(x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name), x.parents, knownSur), parents: x.parents, userIds: x.userIds }))
+    .map((x) => ({ id: x.id, label: familyLabel_(x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name), x.parents, knownSur), parents: x.parents, userIds: x.userIds, kids: x.kids.map((c) => c.name) }))
     .sort((a, b) => (a.label < b.label ? -1 : 1));
 }
 

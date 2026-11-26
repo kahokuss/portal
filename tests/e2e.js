@@ -1730,6 +1730,30 @@ async function openPortal(browser, gas, userId, name) {
       await p2.close();
       await q.close();
     });
+    await step('役員: 当番カレンダー（輪番づくり）で、予定を押して家族を入れる・外す、月の空きを自動で入れる', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'dutycal');
+      q.on('dialog', (d) => d.accept());
+      await q.click('[data-nav="admin"]');
+      await q.click('[data-go="dutycal"]');
+      assert.ok((await q.textContent('#view')).includes('当番カレンダー'), '開く');
+      const ev = await q.$('.dcev.none');
+      if (ev) {
+        const key = await ev.getAttribute('data-dcsel');
+        await ev.click();
+        await q.waitForSelector('#dcPanel');
+        await q.click('#dcPanel [data-dcfam] >> nth=0');
+        await q.idle();
+        assert.ok(gas.rows('当番').some((r) => r.eventKey === key), '入った');
+        await q.click('#dcPanel [data-dcfam].on');
+        await q.idle();
+        assert.ok(!gas.rows('当番').some((r) => r.eventKey === key), '外れた');
+      }
+      const before = gas.rows('当番').length;
+      if (!(await q.$('#dcAuto[disabled]'))) { await q.click('#dcAuto'); await q.idle(); assert.ok(gas.rows('当番').length >= before, '自動'); }
+      await q.setViewportSize({ width: 1280, height: 900 });
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-dutycal-pc.png') });
+      await q.close();
+    });
     await step('役員: テスト家族（親A〜D）を入れて、その家族として見て、役員にもどり、まとめて消す', async () => {
       const q = await openPortal(browser, gas, 'U1', 'testfam');
       q.on('dialog', (d) => d.accept());

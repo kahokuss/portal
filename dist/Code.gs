@@ -1328,7 +1328,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '8f3ec22b36';
+const SERVER_VERSION = 'be47f91c62';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2892,7 +2892,7 @@ function familiesList_(familyRows, children) {
   // 空白入りで登録された子の名字（「海野 そら」→ 海野）。空白なしの子の名字さがしに使う
   const knownSur = children.map((c) => String(c.name).trim().split(/[\s　]+/)).filter((x) => x.length > 1).map((x) => x[0]);
   return Object.keys(byId).map((id) => byId[id]).filter((x) => x.kids.length)
-    .map((x) => ({ id: x.id, label: familyLabel_(x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name), x.parents, knownSur), parents: x.parents, userIds: x.userIds }))
+    .map((x) => ({ id: x.id, label: familyLabel_(x.kids.sort((a, b) => b.grade - a.grade).map((c) => c.name), x.parents, knownSur), parents: x.parents, userIds: x.userIds, kids: x.kids.map((c) => c.name) }))
     .sort((a, b) => (a.label < b.label ? -1 : 1));
 }
 

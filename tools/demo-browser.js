@@ -97,11 +97,13 @@
       gas.line({ type: 'user', userId: u }, '登録 ' + s + MEI[k] + ' ' + ((k % 6) + 1) + '年');
     });
     gas.login('U1');
-    gas.sheet('家族').data.forEach(function (r) { if (r[0] === 'U1') r[3] = '○'; });
+    gas.sheet('家族').data.forEach(function (r) { if (['U1', 'U2', 'U3', 'U4'].indexOf(r[0]) >= 0) r[3] = '○'; }); // 役員は4家族
     var keyOf = {};
     var key = function (u) { return keyOf[u] || (keyOf[u] = gas.login(u).key); };
     var api = function (u, a, p) { return gas.ctx.api(key(u), a, p); };
     SEI.forEach(function (s, k) { api('U' + (k + 1), 'saveChildren', { children: [{ name: s + ' ' + MEI[k], grade: (k % 6) + 1, sex: k % 2 ? '女' : '男' }] }); });
+    // 係：会長（山田）・副会長で会計係（佐藤）・記録係と当番係（鈴木）・大会係（高橋）
+    [['U1', '会長'], ['U2', '副会長・会計係'], ['U3', '記録係・当番係'], ['U4', '大会係']].forEach(function (x) { api('U1', 'setRole', { fam: x[0], role: x[1] }); });
     var st = api('U1', 'bootstrap');
     var race = st.events.find(function (e) { return e.title === '第3回 お試し記録会'; });
     var road = st.events.find(function (e) { return e.title === 'お試しロードレース大会'; });
@@ -116,8 +118,8 @@
     api('U1', 'setDuty', { key: past.key, fam: 'U3', on: true });
     api('U1', 'setDuty', { key: past.key, fam: 'U4', on: true });
     api('U1', 'autoDuty', { type: '練習', days: 14, per: 1 });
-    api('U1', 'setDuty', { key: race.key, fam: 'U2', on: true });
     api('U1', 'setDuty', { key: race.key, fam: 'U5', on: true });
+    api('U1', 'setDuty', { key: race.key, fam: 'U6', on: true });
     // エントリー（保護者は参加・不参加、種目は役員が登録）
     SEI.forEach(function (s, k) {
       if (k % 5 === 4) return;
@@ -140,7 +142,7 @@
   }
 
   // ---- 画面（ポータル本体は、本物と同じ Portal.html を中の枠で動かす） ----
-  var PEOPLE = [['U1', '山田さん（役員）'], ['U2', '佐藤さん（大会の当番あり）'], ['U4', '高橋さん（保護者）'], ['U7', '渡辺さん（保護者）']];
+  var PEOPLE = [['U1', '山田さん（会長）'], ['U2', '佐藤さん（副会長・会計係）'], ['U3', '鈴木さん（記録係・当番係）'], ['U4', '高橋さん（大会係）'], ['U7', '渡辺さん（保護者）'], ['U5', '田中さん（保護者・大会の当番）']];
   var world = null, who = 'U1';
   try { who = sessionStorage.getItem('demoWho') || 'U1'; } catch (e) { /* 無視 */ }
   var bridge = '<script>(function(){var n=0,cb={};window.addEventListener("message",function(e){var d=e.data;if(!d||!d.__demo)return;var c=cb[d.id];if(!c)return;delete cb[d.id];if(d.err)c.ng(new Error(d.err));else c.ok(d.ok);});' +

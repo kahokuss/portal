@@ -97,6 +97,8 @@ async function openPortal(browser, gas, userId, name) {
   for (const m of ['click', 'fill', 'selectOption', 'check', 'setInputFiles']) {
     const orig = page[m].bind(page);
     page[m] = async (sel, ...rest) => {
+      // 管理は「役員ページ（係ごと）」から始まる。今までのメニューの項目を押すときは「すべての機能」を開いてから
+      if (typeof sel === 'string' && /^\[data-go=/.test(sel) && !(await page.$(sel)) && (await page.$('#adminAll'))) await page.$eval('#adminAll', (b) => b.click());
       if (typeof sel === 'string') {
         try {
           await page.waitForSelector(sel, { state: 'attached', timeout: 5000 });
@@ -1322,7 +1324,14 @@ async function openPortal(browser, gas, userId, name) {
       const card = await q.textContent('.ops');
       assert.ok(card.includes('運用チェック') && /高|中|低/.test(card), card.slice(0, 200));
       await q.click('[data-nav="admin"]');
-      assert.ok((await q.textContent('#view')).includes('ふだん使う'), '目的ごとのまとまり');
+      // 管理は「役員ページ」：係ごとのタブと、今やること・道具
+      const sh = await q.textContent('#view');
+      assert.ok(sh.includes('役員ページ') && sh.includes('当番') && sh.includes('会計') && sh.includes('今やること'), '係ごとの役員ページ');
+      await q.click('[data-stab="race"]');
+      assert.ok((await q.textContent('#view')).includes('大会係の道具'), '大会係');
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-staff-home.png') });
+      await q.click('#adminAll');
+      assert.ok((await q.textContent('#view')).includes('ふだん使う'), 'すべての機能（目的ごとのまとまり）');
       await q.click('[data-go="ops"]');
       const t = await q.textContent('#view');
       assert.ok(t.includes('運用に必要な情報') && t.includes('名簿（保護者が登録ずみ）'), t.slice(0, 200));
@@ -1794,7 +1803,8 @@ async function openPortal(browser, gas, userId, name) {
       const f = q.frameLocator('#app');
       await f.locator('#nav').waitFor();
       await f.locator('[data-nav="admin"]').click();
-      await f.locator('[data-go="duty"]').click();
+      await f.locator('.stabs [data-stab="duty"]').click();
+      await f.locator('[data-stool="duty"]').click();
       await f.locator('button:has-text("自動で入れる")').first().click();
       await q.waitForTimeout(600);
       assert.ok(/当番|入れました/.test(await f.locator('#view').textContent()), '自動で入れる');

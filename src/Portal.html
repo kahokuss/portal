@@ -714,6 +714,17 @@ tr.sel td { background: var(--sky-soft); }
 .dccand.on { border-color: var(--staff); background: var(--staff-soft); }
 .dccand .go { font-size: 12px; font-weight: 700; color: var(--staff); }
 @media (min-width: 900px) { .dcgrid .day { min-height: 96px; } .dct { font-size: 11px; } .dcf { font-size: 12px; } }
+.staffhead { gap: 8px; }
+.sh-ttl { font-family: var(--font-display); font-size: 17px; }
+.stabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.stabs button { position: relative; border: 0; background: var(--surface-2); border-radius: 10px; padding: 6px 0; font: inherit; font-size: 12px; font-weight: 700; color: var(--fg); display: grid; justify-items: center; cursor: pointer; }
+.stabs button .si { font-size: 20px; line-height: 1.2; }
+.stabs button.mine { box-shadow: inset 0 0 0 2px var(--staff); }
+.stabs button[aria-pressed="true"] { background: var(--staff); color: #fff; }
+.stabs .sn { position: absolute; top: 2px; right: 4px; font-style: normal; font-size: 10px; background: var(--warn); color: #fff; border-radius: 8px; padding: 0 4px; }
+.stabs .sn.hi { background: var(--track); }
+.stools { display: grid; gap: 6px; }
+.stools button { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
 .testbar { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--staff); color: #fff; padding: 6px 12px; font-size: 13px; }
 .testbar button { border: 0; border-radius: 8px; background: #fff; color: var(--staff); font: inherit; font-weight: 700; padding: 4px 10px; }
 .notecard { box-shadow: inset 4px 0 0 var(--warn); }
@@ -963,6 +974,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function go(tab, key) {
     S.tab = tab; S.event = key || null; S.toast = ''; S.absForm = false; S.evNowDone = false;
+    if (tab === 'admin') { S.admin = 'menu'; S.adminAll = false; } // 下のメニューの「管理」は、いつも役員ページ（係ごと）から
     // 自主トレを開いたときは、日付を今日に（前に入れた日のままにしない。直している途中は除く）
     if (tab === 'train' && S.trForm && !S.trForm.id) S.trForm.date = ST.today;
     render(); window.scrollTo(0, 0);
@@ -1091,7 +1103,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     train: '🎯 目標・自主トレ：「いつまでに・何を」の目標と、そのためにやること（曜日で毎週のスケジュールに）。家での練習を記録すると、グラフとレポートになります。',
     album: '🖼 写真：LINEグループに送った写真が、大会・練習ごとに自動でまとまります。',
     family: '👪 わが家：お子さんの登録・家族の招待・役員や係の確認はここです。',
-    admin: '🛠 管理：まず「運用チェック」を見ると、足りないものと直す画面が分かります。',
+    admin: '🛠 役員ページ：上で係（全体・当番・記録・大会・会計）を選ぶと、その係の「今やること」と「道具」だけが出ます。あなたの係は枠つきです。',
   };
   function injectGuide() {
     var key = S.tab, text = GUIDES[key];
@@ -1276,6 +1288,16 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     });
     // 連絡・お金・安全
     var unack = ST.absences.filter(function (a) { return !a.ack && a.date >= today; });
+    // 記録：終わった大会（2週間以内）で、出た子がいるのに結果がまだ
+    ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date < today && e.date >= addDays(today, -14); }).forEach(function (e) {
+      var joined = ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加'; }).length;
+      if (joined && !ST.results.some(function (r) { return r.key === e.key; })) add(diff(e.date, today) >= 3 ? 1 : 2, '記録', md(e.date) + ' ' + e.title + '：結果がまだ', '出た子 ' + joined + '人。リザルトの写真や速報を「結果」タブに貼り付けるだけ', { ev: e.key, etab: '結果' });
+    });
+    // お金：大会への参加費の支払いがまだ（支払期限が近い・大会が近い）
+    ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.detail && (e.detail.fee || e.detail.payBy) && e.date >= addDays(today, -3) && e.date <= addDays(today, 21); }).forEach(function (e) {
+      var paid = ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || (taskOf(e.key, '参加費支払い', '') || {}).done;
+      if (!paid) add((e.detail.payBy || e.date) <= addDays(today, 3) ? 1 : 2, 'お金', md(e.date) + ' ' + e.title + '：大会への参加費の支払いがまだ', (e.detail.payBy ? '期限 ' + md(e.detail.payBy) + '。' : '') + '払ったら領収書を記録', { ev: e.key, etab: '手続き' });
+    });
     if (unack.length) add(2, '連絡', '確認していない休みの連絡 ' + unack.length + '件', '', { admin: 'absences' }, unack.length);
     var nm = ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; });
     if (nm.length) add(2, '安全', '対策がまだのヒヤリハット ' + nm.length + '件', '', { admin: 'nearmiss' }, nm.length);
@@ -1833,6 +1855,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'roster') return adminRoster();
     if (S.admin === 'fees') return adminFees();
     if (S.admin === 'ops') return adminOps();
+    if (!S.adminAll) return staffHome();
     var items = [['dutycal', '🗓 当番カレンダー（輪番づくり）', '月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で。前回からの日数や近い日の当番も見ながら'], ['testfam', '🧪 テスト家族（親A〜D）', '本番で当番・エントリーなどを試すための架空の家族。入れて試して、まとめて消す'], ['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
@@ -1846,10 +1869,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       var list = g[1].map(function (k) { return byKey[k]; }).filter(Boolean);
       return list.length ? '<div class="mgroup">' + g[0] + '</div><div class="menu">' + list.map(function (x) { return '<button type="button" data-go="' + x[0] + '"><span><b>' + x[1] + (cnt[x[0]] ? '<span class="pill p-race cnt">' + cnt[x[0]] + '</span>' : '') + '</b><span class="d">' + x[2] + '</span></span>›</button>'; }).join('') + '</div>' : '';
     }).join('');
-    view.innerHTML = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') +
+    view.innerHTML = '<button class="link" id="toStaff" type="button">‹ 役員ページ（係ごと）</button>' + toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') +
       '<button type="button" class="card opsbtn" data-go="ops"><span><b>🩺 運用チェック</b><span class="d">' + (ops.length ? '足りないもの ' + ops.length + '件（急ぎ ' + ops.filter(function (x) { return x.pri === 1; }).length + '件）。押すと、そろっているかの一覧と、直す画面へのボタン' : '運用に足りないものはありません') + '</span></span>›</button>' + menuHtml +
       (ST.photoFolderUrl ? '<a class="btn ghost" href="' + esc(ST.photoFolderUrl) + '" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">写真の元データ（Googleドライブ）</a><div class="hint">ドライブは共用アカウントでログインしたときだけ開けます。保護者には共有せず、ポータルの「写真」で見てもらいます。まとめてダウンロードするときに使ってください。</div>' : '') +
       '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '');
+    on('#toStaff', function () { S.adminAll = false; render(); window.scrollTo(0, 0); });
     on('[data-go="dash"]', function (ev) { ev.stopImmediatePropagation(); S.dashFrom = 'admin'; go('dash'); });
     on('[data-go]', function () { if (this.dataset.go === 'dash') return; S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
   }
@@ -1880,6 +1904,54 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (!tb) { tb = document.createElement('div'); tb.id = 'testBar'; tb.className = 'testbar'; view.parentNode.insertBefore(tb, view); }
     tb.innerHTML = '<span>🧪 <b>' + esc(S.asTest.name) + '</b>として見ています（テスト家族）</span><button type="button" id="tbBack">役員にもどる</button>';
     document.getElementById('tbBack').onclick = function () { KEY = S.asTest.adminKey; S.asTest = null; S.tab = 'admin'; S.admin = 'testfam'; S.event = null; S.toast = ''; call('bootstrap'); };
+  }
+  // ---- 役員ページ：係ごとに「今やること」と道具だけ ----
+  var ROLES = [
+    { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート']] },
+    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['dutycal', '🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['practice', '📅 練習の予定をつくる'], ['duty', '📋 当番表を貼り付け'], ['testfam', '🧪 テスト家族']] },
+    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['_lastres', '🏅 最近の大会の結果を入れる'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
+    { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ']] },
+    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['fees', '💴 集金（年会費など）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 会計（領収書の履歴）']] },
+  ];
+  function myRoleText() { var f = ST.families.filter(function (x) { return x.id === ST.me.fam; })[0]; return (f && f.role) || ''; }
+  function roleOwner(r) { return ST.families.filter(function (f) { return f.role && r.who.test(f.role) && !(r.id === 'all' && /副会長/.test(f.role) && !/(^|[^副])会長/.test(f.role)); }).map(function (f) { return f.label.replace(/（.*$/, ''); }); }
+  function staffHome() {
+    var mine = myRoleText(), my = ROLES.filter(function (r) { return mine && r.who.test(mine) && !(r.id === 'all' && !/(^|[^副])会長/.test(mine)); });
+    var tab = S.staffTab || (my[0] || ROLES[0]).id, R = ROLES.filter(function (r) { return r.id === tab; })[0] || ROLES[0];
+    var ops = opsChecks(), of = function (r) { return ops.filter(function (x) { return r.areas.indexOf(x.area) >= 0; }); };
+    var h = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') +
+      '<section class="card staffhead"><div class="between"><b class="sh-ttl">🛠 役員ページ</b><span class="sub">' + (mine ? 'あなたの係：' + esc(mine) : '係が決まっていません') + '</span></div>' +
+      '<div class="stabs" role="group" aria-label="係">' + ROLES.map(function (r) {
+        var n = of(r).length, hi = of(r).filter(function (x) { return x.pri === 1; }).length;
+        return '<button type="button" data-stab="' + r.id + '" aria-pressed="' + (r === R) + '"' + (my.indexOf(r) >= 0 ? ' class="mine"' : '') + '><span class="si">' + r.icon + '</span>' + r.t + (n ? '<i class="sn' + (hi ? ' hi' : '') + '">' + n + '</i>' : '') + '</button>';
+      }).join('') + '</div></section>';
+    var todo = of(R);
+    if (R.id === 'all') {
+      h += '<section class="card"><h2>係ごとの「やること」</h2><div class="list">' + ROLES.slice(1).map(function (r) {
+        var n = of(r).length, hi = of(r).filter(function (x) { return x.pri === 1; }).length, who = roleOwner(r);
+        return '<button type="button" class="opsit" data-stab="' + r.id + '"><span class="pill ' + (hi ? 'p-race' : n ? 'p-warn' : 'p-ok') + '">' + (hi ? '急ぎ' + hi : n ? n + '件' : '✓') + '</span><span class="main"><b>' + r.icon + ' ' + r.t + '係</b><span class="sub">' + (who.length ? esc(who.join('・')) : '担当が決まっていません') + '</span></span><span class="go">›</span></button>';
+      }).join('') + '</div><div class="hint">係の担当は「👥 メンバー・役員と係」で、家族ごとに「係」を入れて決めます（例：副会長・会計係）。</div></section>';
+    } else {
+      var who = roleOwner(R);
+      h += '<div class="sub" style="padding:0 4px">担当：' + (who.length ? esc(who.join('・')) : 'まだ決まっていません') + '</div>';
+    }
+    h += '<section class="card"><h2>今やること<small>' + (todo.length ? todo.length + '件' : 'なし') + '</small></h2>' + (todo.length ? '<div class="list">' + todo.map(function (x) { return opsItem(x, ops.indexOf(x)); }).join('') + '</div>' : '<div class="todo-done">✓ いま、' + R.t + 'でやることはありません</div>') + '</section>';
+    h += '<section class="card"><h2>' + R.icon + ' ' + R.t + (R.id === 'all' ? '' : '係') + 'の道具</h2><div class="stools">' + R.tools.map(function (t) { return '<button type="button" data-stool="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></section>';
+    h += '<button class="link" type="button" id="adminAll" style="justify-self:start">すべての機能（今までの管理メニュー） ›</button>';
+    view.innerHTML = h;
+    bindCommon(); bindOps();
+    on('[data-stab]', function () { S.staffTab = this.dataset.stab; render(); window.scrollTo(0, 0); });
+    on('#adminAll', function () { S.adminAll = true; render(); window.scrollTo(0, 0); });
+    on('[data-stool]', function () {
+      var k = this.dataset.stool;
+      var nextRace = ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date >= ST.today; })[0];
+      var lastRace = ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date <= ST.today; }).slice(-1)[0];
+      if (k === '_nextrace') return nextRace ? goTo({ ev: nextRace.key, etab: '種目' }) : (S.toast = 'これからの大会がありません', render());
+      if (k === '_nextpay') return nextRace ? goTo({ ev: nextRace.key, etab: '手続き' }) : (S.toast = 'これからの大会がありません', render());
+      if (k === '_lastres') return lastRace ? goTo({ ev: lastRace.key, etab: '結果' }) : (S.toast = '終わった大会がありません', render());
+      if (k === 'dash') { S.dashFrom = 'admin'; return go('dash'); }
+      S.admin = k; S.toast = ''; render(); window.scrollTo(0, 0);
+    });
   }
   /** 管理：来年への引き継ぎの一覧（大会のページが一覧にない、去年の大会の分もここで書ける） */
   function adminNotes() {

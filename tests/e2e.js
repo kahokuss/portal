@@ -1730,6 +1730,26 @@ async function openPortal(browser, gas, userId, name) {
       await p2.close();
       await q.close();
     });
+    await step('お試しポータル（ダミーデータ）：本物につながらずに、当番表の自動・人の切り替えが動く', async () => {
+      const q = await browser.newPage({ viewport: { width: 400, height: 860 } });
+      const errs = []; q.on('pageerror', (e) => errs.push(e.message));
+      await q.route('**/fonts.googleapis.com/**', (r) => r.abort());
+      await q.goto('file://' + path.join(__dirname, '../docs/demo/index.html'));
+      const f = q.frameLocator('#app');
+      await f.locator('#nav').waitFor();
+      await f.locator('[data-nav="admin"]').click();
+      await f.locator('[data-go="duty"]').click();
+      await f.locator('button:has-text("自動で入れる")').first().click();
+      await q.waitForTimeout(600);
+      assert.ok(/当番|入れました/.test(await f.locator('#view').textContent()), '自動で入れる');
+      await q.selectOption('#who', 'U2');
+      await f.locator('#nav').waitFor();
+      await q.waitForTimeout(400);
+      assert.ok((await f.locator('#me').textContent()).includes('佐藤'), '人を切りかえられる');
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'demo-portal.png') });
+      assert.deepStrictEqual(errs, []);
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

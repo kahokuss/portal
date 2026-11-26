@@ -49,3 +49,6 @@ outputs.forEach(([target, text]) => {
     console.log(rel + ' を作りました');
   }
 });
+
+// お試しポータル（ダミーデータ）も、いっしょに作り直す（--check のときは最新かどうかだけ）
+require('./build-demo.js');

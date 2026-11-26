@@ -1328,7 +1328,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '0103f51a21';
+const SERVER_VERSION = '7422a4aaf9';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1340,6 +1340,8 @@ const CONFIG = {
 
   // カレンダーから取り込む範囲（今日から何日前〜何日先まで）
   SYNC_DAYS_BEFORE: 60,
+  // 大会・記録会は、ポータルに3年分残す（去年・おととしの案内や時刻表・手続き・結果を見られるように）。練習は SYNC_DAYS_BEFORE まで
+  RACE_KEEP_DAYS: 1100,
   SYNC_DAYS_AHEAD: 180,
   // ポータルを開いたとき、前回の同期から何分たっていたらカレンダーを読み直すか
   // （ふだんは15分ごとのトリガー syncJob が裏で読み直すので、開くときは待たせない）
@@ -1348,7 +1350,7 @@ const CONFIG = {
   DAILY_HOUR: 5,
 
   // カレンダーの予定名にこの言葉が入っていたら「大会」として扱う（ポータルで変更もできます）
-  RACE_KEYWORDS: /大会|記録会|競技会|選手権|マラソン|駅伝|ロードレース|リレー/,
+  RACE_KEYWORDS: /大会|記録会|競技会|選手権|マラソン|駅伝|ロードレース|リレー|スプリント|クロスカントリー|クロカン|陸上競技|カップ|杯/,
   // 大会を作るとき、エントリー締切を何日前に自動で入れるか
   DEADLINE_DAYS_BEFORE: 10,
   // 当番の仕事（練習のページの「当番」と、当番表の画面に出す）。体育館の使い方が変わったらここを直す
@@ -2705,7 +2707,12 @@ function buildState_(ctx) {
   readRows_(SHEETS.RACES).forEach((r) => (races[r.eventKey] = r));
 
   const events = readRows_(SHEETS.EVENTS)
-    .filter((e) => e['日付'] >= range.first && e['日付'] <= range.last)
+    .filter((e) => {
+      if (e['日付'] > range.last) return false;
+      if (e['日付'] >= range.first) return true;
+      const isRace = !!races[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習';
+      return isRace && e['日付'] >= addDays_(today, -CONFIG.RACE_KEEP_DAYS);
+    })
     .sort(compareEvents_)
     .map((e) => {
       const race = races[e.eventKey];

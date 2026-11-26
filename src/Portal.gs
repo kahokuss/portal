@@ -166,7 +166,12 @@ function buildState_(ctx) {
   readRows_(SHEETS.RACES).forEach((r) => (races[r.eventKey] = r));
 
   const events = readRows_(SHEETS.EVENTS)
-    .filter((e) => e['日付'] >= range.first && e['日付'] <= range.last)
+    .filter((e) => {
+      if (e['日付'] > range.last) return false;
+      if (e['日付'] >= range.first) return true;
+      const isRace = !!races[e.eventKey] || (e['種別'] || guessType_(e['タイトル'])) !== '練習';
+      return isRace && e['日付'] >= addDays_(today, -CONFIG.RACE_KEEP_DAYS);
+    })
     .sort(compareEvents_)
     .map((e) => {
       const race = races[e.eventKey];

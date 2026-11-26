@@ -1577,6 +1577,19 @@ test('来年への引き継ぎ：大会名（第◯回・年を除く）ごと�
   assert.strictEqual(gas.rows('大会の引き継ぎ').filter((r) => r['メモ']).length, 1, '同じ大会は上書き');
 });
 
+test('大会は3年分残す（練習は60日）', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.ctx.api(kA, 'bootstrap');
+  gas.sheet('予定').data.push(['old-race', '2024-11-10', '', '', '第3回 布勢スプリント', '布勢', '', '', '予定', '', '']);
+  gas.sheet('予定').data.push(['old-prac', '2024-11-12', '17:00', '18:30', '通常練習', '校庭', '', '練習', '予定', '', '']);
+  gas.sheet('予定').data.push(['too-old', '2022-06-01', '', '', '第1回 布勢スプリント', '布勢', '', '', '予定', '', '']);
+  const keys = gas.ctx.api(kA, 'bootstrap').events.map((e) => e.key);
+  assert.ok(keys.includes('old-race'), '2年前の大会は出る');
+  assert.ok(!keys.includes('old-prac'), '古い練習は出さない');
+  assert.ok(!keys.includes('too-old'), '3年より前は出さない');
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

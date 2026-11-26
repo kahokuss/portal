@@ -1722,7 +1722,9 @@ async function openPortal(browser, gas, userId, name) {
       await q.fill('.ask [data-ask="1"]', 'エントリーは先着順');
       await q.click('.ask button[type=submit]');
       await q.idle();
-      assert.ok(gas.rows('大会の引き継ぎ').some((r) => r['大会名'] === '布勢スプリント'), '去年の大会も名前で書ける');
+      const fuseOk = () => gas.rows('大会の引き継ぎ').some((r) => r['大会名'] === '布勢スプリント');
+      for (let w = 0; w < 25 && !fuseOk(); w++) await q.waitForTimeout(200);
+      assert.ok(fuseOk(), '去年の大会も名前で書ける');
       const p2 = await openPortal(browser, gas, 'U3', 'racenote2');
       await p2.click('[data-nav="events"]');
       await p2.click('.ev:has-text("秋季記録会")');

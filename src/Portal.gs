@@ -94,6 +94,8 @@ const API_ACTIONS = {
   saveGoal: { run: saveGoalAction_ },
   addVideo: { run: addVideoAction_ },
   saveRaceNote: { run: saveRaceNoteAction_ },
+  testFamilies: { admin: true, run: testFamiliesAction_ },
+  testLogin: { admin: true, raw: true, run: testLoginAction_ },
   deleteVideo: { run: deleteVideoAction_ },
   deleteGoal: { run: deleteGoalAction_ },
   setGoalDone: { run: setGoalDoneAction_ },
@@ -301,6 +303,7 @@ function buildState_(ctx) {
     training: trainingFor_(ctx, children),
     goals: goalsFor_(ctx, children),
     videos: videosFor_(ctx),
+    testFamilies: testFamiliesFor_(ctx),
     // 来年への引き継ぎ（大会名ごと）：役員と、当番のある家族だけに
     raceNotes: ctx.admin || manageKeys.length ? readRows_(SHEETS.RACE_NOTES).filter((n) => n.id && n['メモ']).map((n) => ({ id: n.id, name: n['大会名'], memo: n['メモ'], by: n['更新者'], at: String(n['日時']).slice(0, 10) })) : [],
     strava: stravaStateFor_(ctx),

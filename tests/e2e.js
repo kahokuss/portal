@@ -1730,6 +1730,27 @@ async function openPortal(browser, gas, userId, name) {
       await p2.close();
       await q.close();
     });
+    await step('役員: テスト家族（親A〜D）を入れて、その家族として見て、役員にもどり、まとめて消す', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'testfam');
+      q.on('dialog', (d) => d.accept());
+      await q.click('[data-nav="admin"]');
+      await q.click('[data-go="testfam"]');
+      await q.click('#tfOn');
+      await q.idle();
+      assert.ok((await q.textContent('#view')).includes('親A'), '入った');
+      await q.click('[data-tview="TEST_C"]');
+      await q.waitForSelector('#testBar');
+      await q.idle();
+      assert.ok((await q.textContent('#me')).includes('親C') && (await q.textContent('#testBar')).includes('親C'), '親Cとして見ている');
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-testfam-as.png') });
+      await q.click('#tbBack');
+      await q.idle();
+      assert.ok(!(await q.$('#testBar')) && (await q.textContent('#me')).includes('山田'), '役員にもどる');
+      await q.click('#tfOff');
+      await q.idle();
+      assert.ok(!gas.rows('家族').some((f) => /^TEST_/.test(f.userId)), 'まとめて消す');
+      await q.close();
+    });
     await step('お試しポータル（ダミーデータ）：本物につながらずに、当番表の自動・人の切り替えが動く', async () => {
       const q = await browser.newPage({ viewport: { width: 400, height: 860 } });
       const errs = []; q.on('pageerror', (e) => errs.push(e.message));

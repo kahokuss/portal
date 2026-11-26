@@ -27,6 +27,7 @@ function reply_(replyToken, messages) {
 
 /** プッシュ（無料枠の通数にカウントされる）。5件ずつ送る */
 function push_(to, messages) {
+  if (isTestUser_(to)) return; // テスト家族には送らない
   for (let i = 0; i < messages.length; i += 5) {
     lineFetch_(LINE_API + '/message/push', 'post', { to: to, messages: messages.slice(i, i + 5) });
   }

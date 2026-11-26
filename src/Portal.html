@@ -693,6 +693,8 @@ tr.sel td { background: var(--sky-soft); }
 .ask { background: var(--surface); border-radius: 16px; padding: 16px; width: 100%; max-width: 420px; display: grid; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
 .ask-ttl { font-family: var(--font-display); font-weight: 800; font-size: 17px; }
 .ask textarea { font: inherit; font-size: 16px; border: 2px solid var(--sky); border-radius: 10px; padding: 10px 12px; width: 100%; background: var(--surface); color: var(--fg); resize: vertical; }
+.testbar { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--staff); color: #fff; padding: 6px 12px; font-size: 13px; }
+.testbar button { border: 0; border-radius: 8px; background: #fff; color: var(--staff); font: inherit; font-weight: 700; padding: 4px 10px; }
 .notecard { box-shadow: inset 4px 0 0 var(--warn); }
 .notebody { font-weight: 700; line-height: 1.7; }
 .ask input { font-size: 18px; border: 2px solid var(--sky); border-radius: 10px; padding: 10px 12px; width: 100%; background: var(--surface); color: var(--fg); }
@@ -920,6 +922,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.raceNotes) st.raceNotes = [];
+    if (!st.testFamilies) st.testFamilies = [];
     // 加速走や、練習の日の計測は「練習」（区分が空のまま残っている古い記録も）
     var pracDay = {}; (st.events || []).forEach(function (e) { if (e.type === '練習') pracDay[e.key] = 1; });
     st.results.forEach(function (r) { if (r.kind === '公式' && (isFlying(r) || pracDay[r.key])) r.kind = '練習'; });
@@ -1790,6 +1793,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function admin() {
     if (S.admin === 'race') return adminRace();
     if (S.admin === 'notes') return adminNotes();
+    if (S.admin === 'testfam') return adminTestFam();
     if (S.admin === 'saved') return adminSaved();
     if (S.admin === 'notice') return adminNotice();
     if (S.admin === 'absences') return adminAbsences();
@@ -1807,14 +1811,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'roster') return adminRoster();
     if (S.admin === 'fees') return adminFees();
     if (S.admin === 'ops') return adminOps();
-    var items = [['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
+    var items = [['testfam', '🧪 テスト家族（親A〜D）', '本番で当番・エントリーなどを試すための架空の家族。入れて試して、まとめて消す'], ['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     // 目的ごとにまとめ、足りないもの（運用チェック）の件数を出す
     var ops = opsChecks(), cnt = {};
     ops.forEach(function (x) { var k = x.go.admin || (x.go.editRace || x.go.ev ? 'race' : ''); if (k) cnt[k] = (cnt[k] || 0) + 1; });
-    var GROUPS = [['ふだん使う', ['duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'notes', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'members', 'notify']], ['お金', ['fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
+    var GROUPS = [['ふだん使う', ['duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'notes', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'testfam', 'members', 'notify']], ['お金', ['fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
     var byKey = {}; items.forEach(function (x) { byKey[x[0]] = x; });
     var menuHtml = GROUPS.map(function (g) {
       var list = g[1].map(function (k) { return byKey[k]; }).filter(Boolean);
@@ -1826,6 +1830,34 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '');
     on('[data-go="dash"]', function (ev) { ev.stopImmediatePropagation(); S.dashFrom = 'admin'; go('dash'); });
     on('[data-go]', function () { if (this.dataset.go === 'dash') return; S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
+  }
+  /** 管理：テスト家族（親A〜D）。本番で試すための架空の家族を入れる・その家族として見る・まとめて消す */
+  function adminTestFam() {
+    var list = ST.testFamilies || [];
+    view.innerHTML = backBtn() + toastHtml() + '<section class="card"><h2>🧪 テスト家族（親A〜D）<small>' + list.length + '家族</small></h2>' +
+      '<div class="sub">本番で、当番・エントリー・休みの連絡などを試すための<b>架空の家族</b>です（子ども：テストA 3年男子、テストB 5年女子、テストC 6年男子・テストC2 1年女子、テストD 4年女子）。LINEには何も送りません。</div>' +
+      '<div class="toast err">⚠ 入れているあいだは、名簿・当番表・エントリーの一覧に出て、当番の自動割り当てにも入ります。試し終わったら必ず「まとめて消す」を押してください。</div>' +
+      (list.length ? '<div class="list">' + list.map(function (f) { return '<div class="between"><span><b>' + esc(f.name) + '</b> <span class="sub">' + esc(f.kids.join('・')) + '</span></span><button class="btn small" type="button" data-tview="' + esc(f.id) + '">この家族として見る</button></div>'; }).join('') + '</div>' : '') +
+      '<div class="row">' + (list.length < 4 ? '<button class="btn" type="button" id="tfOn">テスト家族を入れる</button>' : '') + (list.length ? '<button class="btn ghost" type="button" id="tfOff">まとめて消す</button>' : '') + '</div>' +
+      '<div class="hint">「この家族として見る」で、保護者の画面（ホーム・わが家・エントリー・当番）を確かめられます。上の帯の「役員にもどる」で元にもどります。</div></section>';
+    bindBack();
+    on('#tfOn', function () { call('testFamilies', { on: true }); });
+    on('#tfOff', function () { if (confirm('テスト家族と、当番・エントリー・休み・記録など、テスト家族にかかわるデータをすべて消します。よろしいですか？')) call('testFamilies', { off: true }); });
+    on('[data-tview]', function () {
+      var id = this.dataset.tview;
+      rpc('testLogin', { id: id }, function (r) {
+        if (!S.asTest) S.asTest = { adminKey: KEY };
+        S.asTest.name = r.name; KEY = r.key; S.tab = 'home'; S.event = null; S.toast = '';
+        call('bootstrap');
+      }, function (err) { S.toast = '⚠ ' + err.message; S.toastErr = true; render(); });
+    });
+  }
+  function testBar() {
+    var tb = document.getElementById('testBar');
+    if (!S.asTest) { if (tb) tb.remove(); return; }
+    if (!tb) { tb = document.createElement('div'); tb.id = 'testBar'; tb.className = 'testbar'; view.parentNode.insertBefore(tb, view); }
+    tb.innerHTML = '<span>🧪 <b>' + esc(S.asTest.name) + '</b>として見ています（テスト家族）</span><button type="button" id="tbBack">役員にもどる</button>';
+    document.getElementById('tbBack').onclick = function () { KEY = S.asTest.adminKey; S.asTest = null; S.tab = 'admin'; S.admin = 'testfam'; S.event = null; S.toast = ''; call('bootstrap'); };
   }
   /** 管理：来年への引き継ぎの一覧（大会のページが一覧にない、去年の大会の分もここで書ける） */
   function adminNotes() {
@@ -6083,6 +6115,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     document.getElementById('reload').hidden = false;
     if (S.tab === 'admin' && !ST.me.admin && !(S.admin === 'race' && S.draft && S.draft.from === 'edit')) S.tab = 'home';
     renderNav();
+    testBar();
     var vt = document.getElementById('vtip'); if (vt) vt.hidden = true;
     var app = document.querySelector('.app'); if (app) app.classList.toggle('wide', S.tab === 'dash');
     ({ home: home, events: events, album: album, family: family, admin: admin, train: train, dash: dash })[S.tab]();
@@ -6180,7 +6213,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // 前回の画面を覚えておき、次に開いたときすぐ出す（そのあと裏で最新にする）
   var STATE = 'clubPortalState';
   function saveState(st) { saveStateJs(JSON.stringify(st)); }
-  function saveStateJs(js) { try { localStorage.setItem(STATE, '{"k":' + JSON.stringify(String(KEY).slice(0, 8)) + ',"st":' + js + '}'); } catch (e) {} }
+  function saveStateJs(js) { if (S.asTest) return; try { localStorage.setItem(STATE, '{"k":' + JSON.stringify(String(KEY).slice(0, 8)) + ',"st":' + js + '}'); } catch (e) {} }
   function loadState() { try { var s = JSON.parse(localStorage.getItem(STATE) || 'null'); return s && s.k === String(KEY).slice(0, 8) ? s.st : null; } catch (e) { return null; } }
   function openFast() {
     var cached = loadState();

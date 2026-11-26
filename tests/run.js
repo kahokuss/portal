@@ -1590,6 +1590,34 @@ test('大会は3年分残す（練習は60日）', () => {
   assert.ok(!keys.includes('too-old'), '3年より前は出さない');
 });
 
+test('テスト家族（親A〜D）：入れる・その家族で使う（LINEには送らない）・まとめて消す', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  assert.throws(() => gas.ctx.api(gas.login('U2').key, 'testFamilies', { on: true }), /役員/);
+  let st = gas.ctx.api(kA, 'testFamilies', { on: true });
+  assert.strictEqual(plain(st.testFamilies).length, 4);
+  assert.ok(st.kids.some((k) => k.name === 'テストC2'));
+  const t = gas.ctx.api(kA, 'testLogin', { id: 'TEST_B' });
+  const before = gas.fetches.length;
+  const sb = gas.ctx.api(t.key, 'bootstrap');
+  assert.strictEqual(sb.me.name, '親B');
+  assert.ok(!gas.fetches.slice(before).some((f) => /TEST_/.test(f.url + JSON.stringify(f.payload || ''))), 'LINEに聞かない・送らない');
+  const race = sb.events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(t.key, 'saveEntry', { key: race.key, child: 'テストB', join: '参加' });
+  gas.ctx.api(t.key, 'reportAbsence', { child: 'テストB', date: race.date, reason: '体調不良' });
+  gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_B', on: true });
+  assert.throws(() => gas.ctx.api(kA, 'testLogin', { id: 'U2' }), /テスト家族だけ/);
+  st = gas.ctx.api(kA, 'testFamilies', { off: true });
+  assert.ok(/消しました/.test(st.message), st.message);
+  assert.strictEqual(plain(st.testFamilies).length, 0);
+  assert.ok(!gas.rows('子ども').some((c) => /^テスト/.test(c['名前'])));
+  assert.ok(!gas.rows('エントリー').some((x) => x['子ども'] === 'テストB'));
+  assert.ok(!gas.rows('休み').some((x) => x['子ども'] === 'テストB'));
+  assert.ok(!gas.rows('当番').some((x) => /^TEST_/.test(x['家族ID'])));
+  assert.ok(gas.rows('家族').some((f) => f.userId === 'U1'), '本物の家族は残る');
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

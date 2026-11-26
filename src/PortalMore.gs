@@ -85,7 +85,7 @@ function setDutyAction_(ctx, p) {
 function autoDutyAction_(ctx, p) {
   const type = p.type === '大会' ? '大会' : '練習';
   const per = Math.max(1, Math.min(4, Number(p.per) || 1));
-  const days = Math.max(1, Math.min(120, Number(p.days) || 30));
+  const days = Math.max(1, Math.min(400, Number(p.days) || 30));
   const today = today_();
   const families = familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_());
   if (!families.length) throw new Error('お子さんを登録している家族がいません。');

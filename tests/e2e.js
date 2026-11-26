@@ -1750,8 +1750,17 @@ async function openPortal(browser, gas, userId, name) {
         await q.idle();
         assert.ok(!gas.rows('当番').some((r) => r.eventKey === key), '外れた');
       }
+      // 3か月先まで、空きを自動で埋める（年度末までも同じしくみ）
+      await q.click('[data-dcrange="3m"]');
       const before = gas.rows('当番').length;
-      if (!(await q.$('#dcAuto[disabled]'))) { await q.click('#dcAuto'); await q.idle(); assert.ok(gas.rows('当番').length >= before, '自動'); }
+      if (!(await q.$('#dcAuto[disabled]'))) {
+        await q.click('#dcAuto'); await q.idle();
+        for (let w = 0; w < 25 && gas.rows('当番').length <= before; w++) await q.waitForTimeout(200);
+        assert.ok(gas.rows('当番').length > before, '自動で埋まる');
+        assert.ok(await q.$('#dcAuto[disabled]'), '空きがなくなる');
+      }
+      const sumT = await q.textContent('.dcsum');
+      assert.ok(/回/.test(sumT) && (await q.textContent('#view')).includes('担当した回数'), '担当した回数の表');
       await q.setViewportSize({ width: 1280, height: 900 });
       if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-dutycal-pc.png') });
       await q.close();

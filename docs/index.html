@@ -705,6 +705,13 @@ tr.sel td { background: var(--sky-soft); }
 .dcf.none { color: var(--track); }
 .dcf.me { text-decoration: underline; }
 .dcf.test { opacity: .7; font-style: italic; }
+.dcf .nth { font-style: normal; font-weight: 400; margin-left: 1px; }
+.dcauto { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.dcsum .num { text-align: right; white-space: nowrap; }
+.dcsum .barc { min-width: 80px; width: 30%; }
+.dbar { display: flex; height: 10px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+.dbar .d { background: var(--staff); }
+.dbar .p { background: var(--staff); opacity: .35; }
 .dccand { display: flex; align-items: center; gap: 8px; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 10px; font: inherit; text-align: left; cursor: pointer; }
 .dccand .main { flex: 1; display: grid; gap: 2px; }
 .dccand.on { border-color: var(--staff); background: var(--staff-soft); }
@@ -814,9 +821,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "6e3804f7e7";
+var BUILD = "097ef29a4b";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "cc2130aef1";
+var EXPECT_SERVER = "027eff7b9e";
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 document.getElementById('clubName').textContent = CLUB + ' ポータル';
@@ -5719,6 +5726,11 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
    * 当番カレンダー（輪番づくり）：月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で入れる。
    * 予定を押すと、候補の家族が「前回から日がたっている順」に出る。近い日の当番や休みの連絡も注意で出す
    */
+  // 今年度（4月はじまり）の当番：済んだ回数と、入っている予定。チップには年度の何回目かを出す
+  function fyStart() { var y = +ST.today.slice(0, 4), m = +ST.today.slice(5, 7); return (m >= 4 ? y : y - 1) + '-04-01'; }
+  function fyEnd() { return (+fyStart().slice(0, 4) + 1) + '-03-31'; }
+  function fyDuties(fam, type) { var a = fyStart(), b = fyEnd(); return ST.duties.filter(function (x) { return x.fam === fam && x.type === type && x.date >= a && x.date <= b; }).sort(function (p, q) { return p.date < q.date ? -1 : 1; }); }
+  var CIRC = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
   function shortFam(id) { return famName(id).replace(/（.*$/, ''); }
   function adminDutyCal() {
     var C = S.dc || (S.dc = { month: ST.today.slice(0, 7), type: '練習', sel: '', per: 1 });
@@ -5726,7 +5738,9 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var monthEnd = C.month + '-' + pad(days);
     var evs = ST.events.filter(function (e) { return !e.cancelled && e.date.slice(0, 7) === C.month && dutyType(e) === C.type; });
     var byDay = {}; evs.forEach(function (e) { (byDay[e.date] = byDay[e.date] || []).push(e); });
-    var empty = evs.filter(function (e) { return e.date >= ST.today && !dutyOf(e.key).length; }).length;
+    var RANGES = [['month', 'この月', monthEnd], ['3m', '3か月先まで', addDays(ST.today, 91)], ['fy', '年度末（' + md(fyEnd()).replace(/\(.\)/, '') + '）まで', fyEnd()]];
+    var R = RANGES.filter(function (x) { return x[0] === (C.range || 'month'); })[0] || RANGES[0];
+    var empty = ST.events.filter(function (e) { return !e.cancelled && dutyType(e) === C.type && e.date >= ST.today && e.date <= R[2] && dutyOf(e.key).length < C.per; }).length;
     var h = backBtn() + toastHtml() + '<section class="card dcal"><div class="between"><h2 style="margin:0">🗓 当番カレンダー<small>輪番づくり</small></h2></div>' +
       '<div class="tabs" role="group" aria-label="当番の種類">' + ['練習', '大会'].map(function (t) { return '<button type="button" data-dct="' + t + '" aria-pressed="' + (C.type === t) + '">' + t + '当番</button>'; }).join('') + '</div>' +
       '<div class="between"><button class="btn small ghost" type="button" data-dcm="-1">‹</button><b>' + y + '年' + m + '月</b><button class="btn small ghost" type="button" data-dcm="1">›</button></div>' +
@@ -5737,13 +5751,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       h += '<div class="day dcday' + (ds === ST.today ? ' today' : '') + (ds < ST.today ? ' past' : '') + '"><span class="n' + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : '') + '">' + n + '</span>' + list.map(function (e) {
         var du = dutyOf(e.key);
         return '<button type="button" class="dcev' + (C.sel === e.key ? ' on' : '') + (du.length ? '' : ' none') + '" data-dcsel="' + e.key + '"><span class="dct">' + esc(isRace(e) ? e.title.slice(0, 6) : calTime(e.start)) + '</span>' +
-          (du.length ? du.map(function (x) { return '<span class="dcf' + (/^TEST_/.test(x.fam) ? ' test' : '') + (x.fam === ST.me.fam ? ' me' : '') + '">' + esc(shortFam(x.fam)) + '</span>'; }).join('') : '<span class="dcf none">＋空き</span>') + '</button>';
+          (du.length ? du.map(function (x) { var nth = fyDuties(x.fam, C.type).findIndex(function (y) { return y.key === e.key; }) + 1; return '<span class="dcf' + (/^TEST_/.test(x.fam) ? ' test' : '') + (x.fam === ST.me.fam ? ' me' : '') + '">' + esc(shortFam(x.fam)) + (nth > 0 ? '<i class="nth">' + (CIRC.charAt(nth - 1) || nth) + '</i>' : '') + '</span>'; }).join('') : '<span class="dcf none">＋空き</span>') + '</button>';
       }).join('') + '</div>';
     }
-    h += '</div><div class="row"><button class="btn" type="button" id="dcAuto"' + (empty ? '' : ' disabled') + '>この月の空き ' + empty + '件に自動で入れる</button>' +
-      '<span class="choice sm">' + [1, 2].map(function (k) { return '<button type="button" data-dcper="' + k + '" aria-pressed="' + (C.per === k) + '">1回に' + k + '家族</button>'; }).join('') + '</span>' +
-      '<button class="btn small ghost noprint" type="button" id="dcPrint">印刷</button></div>' +
-      '<div class="hint">予定を押すと、下に候補の家族が「前回から日がたっている順」に出ます。押すと入る・もう一度押すと外れます。自動は、今日からこの月の終わりまでの空いている予定に、順番に入れます（もう入っている当番は変えません）。</div></section>';
+    h += '</div><div class="dcauto"><div class="lbl">空いている当番を自動で埋める</div>' +
+      '<div class="choice sm">' + RANGES.map(function (x) { return '<button type="button" data-dcrange="' + x[0] + '" aria-pressed="' + (x === R) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="choice sm">' + [1, 2, 3].map(function (k) { return '<button type="button" data-dcper="' + k + '" aria-pressed="' + (C.per === k) + '">1回に' + k + '家族</button>'; }).join('') + '</div>' +
+      '<div class="row"><button class="btn" type="button" id="dcAuto"' + (empty ? '' : ' disabled') + '>' + (empty ? '空き ' + empty + '件を自動で埋める' : '空きはありません') + '</button><button class="btn small ghost noprint" type="button" id="dcPrint">印刷</button></div>' +
+      '<div class="hint">今日から選んだ日までの、当番が足りない' + C.type + 'に、<b>前回から日がたっている家族から順番に</b>入れます（回数が少ない家族が先）。もう入っている当番は変えません。入れたあとも、予定を押せば入れかえられます。家族の名前の横の丸数字は、今年度の何回目か。</div></div></section>';
     // 選んだ予定：候補の家族
     var se = C.sel && evByKey(C.sel);
     if (se) {
@@ -5752,34 +5767,41 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
         var r = dutyHistory(f.id, C.type, se.key), warn = [];
         ST.duties.forEach(function (x) { if (x.fam === f.id && x.key !== se.key && Math.abs(diff(x.date, se.date)) <= 7) warn.push(md(x.date) + 'に' + x.type + '当番'); });
         if (absentOn(se.date).some(function (a) { return (f.kids || []).indexOf(a.child) >= 0; })) warn.push('この日 休みの連絡あり');
-        return { f: f, r: r, warn: warn, on: cur.indexOf(f.id) >= 0 };
+        return { f: f, r: r, warn: warn, on: cur.indexOf(f.id) >= 0, fy: fyDuties(f.id, C.type) };
       }).sort(function (a, b) { return (b.on - a.on) || (a.r.last < b.r.last ? -1 : a.r.last > b.r.last ? 1 : a.r.count - b.r.count); });
       h += '<section class="card" id="dcPanel"><h2>' + md(se.date) + ' ' + esc(se.title) + '<small>' + (se.start && se.start !== '終日' ? esc(se.start) + '〜' : '') + esc(se.place || '') + '</small></h2>' +
         '<div class="list">' + cands.map(function (x) {
           return '<button type="button" class="dccand' + (x.on ? ' on' : '') + '" data-dcfam="' + esc(x.f.id) + '"><span class="main"><b>' + (x.on ? '✓ ' : '') + esc(x.f.label) + '</b>' + (/^TEST_/.test(x.f.id) ? ' <span class="pill p-gray">テスト</span>' : '') +
-            '<span class="sub">前回 ' + (x.r.last ? md(x.r.last) + '（' + diff(x.r.last, ST.today) + '日前）' : 'まだ') + '・1年で' + x.r.count + '回' + (x.r.next ? '・次 ' + md(x.r.next) : '') + '</span>' +
+            '<span class="sub">今年度 <b>' + x.fy.length + '回</b>（済' + x.fy.filter(function (y) { return y.date < ST.today; }).length + '）・前回 ' + (x.r.last ? md(x.r.last) + '（' + diff(x.r.last, ST.today) + '日前）' : 'まだ') + (x.r.next ? '・次 ' + md(x.r.next) : '') + '</span>' +
             (x.warn.length ? '<span class="sub" style="color:var(--track)">⚠ ' + esc(x.warn.join('、')) + '</span>' : '') + '</span><span class="go">' + (x.on ? '外す' : '入れる') + '</span></button>';
         }).join('') + '</div><button class="link" type="button" data-ev="' + se.key + '">予定のページを開く ›</button></section>';
     }
     // 家族ごとのまとめ
-    var sum = ST.families.map(function (f) { var r = dutyHistory(f.id, C.type), inM = ST.duties.filter(function (x) { return x.fam === f.id && x.type === C.type && x.date.slice(0, 7) === C.month; }).length; return { f: f, r: r, inM: inM }; })
-      .sort(function (a, b) { return a.r.last < b.r.last ? -1 : a.r.last > b.r.last ? 1 : a.r.count - b.r.count; });
-    h += '<section class="card"><h2>家族ごと（' + C.type + '当番）<small>前回から日がたっている順</small></h2><div class="tbl-wrap"><table><thead><tr><th>家族</th><th>' + m + '月</th><th>1年</th><th>前回</th><th>次</th></tr></thead><tbody>' +
-      sum.map(function (x) { return '<tr' + (/^TEST_/.test(x.f.id) ? ' class="sub"' : '') + '><td>' + esc(x.f.label) + '</td><td>' + (x.inM || '') + '</td><td>' + x.r.count + '</td><td>' + (x.r.last ? md(x.r.last) : '—') + '</td><td>' + (x.r.next ? md(x.r.next) : '') + '</td></tr>'; }).join('') +
-      '</tbody></table></div></section>';
+    var sum = ST.families.map(function (f) {
+      var r = dutyHistory(f.id, C.type), fy = fyDuties(f.id, C.type), other = fyDuties(f.id, C.type === '練習' ? '大会' : '練習');
+      return { f: f, r: r, fy: fy.length, done: fy.filter(function (y) { return y.date < ST.today; }).length, inM: ST.duties.filter(function (x) { return x.fam === f.id && x.type === C.type && x.date.slice(0, 7) === C.month; }).length, other: other.length };
+    }).sort(function (a, b) { return b.fy - a.fy || (a.r.last < b.r.last ? -1 : 1); });
+    var maxFy = Math.max.apply(null, sum.map(function (x) { return x.fy; }).concat([1]));
+    var avgFy = sum.length ? sum.reduce(function (t, x) { return t + x.fy; }, 0) / sum.length : 0;
+    h += '<section class="card"><h2>担当した回数（' + C.type + '当番）<small>今年度 ' + md(fyStart()).replace(/\(.\)/, '') + '〜・多い順</small></h2>' +
+      '<div class="sub">1家族あたり平均 <b>' + (Math.round(avgFy * 10) / 10) + '回</b>。棒は今年度の回数（濃い＝済んだ、うすい＝これから）。</div><div class="tbl-wrap"><table class="dcsum"><thead><tr><th>家族</th><th>今年度</th><th></th><th>' + m + '月</th><th>前回</th><th>次</th><th>' + (C.type === '練習' ? '大会' : '練習') + '当番</th></tr></thead><tbody>' +
+      sum.map(function (x) {
+        return '<tr' + (/^TEST_/.test(x.f.id) ? ' class="sub"' : '') + '><td>' + esc(x.f.label) + '</td><td class="num"><b>' + x.fy + '</b>回</td><td class="barc"><span class="dbar"><i class="d" style="width:' + (x.done / maxFy * 100).toFixed(0) + '%"></i><i class="p" style="width:' + ((x.fy - x.done) / maxFy * 100).toFixed(0) + '%"></i></span></td><td>' + (x.inM || '') + '</td><td>' + (x.r.last ? md(x.r.last) : '—') + '</td><td>' + (x.r.next ? md(x.r.next) : '') + '</td><td class="num">' + (x.other || '') + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>';
     view.innerHTML = h;
     bindBack(); bindCommon();
     on('[data-dct]', function () { C.type = this.dataset.dct; C.sel = ''; render(); });
     on('[data-dcm]', function () { var t = new Date(Date.UTC(y, m - 1 + +this.dataset.dcm, 1)); C.month = t.toISOString().slice(0, 7); C.sel = ''; render(); });
     on('[data-dcper]', function () { C.per = +this.dataset.dcper; render(); });
+    on('[data-dcrange]', function () { C.range = this.dataset.dcrange; render(); });
     on('[data-dcsel]', function () { C.sel = C.sel === this.dataset.dcsel ? '' : this.dataset.dcsel; render(); if (C.sel) flashTo('dcPanel'); });
     on('[data-dcfam]', function () {
       var e = evByKey(C.sel), fam = this.dataset.dcfam, onn = dutyOf(e.key).every(function (x) { return x.fam !== fam; });
       quick('setDuty', { key: e.key, fam: fam, on: onn }, function (st) { st.duties = st.duties.filter(function (x) { return !(x.key === e.key && x.fam === fam); }); if (onn) st.duties.push({ key: e.key, date: e.date, type: dutyType(e), fam: fam }); });
     });
     on('#dcAuto', function () {
-      var n2 = Math.max(1, Math.min(120, diff(ST.today, monthEnd) + 1));
-      if (confirm(C.month.replace('-', '年') + '月の終わりまでの空いている' + C.type + 'に、1回' + C.per + '家族ずつ順番に入れます。よろしいですか？')) call('autoDuty', { type: C.type, days: n2, per: C.per });
+      var n2 = Math.max(1, Math.min(400, diff(ST.today, R[2]) + 1));
+      if (confirm(md(R[2]) + 'までの、当番が足りない' + C.type + ' ' + empty + '件に、1回' + C.per + '家族ずつ順番に入れます。よろしいですか？')) call('autoDuty', { type: C.type, days: n2, per: C.per });
     });
     on('#dcPrint', function () { window.print(); });
   }

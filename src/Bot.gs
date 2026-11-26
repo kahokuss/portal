@@ -13,6 +13,7 @@
 function quickItems_(labels) {
   return {
     items: labels.slice(0, 13).map((x) => {
+      if (x && x.type === 'uri') return { type: 'action', action: { type: 'uri', label: String(x.label).slice(0, 20), uri: x.uri } };
       const label = typeof x === 'string' ? x : x[0];
       const text = typeof x === 'string' ? x : x[1];
       return { type: 'action', action: { type: 'message', label: label.slice(0, 20), text: text } };
@@ -333,7 +334,26 @@ function handleDuty_(ev) {
   if (!mine.length) lines.push('これからの当番はありません。');
   mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + x['種類'] + '当番\n　' + e.title + (e.place ? '・' + e.place : '')); });
   const next = d.events.slice(0, 5).map((e) => '・' + formatDate_(e.date) + ' ' + e.title + '：' + (duties.filter((x) => x.eventKey === e.key).map((x) => labels[x['家族ID']]).filter(Boolean).join('、') || '未定'));
+  // 役員には、当番カレンダー（輪番づくり）を開くボタン
+  if (u.admin) return respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n'), '🗓 当番の入れかえ・空きの自動割り当ては「当番カレンダー」で\n' + dutyCalUrl_()], [{ type: 'uri', label: '🗓 当番カレンダー', uri: dutyCalUrl_() }].concat(MAIN_QUICK)));
   respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n')]));
+}
+
+/** 当番カレンダー（輪番づくり・役員）を開くアドレス */
+function dutyCalUrl_() {
+  const u = portalUrl_();
+  return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'adm=dutycal';
+}
+
+/** 「当番カレンダー」「輪番」と送られたとき：役員にはボタン、ほかの人には自分の当番 */
+function handleDutyCal_(ev) {
+  const u = botUser_(ev);
+  if (!u.admin) return handleDuty_(ev);
+  respond_(ev, [flex_('当番カレンダー', { type: 'bubble', body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
+    txt_('🗓 当番カレンダー（輪番づくり）', { weight: 'bold', size: 'md' }),
+    txt_('月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で入れる（役員）', { size: 'xs', color: C_SUB }),
+    btn_(uriAction_('当番カレンダーを開く', dutyCalUrl_()), 'primary', C_RACE),
+  ] } })]);
 }
 
 function handleAttendance_(ev) {

@@ -18,6 +18,7 @@
 function quickItems_(labels) {
   return {
     items: labels.slice(0, 13).map((x) => {
+      if (x && x.type === 'uri') return { type: 'action', action: { type: 'uri', label: String(x.label).slice(0, 20), uri: x.uri } };
       const label = typeof x === 'string' ? x : x[0];
       const text = typeof x === 'string' ? x : x[1];
       return { type: 'action', action: { type: 'message', label: label.slice(0, 20), text: text } };
@@ -338,7 +339,26 @@ function handleDuty_(ev) {
   if (!mine.length) lines.push('これからの当番はありません。');
   mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + x['種類'] + '当番\n　' + e.title + (e.place ? '・' + e.place : '')); });
   const next = d.events.slice(0, 5).map((e) => '・' + formatDate_(e.date) + ' ' + e.title + '：' + (duties.filter((x) => x.eventKey === e.key).map((x) => labels[x['家族ID']]).filter(Boolean).join('、') || '未定'));
+  // 役員には、当番カレンダー（輪番づくり）を開くボタン
+  if (u.admin) return respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n'), '🗓 当番の入れかえ・空きの自動割り当ては「当番カレンダー」で\n' + dutyCalUrl_()], [{ type: 'uri', label: '🗓 当番カレンダー', uri: dutyCalUrl_() }].concat(MAIN_QUICK)));
   respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n')]));
+}
+
+/** 当番カレンダー（輪番づくり・役員）を開くアドレス */
+function dutyCalUrl_() {
+  const u = portalUrl_();
+  return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'adm=dutycal';
+}
+
+/** 「当番カレンダー」「輪番」と送られたとき：役員にはボタン、ほかの人には自分の当番 */
+function handleDutyCal_(ev) {
+  const u = botUser_(ev);
+  if (!u.admin) return handleDuty_(ev);
+  respond_(ev, [flex_('当番カレンダー', { type: 'bubble', body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
+    txt_('🗓 当番カレンダー（輪番づくり）', { weight: 'bold', size: 'md' }),
+    txt_('月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で入れる（役員）', { size: 'xs', color: C_SUB }),
+    btn_(uriAction_('当番カレンダーを開く', dutyCalUrl_()), 'primary', C_RACE),
+  ] } })]);
 }
 
 function handleAttendance_(ev) {
@@ -923,7 +943,7 @@ const BOT_MENU = [
     ['休み', '休みの連絡（日付と理由を押すだけ）'], ['エントリー', '大会に出るか（種目は役員が登録）'], ['アンケート', 'ボタンで回答'],
   ] },
   { id: 'home', icon: '🏠', t: 'わが家のこと', d: '当番・集金・記録・自主トレ・ふりかえり', items: [
-    ['当番', 'わが家の当番と、これからの当番'], ['集金', '払っていない集金・参加費'], ['記録', 'お子さんの記録'], ['自主トレ', '自主トレを記録する'], ['ふりかえり', '今週のやること・できた／できなかった'],
+    ['当番', 'わが家の当番と、これからの当番（役員は当番カレンダーも）'], ['集金', '払っていない集金・参加費'], ['記録', 'お子さんの記録'], ['自主トレ', '自主トレを記録する'], ['ふりかえり', '今週のやること・できた／できなかった'],
   ] },
   { id: 'club', icon: '📢', t: 'クラブの様子', d: '新着・お知らせ・出欠・写真', items: [
     ['新着', 'わが家に関係することをまとめて'], ['お知らせ', '最近のお知らせ'], ['出欠', '次の練習で休む人'], ['写真', 'アルバム（ポータル）'],
@@ -1207,6 +1227,7 @@ function parseCommand_(text) {
     '休み': 'absence', '欠席': 'absence', 'やすみ': 'absence',
     '休み取消': 'absenceCancel', '取消': 'absenceCancel', '取り消し': 'absenceCancel',
     '当番': 'duty',
+    '当番カレンダー': 'dutyCal', '輪番': 'dutyCal', '当番表': 'dutyCal',
     '出欠': 'attendance',
     'エントリー': 'entries',
     '結果': 'result',
@@ -1268,6 +1289,8 @@ function handleText_(ev) {
       return handleAbsenceCancel_(ev);
     case 'duty':
       return handleDuty_(ev);
+    case 'dutyCal':
+      return handleDutyCal_(ev);
     case 'attendance':
       return handleAttendance_(ev);
     case 'entries':
@@ -1328,7 +1351,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'be47f91c62';
+const SERVER_VERSION = 'cc2130aef1';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',

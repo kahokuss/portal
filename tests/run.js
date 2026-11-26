@@ -1624,6 +1624,19 @@ test('テスト家族（親A〜D）：入れる・その家族で使う（LINE�
   assert.ok(gas.rows('家族').some((f) => f.userId === 'U1'), '本物の家族は残る');
 });
 
+test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
+  const gas = setupClub();
+  gas.login('U1');
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const dm = (u) => ({ type: 'user', userId: u });
+  assert.ok(gas.line(dm('U1'), '当番').includes('adm=dutycal'), '役員の「当番」に当番カレンダー');
+  assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /adm=dutycal/.test(b.uri)), 'ボタンもある');
+  gas.line(dm('U1'), '当番カレンダー');
+  assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /adm=dutycal/.test(b.uri) && /当番カレンダー/.test(b.label)), '「当番カレンダー」でボタン');
+  assert.ok(!gas.line(dm('U2'), '当番').includes('adm=dutycal'), '保護者には出さない');
+  assert.ok(!gas.line(dm('U2'), '輪番').includes('adm=dutycal'), '保護者が「輪番」と送っても、わが家の当番');
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

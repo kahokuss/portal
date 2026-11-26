@@ -69,6 +69,7 @@ function parseCommand_(text) {
     '休み': 'absence', '欠席': 'absence', 'やすみ': 'absence',
     '休み取消': 'absenceCancel', '取消': 'absenceCancel', '取り消し': 'absenceCancel',
     '当番': 'duty',
+    '当番カレンダー': 'dutyCal', '輪番': 'dutyCal', '当番表': 'dutyCal',
     '出欠': 'attendance',
     'エントリー': 'entries',
     '結果': 'result',
@@ -130,6 +131,8 @@ function handleText_(ev) {
       return handleAbsenceCancel_(ev);
     case 'duty':
       return handleDuty_(ev);
+    case 'dutyCal':
+      return handleDutyCal_(ev);
     case 'attendance':
       return handleAttendance_(ev);
     case 'entries':

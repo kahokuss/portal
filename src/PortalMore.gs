@@ -1573,3 +1573,26 @@ function importDutiesAction_(ctx, p) {
   });
   return added + '件の当番を入れました' + (linked < added ? '（予定がまだない日の ' + (added - linked) + '件は、予定ができたら結びつきます）' : '') + (same ? '（' + same + '件はもう入っていました）' : '') + (ng.length ? '。入れられなかったもの：' + ng.slice(0, 8).join('／') + (ng.length > 8 ? ' ほか' + (ng.length - 8) + '件' : '') : '');
 }
+
+// ---- 来年への引き継ぎ（大会名ごと。「第◯回」や年は取って同じ大会とみなす） ----
+
+function raceSeriesName_(title) {
+  return toHalfWidth_(String(title || ''))
+    .replace(/第\s*\d+\s*回/g, '').replace(/(令和|R)\s*\d+\s*年度?/g, '').replace(/20\d\d\s*年?度?/g, '').replace(/[\s　]/g, '').trim();
+}
+
+function saveRaceNoteAction_(ctx, p) {
+  const ev = p.key ? findEvent_(p.key) : null;
+  if (ev) requireManager_(ctx, ev.eventKey);
+  else if (!ctx.admin) throw new Error('この操作は役員だけができます。');
+  const name = raceSeriesName_(p.name || (ev ? ev['タイトル'] : ''));
+  if (!name) throw new Error('大会名がわかりません。');
+  const memo = String(p.memo || '').trim().slice(0, 1000);
+  withLock_(() => {
+    const row = readRows_(SHEETS.RACE_NOTES).find((n) => n.id && n['大会名'] === name);
+    if (row) { Object.assign(row, { 'メモ': memo, '更新者': ctx.name, '日時': now_() }); updateRow_(SHEETS.RACE_NOTES, row); }
+    else if (memo) appendRow_(SHEETS.RACE_NOTES, { id: randomKey_().slice(0, 10), '大会名': name, 'メモ': memo, '更新者': ctx.name, '日時': now_() });
+  });
+  if (ev) logHistory_(ev.eventKey, ctx, '来年への引き継ぎを' + (memo ? '書きました' : '消しました'));
+  return memo ? '「' + name + '」の引き継ぎを保存しました（来年もこの大会で出ます）' : '引き継ぎを消しました';
+}

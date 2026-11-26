@@ -692,6 +692,9 @@ tr.sel td { background: var(--sky-soft); }
 .askbg { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 0; }
 .ask { background: var(--surface); border-radius: 16px; padding: 16px; width: 100%; max-width: 420px; display: grid; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
 .ask-ttl { font-family: var(--font-display); font-weight: 800; font-size: 17px; }
+.ask textarea { font: inherit; font-size: 16px; border: 2px solid var(--sky); border-radius: 10px; padding: 10px 12px; width: 100%; background: var(--surface); color: var(--fg); resize: vertical; }
+.notecard { box-shadow: inset 4px 0 0 var(--warn); }
+.notebody { font-weight: 700; line-height: 1.7; }
 .ask input { font-size: 18px; border: 2px solid var(--sky); border-radius: 10px; padding: 10px 12px; width: 100%; background: var(--surface); color: var(--fg); }
 .ask input:focus { outline: 3px solid var(--sky-soft); }
 .mcal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
@@ -916,6 +919,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   function fillDefaults(st) {
     ['duties', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
+    if (!st.raceNotes) st.raceNotes = [];
     // 加速走や、練習の日の計測は「練習」（区分が空のまま残っている古い記録も）
     var pracDay = {}; (st.events || []).forEach(function (e) { if (e.type === '練習') pracDay[e.key] = 1; });
     st.results.forEach(function (r) { if (r.kind === '公式' && (isFlying(r) || pracDay[r.key])) r.kind = '練習'; });
@@ -1216,6 +1220,8 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var out = [], today = ST.today, add = function (pri, area, t, sub, go, n) { out.push({ pri: pri, area: area, t: t, sub: sub || '', go: go, n: n || 1 }); };
     var within = function (e, days) { return e.date >= today && e.date <= addDays(today, days); };
     var up = ST.events.filter(function (e) { return !e.cancelled && e.date >= today; });
+    // 来年への引き継ぎがある大会（4か月以内）。先着順・早めの申込は急ぎ
+    up.filter(function (e) { return isRace(e) && within(e, 120) && raceNote(e); }).forEach(function (e) { var n = raceNote(e); add(/先着|早め|すぐ|開始/.test(n.memo) ? 1 : 2, '大会', '引き継ぎ：' + e.title, n.memo.replace(/\s+/g, ' ').slice(0, 50), { ev: e.key }); });
     if (serverOld()) add(1, 'しくみ', 'サーバー（Apps Script）が古い版です', '新しい機能が保存されないことがあります。「管理」の下で更新の手順を見られます', { admin: 'menu' });
     // メンバー
     if (!ST.kids.length) add(1, 'メンバー', '名簿に子どもがいません', 'まず名簿に全員の名前を入れると、当番表・記録・エントリーが使えます', { admin: 'roster' });
@@ -1460,7 +1466,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     var bg = document.createElement('div'); bg.id = 'askBg'; bg.className = 'askbg';
     bg.innerHTML = '<form class="ask" role="dialog" aria-modal="true"><div class="ask-ttl">' + esc(o.title) + '</div>' + (o.hint ? '<div class="sub">' + esc(o.hint) + '</div>' : '') +
       o.fields.map(function (f, i) {
-        return '<label class="fld">' + (f.label ? '<span class="fl">' + esc(f.label) + '</span>' : '') + '<input data-ask="' + i + '" value="' + esc(f.value || '') + '" placeholder="' + esc(f.placeholder || '') + '"' + (f.inputmode ? ' inputmode="' + f.inputmode + '"' : '') + ' autocomplete="off"></label>' +
+        return '<label class="fld">' + (f.label ? '<span class="fl">' + esc(f.label) + '</span>' : '') + (f.multiline ? '<textarea data-ask="' + i + '" rows="5" placeholder="' + esc(f.placeholder || '') + '">' + esc(f.value || '') + '</textarea>' : '<input data-ask="' + i + '" value="' + esc(f.value || '') + '" placeholder="' + esc(f.placeholder || '') + '"' + (f.inputmode ? ' inputmode="' + f.inputmode + '"' : '') + ' autocomplete="off">') + '</label>' +
           (f.chips && f.chips.length ? '<div class="quick">' + f.chips.map(function (c) { return '<button type="button" data-askc="' + i + '|' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div>' : '');
       }).join('') +
       '<div class="row"><button class="btn" type="submit">' + esc(o.ok || '保存する') + '</button><button class="btn ghost" type="button" data-askx>やめる</button></div></form>';
@@ -1571,7 +1577,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       (staff.length ? '<div class="tabs staff" role="group" aria-label="役員・当番"><span class="stl">🛠 役員・当番</span>' + staff.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + (t === '手続き' ? '手続きの流れ' : '種目・リレー') + '</button>'; }).join('') + '</div>' : '') + toastHtml();
     if (S.etab === '概要') {
       if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
-      h += (e.date >= ST.today ? '<section class="card">' + raceHero(e) + raceTodoHtml(e, true) + '</section>' : '') + statusCard(e);
+      h += (canManage(e.key) ? raceNoteCard(e) : '') + (e.date >= ST.today ? '<section class="card">' + raceHero(e) + raceTodoHtml(e, true) + '</section>' : '') + statusCard(e);
       if (!det) h += '<section class="card"><div class="sub">集合時刻や持ち物などの詳しい案内は、まだ入っていません。</div>' + '<div class="row"><button class="btn small" id="editRace" type="button">詳しい案内を入れる</button>' + (ST.me.admin ? '<button class="btn small ghost" data-type="練習" type="button">これは練習の予定</button>' : '') + '</div>' + (ST.me.admin ? '' : '<div class="hint">案内（LINEや要項）を見た人なら、だれでも入れられます。</div>') + '</section>';
       else {
         h += '<section class="card" id="secInfo"><dl class="kv">' + (det.meetTime || det.meetPlace ? '<dt>集合</dt><dd><b>' + esc([det.meetTime, det.meetPlace].filter(Boolean).join(' ')) + '</b></dd>' : '') +
@@ -1589,7 +1595,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.etab === '種目') h += racesTab(e);
     view.innerHTML = h;
     bindDuty(e);
-    if (S.etab === '概要') { bindComments(e); bindRaceInfo(e); bindDeadlines(e); bindJinchi(e); bindPhotos(e); }
+    if (S.etab === '概要') { bindRaceNote(e); bindComments(e); bindRaceInfo(e); bindDeadlines(e); bindJinchi(e); bindPhotos(e); }
     if (S.etab === 'タイムテーブル') bindTimetable(e);
     if (S.etab === '手続き') { bindTasks(e); bindTimetable(e); }
     if (S.etab === '写真') bindPhotos(e);
@@ -1783,6 +1789,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   // ---- 管理（役員） ----
   function admin() {
     if (S.admin === 'race') return adminRace();
+    if (S.admin === 'notes') return adminNotes();
     if (S.admin === 'saved') return adminSaved();
     if (S.admin === 'notice') return adminNotice();
     if (S.admin === 'absences') return adminAbsences();
@@ -1800,14 +1807,14 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
     if (S.admin === 'roster') return adminRoster();
     if (S.admin === 'fees') return adminFees();
     if (S.admin === 'ops') return adminOps();
-    var items = [['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
+    var items = [['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     // 目的ごとにまとめ、足りないもの（運用チェック）の件数を出す
     var ops = opsChecks(), cnt = {};
     ops.forEach(function (x) { var k = x.go.admin || (x.go.editRace || x.go.ev ? 'race' : ''); if (k) cnt[k] = (cnt[k] || 0) + 1; });
-    var GROUPS = [['ふだん使う', ['duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'members', 'notify']], ['お金', ['fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
+    var GROUPS = [['ふだん使う', ['duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'notes', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'members', 'notify']], ['お金', ['fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
     var byKey = {}; items.forEach(function (x) { byKey[x[0]] = x; });
     var menuHtml = GROUPS.map(function (g) {
       var list = g[1].map(function (k) { return byKey[k]; }).filter(Boolean);
@@ -1819,6 +1826,23 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
       '<div class="hint">役員は、スプレッドシートの「家族」シートで「役員」欄に ○ を付けた人です。</div>' + (API_URL && !serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '');
     on('[data-go="dash"]', function (ev) { ev.stopImmediatePropagation(); S.dashFrom = 'admin'; go('dash'); });
     on('[data-go]', function () { if (this.dataset.go === 'dash') return; S.admin = this.dataset.go; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); });
+  }
+  /** 管理：来年への引き継ぎの一覧（大会のページが一覧にない、去年の大会の分もここで書ける） */
+  function adminNotes() {
+    var list = (ST.raceNotes || []).slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    view.innerHTML = backBtn() + toastHtml() + '<section class="card"><h2>📌 来年への引き継ぎ<small>' + list.length + '件</small></h2>' +
+      '<div class="sub">大会名（「第◯回」や年は取ります）ごとに残し、来年その大会のページの上と、運用チェックに出ます。役員と当番の人だけが見られます。</div>' +
+      (list.length ? '<div class="list">' + list.map(function (n, i) { return '<div class="kid"><div class="between"><b>' + esc(n.name) + '</b><button class="btn small ghost" type="button" data-nedit="' + i + '">直す</button></div><div>' + esc(n.memo).replace(/\n/g, '<br>') + '</div><span class="sub">' + esc(n.by || '') + '・' + md(n.at) + '</span></div>'; }).join('') + '</div>' : '') +
+      '<button class="btn" type="button" id="nAdd">＋ 大会の引き継ぎを書く</button></section>';
+    bindBack();
+    var edit = function (n) {
+      askForm({ title: '来年への引き継ぎ', hint: '消すときは、メモを空にして保存。', fields: [{ label: '大会名', value: n ? n.name : '', placeholder: '例：布勢スプリント' }, { label: 'メモ', value: n ? n.memo : '', placeholder: '例：エントリーは先着順。申込開始日の朝にすぐ申し込む', multiline: true }] }, function (v) {
+        if (!v[0].trim()) { S.toast = '大会名を入れてください。'; S.toastErr = true; render(); return; }
+        call('saveRaceNote', { name: v[0], memo: v[1] });
+      });
+    };
+    on('#nAdd', function () { edit(null); });
+    on('[data-nedit]', function () { edit(list[+this.dataset.nedit]); });
   }
   function backBtn() { return '<button class="link" id="aBack" type="button">‹ 管理メニュー</button>'; }
   function bindBack() { on('#aBack', function () { S.admin = 'menu'; S.toast = ''; render(); }); }
@@ -3616,6 +3640,22 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function untilText(date) { var n = diff(ST.today, date); return n < 0 ? '過ぎています' : n === 0 ? '今日まで' : 'あと' + n + '日'; }
   /** 大会の状況：流れの順（案内 → クラブ内の回答 → 主催への申込 → 支払い → リレー → 当日の受付 → 大会）。済は✓、締切つき */
+  // ---- 来年への引き継ぎ（役員・当番）：大会名ごと（「第◯回」や年を取って同じ大会とみなす） ----
+  function seriesName(t) { return toHalf(String(t || '')).replace(/第\s*\d+\s*回/g, '').replace(/(令和|R)\s*\d+\s*年度?/g, '').replace(/20\d\d\s*年?度?/g, '').replace(/[\s　]/g, '').trim(); }
+  function raceNote(e) { var n = seriesName(e.title); return (ST.raceNotes || []).filter(function (x) { return x.name === n; })[0] || null; }
+  function raceNoteCard(e) {
+    var n = raceNote(e);
+    if (!n) return '<section class="card" id="secNote"><h2>📌 来年への引き継ぎ<small>役員</small></h2><div class="sub">申込の決まりや気づいたこと（例：エントリーは先着順、申込開始日にすぐ申し込む）を書いておくと、来年この大会のページと運用チェックに出ます。</div><button class="btn small ghost" type="button" id="noteEdit" style="justify-self:start">＋ 書く</button></section>';
+    return '<section class="card notecard" id="secNote"><h2>📌 来年への引き継ぎ<small>役員</small></h2><div class="notebody">' + esc(n.memo).replace(/\n/g, '<br>') + '</div><div class="between"><span class="sub">' + esc(n.by || '') + '・' + md(n.at) + '</span><button class="btn small ghost" type="button" id="noteEdit">直す</button></div></section>';
+  }
+  function bindRaceNote(e) {
+    on('#noteEdit', function () {
+      var n = raceNote(e);
+      askForm({ title: '来年への引き継ぎ', hint: '「' + seriesName(e.title) + '」として残します（第◯回や年がちがっても同じ大会に出ます）。消すときは空にして保存。', fields: [{ value: n ? n.memo : '', placeholder: '例：エントリーは先着順。申込開始日（例年10月はじめ）の朝にすぐ申し込む', multiline: true }] }, function (v) {
+        call('saveRaceNote', { key: e.key, memo: v[0] });
+      });
+    });
+  }
   function statusCard(e) {
     var st = raceStatus(e), det = e.detail || {}, applied = STEPS.indexOf(st) >= STEPS.indexOf('申込済み');
     var tdone = function (k) { return !!(taskOf(e.key, k, '') || {}).done; };
@@ -6072,6 +6112,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function foldByDefault(h2, title) {
     if (FOLD_DEFAULT.concat(ST.me.admin ? [] : FOLD_DEFAULT_MEMBER).some(function (t) { return title.indexOf(t) === 0; })) return true;
+    if (title.indexOf('📌 来年') === 0) return !h2.parentNode.classList.contains('notecard'); // 引き継ぎは、書いてあれば開く
     var open = FOLD_OPEN[S.tab];
     if (!open) return false;
     if (title.indexOf('運用チェック') === 0) { var oc = h2.querySelector('small'); return !(oc && oc.textContent.indexOf('急ぎ') >= 0); } // 急ぎがあるときだけ開く

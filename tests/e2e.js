@@ -1698,6 +1698,38 @@ async function openPortal(browser, gas, userId, name) {
       a.errors.push(...q.errors);
       await q.close();
     });
+    await step('役員: 来年への引き継ぎを書くと、大会のページの上と運用チェックに出る', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'racenote');
+      await q.click('[data-nav="events"]');
+      await q.click('.ev:has-text("秋季記録会")');
+      await q.click('#noteEdit');
+      await q.waitForSelector('.ask textarea');
+      await q.fill('.ask textarea', 'エントリーは先着順。\n申込開始日の朝にすぐ申し込む');
+      await q.click('.ask button[type=submit]');
+      await q.idle();
+      assert.ok((await q.textContent('#secNote')).includes('先着順'), '引き継ぎが出る');
+      assert.ok(await q.$eval('#secNote', (el) => el.classList.contains('staffcard') && !el.classList.contains('folded')), '役員の色・開いている');
+      if (SHOTS) await q.locator('#secNote').screenshot({ path: path.join(shotDir, 'admin-race-note.png') });
+      assert.ok(gas.rows('大会の引き継ぎ').some((r) => r['大会名'] === '秋季記録会' && /先着順/.test(r['メモ'])));
+      await q.click('[data-nav="home"]');
+      const opsAll = await q.textContent('#view');
+      assert.ok(opsAll.includes('引き継ぎ：秋季記録会') || (await q.$('#opsAll')), '運用チェックに出る');
+      await q.click('[data-nav="admin"]');
+      await q.click('[data-go="notes"]');
+      assert.ok((await q.textContent('#view')).includes('秋季記録会'), '管理メニューの引き継ぎ一覧');
+      await q.click('#nAdd');
+      await q.fill('.ask [data-ask="0"]', '第5回 布勢スプリント');
+      await q.fill('.ask [data-ask="1"]', 'エントリーは先着順');
+      await q.click('.ask button[type=submit]');
+      await q.idle();
+      assert.ok(gas.rows('大会の引き継ぎ').some((r) => r['大会名'] === '布勢スプリント'), '去年の大会も名前で書ける');
+      const p2 = await openPortal(browser, gas, 'U3', 'racenote2');
+      await p2.click('[data-nav="events"]');
+      await p2.click('.ev:has-text("秋季記録会")');
+      if (!(await p2.$('.tabs.staff'))) assert.ok(!(await p2.$('#secNote')), '当番でない保護者には出ない');
+      await p2.close();
+      await q.close();
+    });
     await step('画面のエラーなし', async () => {
       assert.deepStrictEqual(a.errors.concat(p.errors), []);
       assert.deepStrictEqual(gas.ctx.__errors, []);

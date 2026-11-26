@@ -1561,6 +1561,22 @@ test('種目の見分け：リレーの種類・距離・ハードルを分け�
   assert.ok(gas.ctx.qualOkGs_('クロカンリレー（1〜4年男女）', '1・2・3・4年男女') && gas.ctx.qualOkGs_('クロカンリレー', '女子'));
 });
 
+test('来年への引き継ぎ：大会名（第◯回・年を除く）ごとに残し、役員と当番だけに見せる', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const k2 = gas.login('U2').key;
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  assert.throws(() => gas.ctx.api(k2, 'saveRaceNote', { key: race.key, memo: 'x' }), /役員/);
+  const st = gas.ctx.api(kA, 'saveRaceNote', { key: race.key, memo: 'エントリーは先着順。申込開始日にすぐ' });
+  assert.ok(st.message.includes('秋季記録会'), st.message);
+  assert.strictEqual(gas.ctx.raceSeriesName_('第12回 秋季記録会 2027'), '秋季記録会');
+  assert.strictEqual(plain(st.raceNotes)[0].memo, 'エントリーは先着順。申込開始日にすぐ');
+  assert.strictEqual(gas.ctx.api(k2, 'bootstrap').raceNotes.length, 0, '当番でない保護者には出さない');
+  gas.ctx.api(kA, 'saveRaceNote', { name: '第13回秋季記録会', memo: '先着順（2回目）' });
+  assert.strictEqual(gas.rows('大会の引き継ぎ').filter((r) => r['メモ']).length, 1, '同じ大会は上書き');
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

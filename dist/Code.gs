@@ -1328,7 +1328,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '577619e039';
+const SERVER_VERSION = '0103f51a21';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2632,6 +2632,7 @@ const API_ACTIONS = {
   saveTraining: { run: saveTrainingAction_ },
   saveGoal: { run: saveGoalAction_ },
   addVideo: { run: addVideoAction_ },
+  saveRaceNote: { run: saveRaceNoteAction_ },
   deleteVideo: { run: deleteVideoAction_ },
   deleteGoal: { run: deleteGoalAction_ },
   setGoalDone: { run: setGoalDoneAction_ },
@@ -2834,6 +2835,8 @@ function buildState_(ctx) {
     training: trainingFor_(ctx, children),
     goals: goalsFor_(ctx, children),
     videos: videosFor_(ctx),
+    // 来年への引き継ぎ（大会名ごと）：役員と、当番のある家族だけに
+    raceNotes: ctx.admin || manageKeys.length ? readRows_(SHEETS.RACE_NOTES).filter((n) => n.id && n['メモ']).map((n) => ({ id: n.id, name: n['大会名'], memo: n['メモ'], by: n['更新者'], at: String(n['日時']).slice(0, 10) })) : [],
     strava: stravaStateFor_(ctx),
     appRequests: appRequestsFor_(ctx),
     trainShare: trainShareFor_(ctx, children),
@@ -4732,6 +4735,29 @@ function importDutiesAction_(ctx, p) {
   return added + '件の当番を入れました' + (linked < added ? '（予定がまだない日の ' + (added - linked) + '件は、予定ができたら結びつきます）' : '') + (same ? '（' + same + '件はもう入っていました）' : '') + (ng.length ? '。入れられなかったもの：' + ng.slice(0, 8).join('／') + (ng.length > 8 ? ' ほか' + (ng.length - 8) + '件' : '') : '');
 }
 
+// ---- 来年への引き継ぎ（大会名ごと。「第◯回」や年は取って同じ大会とみなす） ----
+
+function raceSeriesName_(title) {
+  return toHalfWidth_(String(title || ''))
+    .replace(/第\s*\d+\s*回/g, '').replace(/(令和|R)\s*\d+\s*年度?/g, '').replace(/20\d\d\s*年?度?/g, '').replace(/[\s　]/g, '').trim();
+}
+
+function saveRaceNoteAction_(ctx, p) {
+  const ev = p.key ? findEvent_(p.key) : null;
+  if (ev) requireManager_(ctx, ev.eventKey);
+  else if (!ctx.admin) throw new Error('この操作は役員だけができます。');
+  const name = raceSeriesName_(p.name || (ev ? ev['タイトル'] : ''));
+  if (!name) throw new Error('大会名がわかりません。');
+  const memo = String(p.memo || '').trim().slice(0, 1000);
+  withLock_(() => {
+    const row = readRows_(SHEETS.RACE_NOTES).find((n) => n.id && n['大会名'] === name);
+    if (row) { Object.assign(row, { 'メモ': memo, '更新者': ctx.name, '日時': now_() }); updateRow_(SHEETS.RACE_NOTES, row); }
+    else if (memo) appendRow_(SHEETS.RACE_NOTES, { id: randomKey_().slice(0, 10), '大会名': name, 'メモ': memo, '更新者': ctx.name, '日時': now_() });
+  });
+  if (ev) logHistory_(ev.eventKey, ctx, '来年への引き継ぎを' + (memo ? '書きました' : '消しました'));
+  return memo ? '「' + name + '」の引き継ぎを保存しました（来年もこの大会で出ます）' : '引き継ぎを消しました';
+}
+
 // ===== Results.gs =====
 /**
  * 「結果」コマンドの引数を解析する。
@@ -4978,6 +5004,7 @@ const SHEETS = {
   LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
   GOALS: { name: '目標', headers: ['id', '子ども', '種類', '期間', 'タイトル', '種目', '目標記録', '開始記録', '期限', 'eventKey', 'やること', '親id', '状態', '達成日', 'ひとこと', '出した人', 'userId', '日時', '更新日時'] },
   GOAL_LOG: { name: '目標のやること', headers: ['goalId', 'やること', '日付', '子ども', 'userId', '日時'] },
+  RACE_NOTES: { name: '大会の引き継ぎ', headers: ['id', '大会名', 'メモ', '更新者', '日時'] },
   VIDEOS: { name: '参考動画', headers: ['id', 'URL', 'タイトル', '種類', 'メモ', '追加者', 'userId', '日時'] },
   SCHEDULE_INPUT: { name: '予定入力', headers: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除', '状態', 'カレンダーID', '反映内容'] },
 };

@@ -881,7 +881,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "12b863c3f8";
+var BUILD = "dad117e2fa";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -6510,13 +6510,30 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         rows.push({ k: k, race: it.n, c: it.c, b: b, kind: b ? kind : '' });
       });
     });
+    // 子どもは 学年（上から）→ 男子・女子 → 名簿の順、種目は 短い距離→長い距離→ハードル→跳ぶ→投げる→リレー
+    var kidIdx = function (k) { return ST.kids.indexOf(k); };
+    var kidCmp = function (a, b) { return (b.grade || 0) - (a.grade || 0) || (a.sex === b.sex ? 0 : a.sex === '男' ? -1 : b.sex === '男' ? 1 : 0) || kidIdx(a) - kidIdx(b); };
+    var raceCmp = function (a, b) { return raceRank(a.c) - raceRank(b.c) || (a.c < b.c ? -1 : a.c > b.c ? 1 : 0); };
+    var recCmp = function (a, b) { return !a.b && !b.b ? 0 : !a.b ? 1 : !b.b ? -1 : isBetter(a.c, a.b.record, b.b.record) ? -1 : isBetter(a.c, b.b.record, a.b.record) ? 1 : 0; };
     rows.sort(X.sort === 'race'
-      ? function (a, b) { return a.c < b.c ? -1 : a.c > b.c ? 1 : !a.b ? 1 : !b.b ? -1 : isBetter(a.c, a.b.record, b.b.record) ? -1 : isBetter(a.c, b.b.record, a.b.record) ? 1 : 0; }
-      : function (a, b) { return byGrade(a.k, b.k) || (a.c < b.c ? -1 : 1); });
+      ? function (a, b) { return raceCmp(a, b) || recCmp(a, b) || kidCmp(a.k, b.k); }
+      : function (a, b) { return kidCmp(a.k, b.k) || raceCmp(a, b); });
     return rows.map(function (r) { return [r.k.grade ? r.k.grade + '年' : '', r.k.sex || '', r.k.name, r.race, r.b ? r.b.record : '（記録なし）', r.b ? r.b.date : '', r.b ? String(r.b.meet).replace(/^\d{4}-\d{2}-\d{2}\s*/, '') : '', r.kind]; });
   }
+  function raceRank(c) {
+    c = String(c || '');
+    if (/リレー/.test(c)) return 5000 + (+((c.match(/x(\d+)/) || [])[1] || 0)) + (/クロカン/.test(c) ? 500 : 0);
+    var m = c.match(/^(\d+)m$/); if (m) return +m[1];
+    if (/h/.test(c)) return 1000 + (parseInt(c, 10) || 0);
+    if (/高跳/.test(c)) return 2000; if (/幅跳/.test(c)) return 2100; if (/投/.test(c)) return 2200;
+    return 3000;
+  }
   function exportTitle(X) { var ev = X.scope !== 'all' && evByKey(X.scope); return ST.club + ' ' + (ev ? ev.title + ' エントリー（ベスト記録）' : 'ベスト記録一覧') + (X.kind === 'both' ? '（練習ふくむ）' : '（公式）'); }
+  /** LINEの中のブラウザ（ファイルの保存ができない）。外のブラウザで開くURL（LINEの openExternalBrowser） */
+  var IN_LINE = /\bLine\//i.test(navigator.userAgent || '');
+  function extUrl(adm) { return location.origin + location.pathname + '?adm=' + encodeURIComponent(adm) + '&openExternalBrowser=1'; }
   function saveBlob(blob, name) {
+    if (IN_LINE) { S.toast = '⚠ LINEの中では保存できません。上の「Chromeなどで開いて書き出す」を押してください'; S.toastErr = true; render(); window.scrollTo(0, 0); return; }
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
   }
@@ -6558,6 +6575,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<div class="lbl">記録</div><div class="choice sm"><button type="button" data-xk="公式" aria-pressed="' + (X.kind === '公式') + '">公式（大会）だけ</button><button type="button" data-xk="both" aria-pressed="' + (X.kind === 'both') + '">練習もふくめてよい方</button></div>' +
       '<div class="lbl">種目</div><div class="choice sm"><button type="button" data-xr="" aria-pressed="' + (!X.race) + '">ぜんぶ</button>' + Object.keys(raceNames).map(function (c) { return '<button type="button" data-xr="' + esc(c) + '" aria-pressed="' + (X.race === c) + '">' + esc(raceNames[c]) + '</button>'; }).join('') + '</div>' +
       '<div class="lbl">並べ方</div><div class="choice sm"><button type="button" data-xo="name" aria-pressed="' + (X.sort === 'name') + '">学年・名前順（エントリー用）</button><button type="button" data-xo="race" aria-pressed="' + (X.sort === 'race') + '">種目ごと・よい順（報告用）</button></div>' +
+      (IN_LINE ? '<div class="toast err">LINEの中では、ファイルを保存できません。<a class="btn small" style="text-decoration:none" href="' + esc(extUrl('export')) + '">🌐 Chromeなどで開いて書き出す</a><div class="sub">開いたブラウザで、はじめの1回だけ「LINEでログイン」を押してください。</div></div>' : '') +
+      '<div class="row"><button class="btn small" type="button" id="xCopy">📋 表をコピー（Excel・スプレッドシートに貼れる）</button></div>' +
       '<div class="row"><button class="btn" type="button" id="xXlsx">📗 Excel</button><button class="btn ghost" type="button" id="xCsv">CSV</button><button class="btn ghost" type="button" id="xPdf">📄 PDF</button>' + (navigator.share ? '<button class="btn ghost" type="button" id="xShare">📤 PDFをLINEなどで送る</button>' : '') + '</div>' +
       '<div class="hint">大会のエントリーを選ぶと、「参加」の子と、その子がエントリーした種目のベスト記録を出します（記録がない種目は「記録なし」）。Excel・CSVは申込書に写すとき、PDFはLINEで報告するときに。</div></section>' +
       '<section class="card"><h2>見本<small>' + rows.length + '行</small></h2>' + (rows.length ? '<div class="tbl-wrap"><table><thead><tr>' + EXP_HEAD.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.slice(0, 40).map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td>' + (i === 4 ? '<b>' + esc(c) + '</b>' : esc(c)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' + (rows.length > 40 ? '<div class="sub">ほか ' + (rows.length - 40) + '行（書き出すと全部入ります）</div>' : '') : '<div class="sub">書き出す記録がありません。</div>') + '</section>';
@@ -6568,6 +6587,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     on('[data-xr]', function () { X.race = this.dataset.xr; render(); });
     on('[data-xo]', function () { X.sort = this.dataset.xo; render(); });
     var base = function () { return exportTitle(X).replace(/[\\/:*?"<>|\s]+/g, '_') + '_' + ST.today; };
+    on('#xCopy', function () { copyText([EXP_HEAD].concat(exportRows(X)).map(function (r) { return r.join('\t'); }).join('\n')); });
     on('#xCsv', function () {
       var q = function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
       var txt = [EXP_HEAD].concat(exportRows(X)).map(function (r) { return r.map(q).join(','); }).join('\r\n');

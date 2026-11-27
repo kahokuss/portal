@@ -880,7 +880,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "12b863c3f8";
+var BUILD = "dad117e2fa";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -5760,7 +5760,17 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   var EXP_HEAD = ['学年', '男女', '名前', '種目', 'ベスト記録', '記録した日', '大会・練習', '区分'];
   /** 書き出す行。X.scope＝'all' か大会のキー（参加の子と、エントリーした種目）、X.kind＝'公式' か 'both'（練習もふくめてよい方）、X.sort＝'race'（種目ごと・よい順）か 'name' */
   // （役員ページだけ：exportRows）
+  function raceRank(c) {
+    c = String(c || '');
+    if (/リレー/.test(c)) return 5000 + (+((c.match(/x(\d+)/) || [])[1] || 0)) + (/クロカン/.test(c) ? 500 : 0);
+    var m = c.match(/^(\d+)m$/); if (m) return +m[1];
+    if (/h/.test(c)) return 1000 + (parseInt(c, 10) || 0);
+    if (/高跳/.test(c)) return 2000; if (/幅跳/.test(c)) return 2100; if (/投/.test(c)) return 2200;
+    return 3000;
+  }
   // （役員ページだけ：exportTitle）
+  var IN_LINE = /\bLine\//i.test(navigator.userAgent || '');
+  function extUrl(adm) { return location.origin + location.pathname + '?adm=' + encodeURIComponent(adm) + '&openExternalBrowser=1'; }
   // （役員ページだけ：saveBlob）
   // （役員ページだけ：loadScript）
   /** PDF：表を画像（キャンバス）にして A4 に貼る（日本語の字をそのまま出せる）。1ページ30行 */

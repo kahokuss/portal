@@ -870,9 +870,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9e22daf44b";
+var BUILD = "c9274b4a02";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "db6d512e13";
+var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = false;
 var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
@@ -1418,7 +1418,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     ST.fees.filter(function (f) { return !f.closed; }).forEach(function (f) {
       var due = f.kids.length - f.paid.length; if (due <= 0) return;
       var over = f.deadline && f.deadline < today;
-      add(over ? 1 : f.deadline && f.deadline <= addDays(today, 7) ? 2 : 3, 'お金', f.name + '：' + (over ? '期限切れの未集金 ' : '未集金 ') + due + '人', (f.deadline ? '期限 ' + md(f.deadline) + '。' : '') + (over ? (f.remindAt ? '最後の催促 ' + md(f.remindAt) + '。' : '') + 'LINEで個別に催促できます' : ''), { admin: 'fees' }, due);
+      add(over ? 1 : f.deadline && f.deadline <= addDays(today, 7) ? 2 : 3, 'お金', f.name + '：' + (over ? '期限切れの未集金 ' : '未集金 ') + due + '人', (f.deadline ? '期限 ' + md(f.deadline) + '。' : '') + (over ? (f.remindAt ? '最後の催促 ' + md(f.remindAt) + '。' : 'まだ催促していません。') + '文をコピーして、手作業で催促してください' : ''), { admin: 'fees' }, due);
     });
     // 予算：今年度の予算がまだ／使いすぎの科目／領収書の写真がない支払い
     var M = moneyFy(fyOf(today));
@@ -2398,8 +2398,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         (f.memo ? '<div class="sub">' + esc(f.memo) + '</div>' : '') +
         '<div class="feekids">' + f.kids.map(function (k) { var ok = f.paid.indexOf(k) >= 0; return '<button type="button" data-fee="' + f.id + '" data-kid="' + esc(k) + '" aria-pressed="' + ok + '">' + (ok ? '✓ ' : '') + esc(k) + '</button>'; }).join('') + '</div>' +
         '<div class="hint">名前を押すと「受け取った」になります。もう一度押すと戻ります。</div>' +
-        (!f.closed && done < all ? '<div class="row"><button class="btn small' + (over ? '' : ' ghost') + '" type="button" data-fremind="' + f.id + '"' + (f.remindAt === ST.today ? ' disabled' : '') + '>📨 まだの家にLINEで催促（' + (all - done) + '人）</button><button class="btn small ghost" type="button" data-fcopy="' + f.id + '">催促の文をコピー</button></div>' +
-          '<div class="hint">' + (f.remindAt ? '最後に催促した日：' + md(f.remindAt) + '。' : '') + 'LINEの催促は、まだの子の保護者に1人ずつ届きます（グループには出ません・1日1回まで）。</div>' : '') +
+        (!f.closed && done < all ? '<div class="row"><button class="btn small' + (over ? '' : ' ghost') + '" type="button" data-fcopy="' + f.id + '">📋 催促の文をコピー</button><button class="btn small ghost" type="button" data-fremind="' + f.id + '"' + (f.remindAt === ST.today ? ' disabled' : '') + '>✓ 催促した（記録）</button></div>' +
+          '<div class="hint">' + (f.remindAt ? '最後に催促した日：<b>' + md(f.remindAt) + '</b>。' : '') + '催促は手作業で：文をコピーしてLINEグループに貼るか、まだの家に声をかけてください。済んだら「催促した」を押すと日付が残ります。</div>' : '') +
         '<div class="row">' + (f.closed ? '<button class="btn small ghost" data-freopen="' + f.id + '" type="button">再開する</button>' : '<button class="btn small ghost" data-fclose="' + f.id + '" type="button">終わりにする</button>') + '<button class="btn small ghost" data-fdel="' + f.id + '" type="button">消す</button></div></section>';
     });
     view.innerHTML = h;
@@ -2412,7 +2412,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       quick('setFeePaid', { id: id, child: c, paid: pd }, function (st) { var f = st.fees.find(function (x) { return x.id === id; }); if (!f) return; f.paid = f.paid.filter(function (k) { return k !== c; }); if (pd) f.paid.push(c); });
     });
     on('[data-fclose]', function () { call('closeFee', { id: this.dataset.fclose }); });
-    on('[data-fremind]', function () { var f = ST.fees.filter(function (x) { return x.id === this.dataset.fremind; }, this)[0]; if (f && confirm('「' + f.name + '」がまだの ' + (f.kids.length - f.paid.length) + '人の保護者に、LINEで個別にお知らせを送ります。よろしいですか？')) call('feeRemind', { id: f.id }); });
+    on('[data-fremind]', function () { call('feeRemind', { id: this.dataset.fremind }); });
     on('[data-fcopy]', function () {
       var f = ST.fees.filter(function (x) { return x.id === this.dataset.fcopy; }, this)[0]; if (!f) return;
       copyText('💴 ' + f.name + '（' + yen(f.amount) + '／人）' + (f.deadline ? '\n期限：' + md(f.deadline) + (f.deadline < ST.today ? '（過ぎています）' : '') : '') + '\nまだの方が ' + (f.kids.length - f.paid.length) + '人います。お手数ですが、会計係までお願いします。' + (f.memo ? '\n' + f.memo : ''));
@@ -6464,7 +6464,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<button class="btn small ghost" type="button" data-stool="budget" style="justify-self:start">📊 予算と残高をくわしく ›</button></section>';
   }
   function moneyGuideCard() {
-    var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、まだの家にLINEで催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会のページで ✓）→ 主催者に支払い → 領収書を写真で残す', '_nextpay'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
+    var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、催促の文をコピーして手作業で催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会のページで ✓）→ 主催者に支払い → 領収書を写真で残す', '_nextpay'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
     return '<section class="card"><h2>📘 会計係の1年<small>はじめての人へ</small></h2><div class="list">' + steps.map(function (x) { return '<button type="button" class="opsit" data-stool="' + x[2] + '"><span class="pill p-gray">' + x[0] + '</span><span class="main"><span class="sub" style="color:var(--fg)">' + esc(x[1]) + '</span></span><span class="go">›</span></button>'; }).join('') + '</div>' +
       '<div class="hint">お金は「集金」「大会の参加費」「お金の出入り」の3つで記録すると、予算と残高にまとめて出ます。現金の残りと、ここの残高がときどき合っているかを確かめましょう。</div></section>';
   }

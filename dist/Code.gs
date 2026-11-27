@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'db6d512e13';
+const SERVER_VERSION = 'a266b8e935';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2364,7 +2364,7 @@ function syncNow() {
 
 // ===== Money.gs =====
 /**
- * 会計係：年度（4月はじまり）の予算と実績、集金の催促。
+ * 会計係：年度（4月はじまり）の予算と実績、集金の催促した日の記録（催促は手作業。LINEでは送らない）。
  * 実績は「会計」の記録（科目つき）と、集金で受け取った分（集金の名前＝科目）から数える
  */
 
@@ -2399,31 +2399,15 @@ function saveBudgetAction_(ctx, p) {
   return fy + '年度の予算「' + cat + '」を保存しました';
 }
 
-/** 集金の催促：まだの子の保護者に、LINEで1人ずつ知らせる（グループには送らない）。同じ集金は1日1回まで */
+/** 集金の催促は手作業（LINEでは送らない）。役員が催促したら、その日を記録だけする */
 function feeRemindAction_(ctx, p) {
-  const today = today_();
-  let sent = 0, kids = [];
   withLock_(() => {
     const fee = readRows_(SHEETS.FEES).find((x) => x.id && x.id === p.id);
     if (!fee) throw new Error('集金が見つかりません。');
-    if (fee['終了'] === '○') throw new Error('終わった集金です。');
-    if (fee['催促'] === today) throw new Error('この集金の催促は、今日はもう送りました（1日1回まで）。');
-    const paid = readRows_(SHEETS.FEE_PAID).filter((x) => x['集金id'] === fee.id && x['状態'] === '済').map((x) => x['子ども']);
-    const unpaid = activeChildren_().filter((c) => inTarget_(fee['対象'], c.grade) && paid.indexOf(c.name) < 0);
-    if (!unpaid.length) throw new Error('まだの人はいません。');
-    const to = {};
-    unpaid.forEach((c) => c.parents.forEach((u) => { (to[u] = to[u] || []).push(c.name); }));
-    const amount = Number(fee['金額']) || 0;
-    Object.keys(to).forEach((u) => {
-      const text = '💴 集金のお知らせ（' + CONFIG.CLUB_NAME + '）\n' + fee['名前'] + '　' + amount.toLocaleString('ja-JP') + '円／人\n' + to[u].join('・') + ' の分が、まだ確認できていません。' +
-        (fee['期限'] ? '\n期限：' + formatDate_(fee['期限']) + (fee['期限'] < today ? '（過ぎています）' : '') : '') + (fee['メモ'] ? '\n' + fee['メモ'] : '') + '\nすでにお渡し済みでしたら、会計係までお知らせください。';
-      try { push_(u, [text_(text)]); if (!isTestUser_(u)) sent++; } catch (e) { console.warn('催促の送信に失敗: ' + e); }
-    });
-    kids = unpaid.map((c) => c.name);
-    fee['催促'] = today;
+    fee['催促'] = p.clear ? '' : today_();
     updateRow_(SHEETS.FEES, fee);
   });
-  return 'まだの ' + kids.length + '人の保護者に、LINEで個別に知らせました（' + sent + '通）';
+  return p.clear ? '催促した日の記録を消しました' : '「' + formatDate_(today_()) + 'に催促した」と記録しました';
 }
 
 // ===== Notice.gs =====

@@ -1180,18 +1180,14 @@ test('既読・アンケート・集金（未納は本人と役員だけに見�
   assert.strictEqual(gas.ctx.api(k3, 'bootstrap').fees[0].kids.length, 0, '対象外の家');
   gas.ctx.api(kA, 'setFeePaid', { id: f.id, child: '山田たろう', paid: false });
   assert.deepStrictEqual(plain(gas.ctx.api(kA, 'bootstrap').fees[0].paid), []);
-  // 催促：まだの子の保護者に1人ずつ（グループには送らない）。1日1回まで。役員だけ
+  // 催促は手作業：LINEには送らず、催促した日だけ記録（役員だけ）
   gas.ctx.api(kA, 'setFeePaid', { id: f.id, child: '山田たろう', paid: true });
   assert.throws(() => gas.ctx.api(k2, 'feeRemind', { id: f.id }), /役員/);
   const before = gas.fetches.length;
   st = gas.ctx.api(kA, 'feeRemind', { id: f.id });
-  assert.ok(/1人/.test(st.message), st.message);
-  const pushes = gas.fetches.slice(before).filter((x) => /message\/push/.test(x.url));
-  assert.strictEqual(pushes.length, 1, '鈴木けんたの保護者だけ');
-  assert.strictEqual(pushes[0].payload.to, 'U2');
-  assert.ok(/年会費/.test(JSON.stringify(pushes[0].payload)));
+  assert.ok(/催促した/.test(st.message), st.message);
+  assert.ok(!gas.fetches.slice(before).some((x) => /message\/push/.test(x.url)), 'LINEには送らない');
   assert.ok(gas.ctx.api(kA, 'bootstrap').fees[0].remindAt, '催促した日');
-  assert.throws(() => gas.ctx.api(kA, 'feeRemind', { id: f.id }), /1日1回/);
   // 予算：科目ごと（同じ年度・区分・科目は上書き）、会計の記録に科目
   st = gas.ctx.api(kA, 'saveBudget', { fy: 2026, kind: '支出', cat: '用具・消耗品', amount: '２０,０００' });
   st = gas.ctx.api(kA, 'saveBudget', { fy: 2026, kind: '支出', cat: '用具・消耗品', amount: 25000 });

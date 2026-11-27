@@ -1375,7 +1375,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '8ed8fb7f2c';
+const SERVER_VERSION = '1831f962d3';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -5786,11 +5786,12 @@ function appRequestsFor_(ctx) {
  * userId は TEST_ で始め、LINE には送らない（グループの確認・通知の対象にしない）。
  */
 // 保護者は家族ごとに1〜2人（父母・祖父母）。同じ家族ID で紐付け、子どもの保護者にも全員を入れる
+// 仮の役員：親A＝会長、親B＝副会長・会計係、親C＝記録係・当番係、親D＝大会係（役員ページの係ごとの見え方を試す）
 const TEST_FAMILIES = [
-  { id: 'TEST_A', guardians: [['TEST_A', '親A（母）'], ['TEST_A2', '親A（父）']], kids: [{ name: 'テストA', grade: 3, sex: '男' }] },
-  { id: 'TEST_B', guardians: [['TEST_B', '親B（母）']], kids: [{ name: 'テストB', grade: 5, sex: '女' }] },
-  { id: 'TEST_C', guardians: [['TEST_C', '親C（父）'], ['TEST_C2', '親C（祖母）']], kids: [{ name: 'テストC', grade: 6, sex: '男' }, { name: 'テストC2', grade: 1, sex: '女' }] },
-  { id: 'TEST_D', guardians: [['TEST_D', '親D（母）'], ['TEST_D2', '親D（祖父）']], kids: [{ name: 'テストD', grade: 4, sex: '女' }] },
+  { id: 'TEST_A', role: '会長', guardians: [['TEST_A', '親A（母）'], ['TEST_A2', '親A（父）']], kids: [{ name: 'テストA', grade: 3, sex: '男' }] },
+  { id: 'TEST_B', role: '副会長・会計係', guardians: [['TEST_B', '親B（母）']], kids: [{ name: 'テストB', grade: 5, sex: '女' }] },
+  { id: 'TEST_C', role: '記録係・当番係', guardians: [['TEST_C', '親C（父）'], ['TEST_C2', '親C（祖母）']], kids: [{ name: 'テストC', grade: 6, sex: '男' }, { name: 'テストC2', grade: 1, sex: '女' }] },
+  { id: 'TEST_D', role: '大会係', guardians: [['TEST_D', '親D（母）'], ['TEST_D2', '親D（祖父）']], kids: [{ name: 'テストD', grade: 4, sex: '女' }] },
 ];
 
 function isTestUser_(userId) {
@@ -5813,8 +5814,9 @@ function testFamiliesFor_(ctx) {
   rows.forEach((f) => {
     const id = famIdOf_(f);
     let fam = out.find((x) => x.id === id);
-    if (!fam) { fam = { id: id, guardians: [], kids: [] }; out.push(fam); }
+    if (!fam) { fam = { id: id, guardians: [], kids: [], role: '' }; out.push(fam); }
     fam.guardians.push({ id: f.userId, name: f['表示名'] });
+    fam.role = f['係'] || fam.role || '';
     kids.filter((c) => splitNames_(c['保護者userId']).indexOf(f.userId) >= 0).forEach((c) => { if (fam.kids.indexOf(c['名前']) < 0) fam.kids.push(c['名前']); });
   });
   return out;
@@ -5830,8 +5832,9 @@ function testFamiliesAction_(ctx, p) {
       const ids = t.guardians.map((g) => g[0]);
       t.guardians.forEach((g) => {
         const f = fams.find((x) => x.userId === g[0]);
-        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id }); added++; }
-        else if (f['家族ID'] !== t.id) { f['家族ID'] = t.id; updateRow_(SHEETS.FAMILIES, f); }
+        // 仮の役員として、役員の印と係も入れる
+        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id, '役員': '○', '係': t.role }); added++; }
+        else if (f['家族ID'] !== t.id || f['役員'] !== '○' || f['係'] !== t.role) { Object.assign(f, { '家族ID': t.id, '役員': '○', '係': t.role }); updateRow_(SHEETS.FAMILIES, f); }
       });
       // 子どもに、家族の保護者をみんな紐付ける
       t.kids.forEach((k) => {

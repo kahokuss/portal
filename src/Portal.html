@@ -1906,9 +1906,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function adminTestFam() {
     var list = ST.testFamilies || [];
     view.innerHTML = backBtn() + toastHtml() + '<section class="card"><h2>🧪 テスト家族（親A〜D）<small>' + list.length + '家族</small></h2>' +
-      '<div class="sub">本番で、当番・エントリー・休みの連絡などを試すための<b>架空の家族</b>です。保護者は家族ごとに1〜2人（父母・祖父母）で、同じ家族として子どもに紐付いています。LINEには何も送りません。</div>' +
+      '<div class="sub">本番で、当番・エントリー・休みの連絡や、役員ページの係ごとの見え方を試すための<b>架空の家族</b>です。保護者は家族ごとに1〜2人（父母・祖父母）で、同じ家族として子どもに紐付いています。<b>4家族とも仮の役員</b>（親A＝会長、親B＝副会長・会計係、親C＝記録係・当番係、親D＝大会係）です。LINEには何も送りません。</div>' +
       '<div class="toast err">⚠ 入れているあいだは、名簿・当番表・エントリーの一覧に出て、当番の自動割り当てにも入ります。試し終わったら必ず「まとめて消す」を押してください。</div>' +
-      (list.length ? '<div class="list">' + list.map(function (f) { return '<div class="kid"><div><b>子ども：</b>' + esc(f.kids.join('・')) + '</div><div class="row">' + f.guardians.map(function (g) { return '<button class="btn small ghost" type="button" data-tview="' + esc(g.id) + '">' + esc(g.name) + 'として見る</button>'; }).join('') + '</div></div>'; }).join('') + '</div>' : '') +
+      (list.length ? '<div class="list">' + list.map(function (f) { return '<div class="kid"><div>' + (f.role ? '<span class="pill p-gray">🛠 ' + esc(f.role) + '</span> ' : '') + '<b>子ども：</b>' + esc(f.kids.join('・')) + '</div><div class="row">' + f.guardians.map(function (g) { return '<button class="btn small ghost" type="button" data-tview="' + esc(g.id) + '">' + esc(g.name) + 'として見る</button>'; }).join('') + '</div></div>'; }).join('') + '</div>' : '') +
       '<div class="row"><button class="btn" type="button" id="tfOn">' + (list.length ? '足りない保護者・子どもを入れなおす' : 'テスト家族を入れる') + '</button>' + (list.length ? '<button class="btn ghost" type="button" id="tfOff">まとめて消す</button>' : '') + '</div>' +
       '<div class="hint">「この家族として見る」で、保護者の画面（ホーム・わが家・エントリー・当番）を確かめられます。上の帯の「役員にもどる」で元にもどります。</div></section>';
     bindBack();

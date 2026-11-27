@@ -1598,6 +1598,11 @@ test('テスト家族（親A〜D）：入れる・その家族で使う（LINE�
   let st = gas.ctx.api(kA, 'testFamilies', { on: true });
   assert.strictEqual(plain(st.testFamilies).length, 4);
   assert.strictEqual(plain(st.testFamilies).find((f) => f.id === 'TEST_C').guardians.length, 2, '親Cは父と祖母');
+  // 仮の役員：係ごと
+  assert.strictEqual(plain(st.testFamilies).find((f) => f.id === 'TEST_B').role, '副会長・会計係');
+  const tb = gas.ctx.api(gas.ctx.api(kA, 'testLogin', { id: 'TEST_B' }).key, 'bootstrap');
+  assert.ok(tb.me.admin, '親Bは仮の役員');
+  assert.strictEqual(tb.families.find((f) => f.id === 'TEST_B').role, '副会長・会計係');
   assert.ok(st.kids.some((k) => k.name === 'テストC2'));
   const t = gas.ctx.api(kA, 'testLogin', { id: 'TEST_B' });
   const before = gas.fetches.length;
@@ -1621,7 +1626,7 @@ test('テスト家族（親A〜D）：入れる・その家族で使う（LINE�
   assert.ok(!gas.rows('エントリー').some((x) => x['子ども'] === 'テストB'));
   assert.ok(!gas.rows('休み').some((x) => x['子ども'] === 'テストB'));
   assert.ok(!gas.rows('当番').some((x) => /^TEST_/.test(x['家族ID'])));
-  assert.ok(gas.rows('家族').some((f) => f.userId === 'U1'), '本物の家族は残る');
+  assert.ok(gas.rows('家族').some((f) => f.userId === 'U1' && f['役員'] === '○'), '本物の家族（役員）は残る');
 });
 
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {

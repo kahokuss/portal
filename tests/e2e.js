@@ -1831,6 +1831,12 @@ async function openPortal(browser, gas, userId, name) {
       await q.waitForSelector('#testBar');
       await q.idle();
       assert.ok((await q.textContent('#me')).includes('親C（祖母）') && (await q.textContent('#me')).includes('テストC2'), '親C（祖母）として、子ども2人が見える');
+      // 親Cは仮の役員（記録係・当番係）：役員ページで自分の係が枠つきで開く
+      await q.click('[data-nav="admin"]');
+      await q.waitForSelector('.staffhead');
+      assert.ok((await q.textContent('.staffhead')).includes('記録係・当番係'), '仮の役員の係');
+      assert.ok(await q.$('.stabs [data-stab="rec"].mine') && await q.$('.stabs [data-stab="duty"].mine'), '自分の係に枠');
+      if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'testfam-staff-c.png') });
       if (SHOTS) await q.screenshot({ path: path.join(shotDir, 'admin-testfam-as.png') });
       await q.click('#tbBack');
       await q.idle();

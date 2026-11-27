@@ -740,6 +740,10 @@ tr.sel td { background: var(--sky-soft); }
 .stools button { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
 .stabs.hide { display: none; }
 .link.inl { display: inline; padding: 0; font-size: inherit; text-decoration: underline; }
+.flow .flowst { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); }
+.flow .flowst.now { border-color: var(--track); background: var(--track-soft); }
+.flow .flowst.ok b::after { content: ' ✓'; color: var(--field); }
+.flow .flowarr { text-align: center; color: var(--muted); line-height: 1; }
 .staffnav { grid-template-columns: repeat(5, 1fr) !important; }
 .staffnav .snavi { font-size: 20px; line-height: 1.1; }
 /* パソコン：左に縦1列（アイコンと名前を横に） */
@@ -1962,11 +1966,29 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // ---- 役員ページ：係ごとに「今やること」と道具だけ ----
   var ROLES = [
     { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
-    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['dutycal', '🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['practice', '📅 練習の予定をつくる'], ['duty', '📋 当番表を貼り付け'], ['testfam', '🧪 テスト家族']] },
+    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '📋 当番表を貼り付け'], ['testfam', '🧪 テスト家族']] },
     { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['_lastres', '🏅 最近の大会の結果を入れる'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
     { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['fees', '💴 集金（年会費など）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 会計（領収書の履歴）']] },
   ];
+  /** 当番を決める流れ：① カレンダーに練習・大会の予定をつくる → ② 当番を入れる（予定がない日には当番を入れられない） */
+  function dutyFlowInfo() {
+    var end = addDays(ST.today, 91), fut = ST.events.filter(function (e) { return !e.cancelled && e.date >= ST.today; });
+    var pr = fut.filter(function (e) { return dutyType(e) === '練習'; }), rc = fut.filter(function (e) { return dutyType(e) === '大会'; });
+    var last = function (a) { return a.length ? a.map(function (e) { return e.date; }).sort().pop() : ''; };
+    var emp = function (a) { return a.filter(function (e) { return e.date <= end && !dutyOf(e.key).length; }).length; };
+    return { end: end, prLast: last(pr), prN: pr.filter(function (e) { return e.date <= end; }).length, rcLast: last(rc), rcN: rc.filter(function (e) { return e.date <= end; }).length, empty: emp(pr) + emp(rc) };
+  }
+  function dutyFlowCard(compact) {
+    var I = dutyFlowInfo(), short = !I.prLast || I.prLast < I.end;
+    var step1 = '<div class="flowst' + (short ? ' now' : ' ok') + '"><b>① 予定をつくる</b><span class="sub">練習：' + (I.prLast ? '<b>' + md(I.prLast) + '</b> まで（3か月で' + I.prN + '回）' : '<b>これからの予定がありません</b>') + '・大会：' + (I.rcLast ? I.rcN + '件（最後 ' + md(I.rcLast) + '）' : 'なし') + '</span>' +
+      (short ? '<span class="sub" style="color:var(--track)">' + (I.prLast ? md(I.prLast) + 'より先（3か月先の ' + md(I.end) + ' まで）の' : '') + '練習の予定がまだありません。先に予定をつくると、その日に当番を入れられます。</span>' : '') +
+      '<span class="row"><button class="btn small' + (short ? '' : ' ghost') + '" type="button" data-flowgo="practice">📅 練習の予定をつくる</button><button class="btn small ghost" type="button" data-flowgo="race">➕ 大会をつくる</button></span></div>';
+    var step2 = '<div class="flowst' + (I.empty ? ' now' : I.prLast ? ' ok' : '') + '"><b>② 当番を決める</b><span class="sub">' + (I.prLast || I.rcLast ? (I.empty ? '3か月先までで、当番が決まっていない予定 <b>' + I.empty + '件</b>' : '3か月先までの予定には、当番が入っています') : '①で予定をつくってから') + '</span>' +
+      (compact ? '' : '<span class="row"><button class="btn small' + (I.empty ? '' : ' ghost') + '" type="button" data-flowgo="dutycal">🗓 当番カレンダーで決める</button></span>') + '</div>';
+    return '<section class="card flow"><h2>当番を決める流れ</h2><div class="hint">当番は「予定」に入れます。カレンダーに予定がない日には、当番を入れられません。</div>' + step1 + '<div class="flowarr">↓</div>' + step2 + '</section>';
+  }
+  function bindDutyFlow() { on('[data-flowgo]', function () { S.admin = this.dataset.flowgo; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); }); }
   function myRoleText() { var f = ST.families.filter(function (x) { return x.id === ST.me.fam; })[0]; return (f && f.role) || ''; }
   function roleOwner(r) { return ST.families.filter(function (f) { return f.role && r.who.test(f.role) && !(r.id === 'all' && /副会長/.test(f.role) && !/(^|[^副])会長/.test(f.role)); }).map(function (f) { return f.label.replace(/（.*$/, ''); }); }
   function staffHome() {
@@ -1991,10 +2013,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       h += '<div class="sub" style="padding:0 4px">担当：' + (who.length ? esc(who.join('・')) : 'まだ決まっていません <button class="link inl" type="button" data-gomem>係を決める ›</button>') + '</div>';
     }
     h += '<section class="card"><h2>今やること<small>' + (todo.length ? todo.length + '件' : 'なし') + '</small></h2>' + (todo.length ? '<div class="list">' + todo.map(function (x) { return opsItem(x, ops.indexOf(x)); }).join('') + '</div>' : '<div class="todo-done">✓ いま、' + R.t + 'でやることはありません</div>') + '</section>';
+    if (R.id === 'duty') h += dutyFlowCard();
     h += '<section class="card"><h2>' + R.icon + ' ' + R.t + (R.id === 'all' ? '' : '係') + 'の道具</h2><div class="stools">' + R.tools.map(function (t) { return '<button type="button" data-stool="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></section>';
     h += '<button class="link" type="button" id="adminAll" style="justify-self:start">すべての機能（今までの管理メニュー） ›</button>';
     view.innerHTML = h;
-    bindCommon(); bindOps();
+    bindCommon(); bindOps(); bindDutyFlow();
     on('[data-stab]', function () { S.staffTab = this.dataset.stab; render(); window.scrollTo(0, 0); });
     on('#adminAll', function () { S.adminAll = true; render(); window.scrollTo(0, 0); });
     on('[data-gomem]', function () { S.admin = 'members'; S.toast = ''; render(); window.scrollTo(0, 0); });
@@ -5915,7 +5938,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (!empty && lastEv && lastEv < R[2]) why += C.type + 'の予定は <b>' + md(lastEv) + '</b> までしかありません（その先は予定がないので、当番を入れられません）。' + (C.type === '練習' ? '<button class="link inl" type="button" data-dcgo="practice">先に練習の予定をつくる ›</button><br>' : '先に大会の予定を入れてください。');
     else if (!empty && !lastEv) why += C.type === '練習' ? '<button class="link inl" type="button" data-dcgo="practice">練習の予定をつくる ›</button>' : '';
     if (!empty && inR.length && C.per < 3) why += '1回の人数を増やすなら、上で「1回に' + (C.per + 1) + '家族」を選んでください。';
-    var h = backBtn() + toastHtml() + '<section class="card dcal"><div class="between"><h2 style="margin:0">🗓 当番カレンダー<small>輪番づくり</small></h2></div>' +
+    var h = backBtn() + toastHtml() + dutyFlowCard(true) + '<section class="card dcal"><div class="between"><h2 style="margin:0">🗓 当番カレンダー<small>輪番づくり</small></h2></div>' +
       '<div class="tabs" role="group" aria-label="当番の種類">' + ['練習', '大会'].map(function (t) { return '<button type="button" data-dct="' + t + '" aria-pressed="' + (C.type === t) + '">' + t + '当番</button>'; }).join('') + '</div>' +
       '<div class="between"><button class="btn small ghost" type="button" data-dcm="-1">‹</button><b>' + y + '年' + m + '月</b><button class="btn small ghost" type="button" data-dcm="1">›</button></div>' +
       '<div class="mcal dcgrid">' + WD.map(function (w, i) { return '<div class="wd' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '') + '">' + w + '</div>'; }).join('');
@@ -5978,6 +6001,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       if (confirm(md(R[2]) + 'までの、当番が足りない' + C.type + ' ' + empty + '件に、1回' + C.per + '家族ずつ順番に入れます。よろしいですか？')) call('autoDuty', { type: C.type, days: n2, per: C.per });
     });
     on('#dcPrint', function () { window.print(); });
+    bindDutyFlow();
     on('[data-dcgo]', function () { S.admin = this.dataset.dcgo; S.toast = ''; render(); window.scrollTo(0, 0); });
   }
   /** 当番表の文を読む：「2026-10-25,大会,海野・川辺(り)」「10/25 大会 海野・川辺(り)」など */

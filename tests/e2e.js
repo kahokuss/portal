@@ -839,6 +839,8 @@ async function openPortal(browser, gas, userId, name) {
       await g2.goto(PAGES);
       await g2.waitForSelector('#nav:not([hidden])');
       assert.ok((await g2.textContent('#view')).includes('役員ページ'), 'ホームに役員ページの入口');
+      assert.ok(await g2.$('#siteSw a.ss-p[aria-current]') && (await g2.getAttribute('#siteSw a.ss-s', 'href')) === 'staff/', '上に切りかえ（いまは保護者ポータル）');
+      if (process.env.SHOT_DIR2) await g2.screenshot({ path: process.env.SHOT_DIR2 + '/portal-top.png' });
       // 保護者ポータルでは、役員でも直せない（当番の割り当て・大会の入力のボタンが出ない）
       await g2.click('[data-nav="events"]');
       await g2.click('.ev:has-text("秋季記録会")');
@@ -849,6 +851,12 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await g2.textContent('#view')).includes('今やること'), '役員ページが開く（ログインはそのまま）');
       assert.ok(await g2.$eval('body', (b) => b.classList.contains('staffsite')) && (await g2.textContent('#clubName')).includes('役員ページ'), '役員ページは紫の配色・名前も役員ページ');
       if (SHOTS) await g2.screenshot({ path: path.join(shotDir, 'staff-site.png') });
+      // 上の切りかえ：いまは役員ページ。保護者ポータルへ戻れる
+      assert.ok(await g2.$('#siteSw a.ss-s[aria-current]'), '役員ページにいる');
+      assert.strictEqual(await g2.getAttribute('#siteSw a.ss-p', 'href'), '../');
+      await g2.click('[data-snav="duty"]');
+      assert.ok(await g2.$('.card.guide'), '説明のカードは色と札で分かれている');
+      if (process.env.SHOT_DIR2) await g2.screenshot({ path: process.env.SHOT_DIR2 + '/staff-duty.png', fullPage: true });
       // 役員ページは係の仕事だけ：下のメニューは係（全体・当番・記録・大会・会計）
       assert.ok(!(await g2.$('[data-nav="album"]')) && (await g2.$('[data-snav="money"]')), '下のメニューは係');
       await g2.click('[data-snav="money"]');

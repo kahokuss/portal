@@ -747,7 +747,18 @@ tr.sel td { background: var(--sky-soft); }
 .link.inl { display: inline; padding: 0; font-size: inherit; text-decoration: underline; }
 .flow .flowst { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); }
 .flow .flowst.now { border-color: var(--track); background: var(--track-soft); }
-.flow .flowst.ok b::after { content: ' ✓'; color: var(--field); }
+.flow .flowst.ok > b:first-child::after { content: ' ✓'; color: var(--field); }
+.sitesw { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 12px 8px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.sitesw[hidden] { display: none; }
+.sitesw a { display: grid; justify-items: center; padding: 6px 4px; border-radius: 10px; text-decoration: none; color: var(--muted); font-weight: 700; font-size: 13.5px; border: 1.5px solid var(--line); background: var(--surface-2); }
+.sitesw a small { font-weight: 400; font-size: 10.5px; }
+.sitesw a.ss-p[aria-current] { background: var(--track); border-color: var(--track); color: #fff; }
+.sitesw a.ss-s[aria-current] { background: #5b3fa8; border-color: #5b3fa8; color: #fff; }
+body.staffsite .sitesw { background: #f6f3fc; }
+/* 説明・手順のカード：入力のカードとまちがえないよう、色と見出しの札で分ける */
+.card.guide { background: var(--sky-soft); border: 1.5px dashed var(--sky); box-shadow: none; }
+.card.guide > h2 { color: var(--sky); }
+.card.guide > h2::before { content: '📘 説明'; display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: middle; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .mstat > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
 .mstat .big { font-size: 1.35rem; }
@@ -869,7 +880,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "7c2abce58b";
+var BUILD = "4ecc8b0e94";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -5868,8 +5879,22 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     }).join('');
     nav.querySelectorAll('[data-nav]').forEach(function (b) { b.addEventListener('click', function () { if (this.dataset.nav === 'admin') S.admin = 'menu'; if (this.dataset.nav === 'family') S.kidsDraft = null; go(this.dataset.nav); }); });
   }
+  /** 保護者ポータル ⇄ 役員ページの切りかえ（役員・当番・大会係の人だけ）。いつも上に出して、いまどちらにいるかを色で分ける */
+  function siteSwitch() {
+    var el = document.getElementById('siteSw');
+    var can = ST.me.admin || ST.me.staff || (ST.me.canManage || []).length || (ST.me.manageKeys || []).length;
+    if (!(LITE || STAFF_SITE) || !can) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement('div'); el.id = 'siteSw'; el.className = 'sitesw'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'サイトの切りかえ');
+      var top = document.querySelector('.top'); top.parentNode.insertBefore(el, top.nextSibling);
+    }
+    el.hidden = false;
+    el.innerHTML = '<a href="' + (STAFF_SITE ? '../' : './') + '" target="_top" class="ss-p"' + (STAFF_SITE ? '' : ' aria-current="page"') + '>👪 保護者ポータル<small>見る・回答する</small></a>' +
+      '<a href="' + (STAFF_SITE ? './' : 'staff/') + '" target="_top" class="ss-s"' + (STAFF_SITE ? ' aria-current="page"' : '') + '>🛠 役員ページ<small>入力・管理する</small></a>';
+  }
   function render() {
     CURKEY = ''; FORMDROP = {};
+    siteSwitch();
     // ほかの画面へ移るときは、ためていた変更をまとめて保存
     var sig = [S.tab, S.admin, S.event, S.etab, S.staffTab, S.adminAll].join('|');
     if (sig !== QB_SIG) { QB_SIG = sig; if (QB.ops.length) flushQ(); }
@@ -5883,7 +5908,6 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         // 役員でない当番の家族：当番の大会だけ（手続き・種目・時刻表・結果の入力）
         var mk = (ST.me.canManage || []).filter(function (k) { return evByKey(k); });
         document.getElementById('nav').hidden = true; view.classList.remove('navpad');
-        var tl0 = document.getElementById('toLine'); if (tl0) { tl0.href = '../'; tl0.textContent = 'ポータル'; tl0.target = '_top'; }
         if (!mk.length) { view.innerHTML = '<section class="card"><h2>役員ページ</h2><div class="sub">役員ページは、役員と、大会の当番・大会係の人だけが使えます。</div><a class="btn" href="../" style="text-decoration:none;text-align:center">保護者ポータルを開く</a></section>'; return; }
         if (!(S.tab === 'events' && S.event && mk.indexOf(S.event) >= 0)) {
           view.innerHTML = '<section class="card"><h2>🛠 担当の大会</h2><div class="sub">当番・大会係になっている大会の、手続き・種目・時刻表・結果をここで入れます。</div><div class="list">' + mk.map(function (k) { var e = evByKey(k); return '<button class="ev" type="button" data-dev="' + k + '"><span class="main"><b>' + md(e.date) + ' ' + esc(e.title) + '</b><br><span class="sub">' + esc(e.place || '') + '</span></span>›</button>'; }).join('') + '</div><a class="link" href="../">保護者ポータルへ ›</a></section>';
@@ -5895,7 +5919,6 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         return;
       }
       if (!(S.tab === 'admin' || S.tab === 'dash' || (S.tab === 'events' && S.event))) { S.tab = 'admin'; S.admin = 'menu'; }
-      var tl = document.getElementById('toLine'); if (tl) { tl.href = '../'; tl.textContent = 'ポータル'; tl.target = '_top'; }
     }
     if (S.tab === 'admin' && !ST.me.admin && !(LITE && ST.me.staff) && !(S.admin === 'race' && S.draft && S.draft.from === 'edit')) S.tab = 'home';
     renderNav();

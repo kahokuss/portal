@@ -87,6 +87,31 @@ function isGroupMember_(userId) {
   throw new Error('グループのメンバー確認に失敗しました（' + code + '）');
 }
 
+/** Botが使っているグループの名前と人数（役員ページに出す）。1時間おぼえる */
+function groupInfo_() {
+  const id = prop_('GROUP_ID');
+  if (!id) return { name: '', count: 0, next: prop_('NEXT_GROUP') === '1' };
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('grpinfo');
+  let info = hit ? JSON.parse(hit) : null;
+  if (!info) {
+    info = { name: '', count: 0 };
+    try { info.name = JSON.parse(lineFetch_(LINE_API + '/group/' + id + '/summary', 'get').getContentText()).groupName || ''; } catch (e) { console.warn(e); }
+    try { info.count = JSON.parse(lineFetch_(LINE_API + '/group/' + id + '/members/count', 'get').getContentText()).count || 0; } catch (e) { console.warn(e); }
+    cache.put('grpinfo', JSON.stringify(info), 3600);
+  }
+  info.next = prop_('NEXT_GROUP') === '1';
+  return info;
+}
+
+/** 管理者だけ：次にBotを招待したグループを、クラブのグループに切りかえる（cancel で取り消し） */
+function switchGroupAction_(ctx, p) {
+  if (!ctx.owner) throw new Error('この操作は管理者だけができます。');
+  if (p.cancel) { PropertiesService.getScriptProperties().deleteProperty('NEXT_GROUP'); return '切りかえを取り消しました'; }
+  setProp_('NEXT_GROUP', '1');
+  return '切りかえの準備をしました。新しいグループにBotを招待すると、そのグループに切りかわります';
+}
+
 function markMemberChecked_(userId) {
   withLock_(() => {
     const f = findFamily_(userId);

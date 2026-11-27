@@ -98,9 +98,16 @@ function handleEvent_(ev) {
 
   if (ev.type === 'join') {
     if (source.type === 'group') {
-      if (!prop_('GROUP_ID')) setProp_('GROUP_ID', source.groupId);
-      // グループには短いあいさつだけ（使い方は1対1のトークで）
-      reply_(ev.replyToken, [text_('招待ありがとうございます！' + CONFIG.CLUB_NAME + 'のBotです。\n使い方は、Botを友だち追加して、1対1のトークで「ヘルプ」と送ってください。')]);
+      // 最初に招待されたグループ（または管理者が「切りかえ」を押したあとに招待されたグループ）を、クラブのグループにする
+      const cur = prop_('GROUP_ID');
+      if (!cur || prop_('NEXT_GROUP') === '1') {
+        setProp_('GROUP_ID', source.groupId);
+        PropertiesService.getScriptProperties().deleteProperty('NEXT_GROUP');
+        CacheService.getScriptCache().remove('grpinfo');
+        reply_(ev.replyToken, [text_('招待ありがとうございます！' + CONFIG.CLUB_NAME + 'のBotです。\nこのグループのメンバーが、ポータルとBotを使えるようになりました。\n使い方は、Botを友だち追加して、1対1のトークで「ヘルプ」と送ってください。')]);
+      } else if (cur !== source.groupId) {
+        reply_(ev.replyToken, [text_(CONFIG.CLUB_NAME + 'のBotは、登録済みのグループだけで動きます。このグループでは反応しません。')]);
+      }
     }
     return;
   }

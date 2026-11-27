@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'a266b8e935';
+const SERVER_VERSION = '2cf87d410e';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2082,6 +2082,31 @@ function isGroupMember_(userId) {
   throw new Error('グループのメンバー確認に失敗しました（' + code + '）');
 }
 
+/** Botが使っているグループの名前と人数（役員ページに出す）。1時間おぼえる */
+function groupInfo_() {
+  const id = prop_('GROUP_ID');
+  if (!id) return { name: '', count: 0, next: prop_('NEXT_GROUP') === '1' };
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('grpinfo');
+  let info = hit ? JSON.parse(hit) : null;
+  if (!info) {
+    info = { name: '', count: 0 };
+    try { info.name = JSON.parse(lineFetch_(LINE_API + '/group/' + id + '/summary', 'get').getContentText()).groupName || ''; } catch (e) { console.warn(e); }
+    try { info.count = JSON.parse(lineFetch_(LINE_API + '/group/' + id + '/members/count', 'get').getContentText()).count || 0; } catch (e) { console.warn(e); }
+    cache.put('grpinfo', JSON.stringify(info), 3600);
+  }
+  info.next = prop_('NEXT_GROUP') === '1';
+  return info;
+}
+
+/** 管理者だけ：次にBotを招待したグループを、クラブのグループに切りかえる（cancel で取り消し） */
+function switchGroupAction_(ctx, p) {
+  if (!ctx.owner) throw new Error('この操作は管理者だけができます。');
+  if (p.cancel) { PropertiesService.getScriptProperties().deleteProperty('NEXT_GROUP'); return '切りかえを取り消しました'; }
+  setProp_('NEXT_GROUP', '1');
+  return '切りかえの準備をしました。新しいグループにBotを招待すると、そのグループに切りかわります';
+}
+
 function markMemberChecked_(userId) {
   withLock_(() => {
     const f = findFamily_(userId);
@@ -2252,9 +2277,16 @@ function handleEvent_(ev) {
 
   if (ev.type === 'join') {
     if (source.type === 'group') {
-      if (!prop_('GROUP_ID')) setProp_('GROUP_ID', source.groupId);
-      // グループには短いあいさつだけ（使い方は1対1のトークで）
-      reply_(ev.replyToken, [text_('招待ありがとうございます！' + CONFIG.CLUB_NAME + 'のBotです。\n使い方は、Botを友だち追加して、1対1のトークで「ヘルプ」と送ってください。')]);
+      // 最初に招待されたグループ（または管理者が「切りかえ」を押したあとに招待されたグループ）を、クラブのグループにする
+      const cur = prop_('GROUP_ID');
+      if (!cur || prop_('NEXT_GROUP') === '1') {
+        setProp_('GROUP_ID', source.groupId);
+        PropertiesService.getScriptProperties().deleteProperty('NEXT_GROUP');
+        CacheService.getScriptCache().remove('grpinfo');
+        reply_(ev.replyToken, [text_('招待ありがとうございます！' + CONFIG.CLUB_NAME + 'のBotです。\nこのグループのメンバーが、ポータルとBotを使えるようになりました。\n使い方は、Botを友だち追加して、1対1のトークで「ヘルプ」と送ってください。')]);
+      } else if (cur !== source.groupId) {
+        reply_(ev.replyToken, [text_(CONFIG.CLUB_NAME + 'のBotは、登録済みのグループだけで動きます。このグループでは反応しません。')]);
+      }
     }
     return;
   }
@@ -2718,6 +2750,8 @@ const API_ACTIONS = {
   setDuty: { admin: true, run: setDutyAction_ },
   saveBudget: { admin: true, run: saveBudgetAction_ },
   setDutyOrder: { admin: true, run: setDutyOrderAction_ },
+  groupInfo: { admin: true, raw: true, run: () => groupInfo_() },
+  switchGroup: { admin: true, run: switchGroupAction_ },
   feeRemind: { admin: true, run: feeRemindAction_ },
   swapRequest: { run: swapRequestAction_ },
   swapVolunteer: { run: swapVolunteerAction_ },

@@ -1380,6 +1380,23 @@ test('役員と係は家族ごと：父・母どちらも同じ役', () => {
   assert.ok(gas.rows('家族').filter((r) => r.userId === 'U1' || r.userId === 'U4').every((r) => r['係'] === '会計・記録係'), '父・母どちらの行にも');
 });
 
+test('Botのグループ：ほかのグループでは反応しない・管理者が切りかえの準備をすると、次に招待したグループに切りかわる', () => {
+  const gas = setupClub();
+  const k1 = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  const join = (gid) => { const before = gas.fetches.length; gas.ctx.doPost({ parameter: { token: gas.props.WEBHOOK_TOKEN }, postData: { contents: JSON.stringify({ events: [{ type: 'join', webhookEventId: 'j' + gid + Math.random(), replyToken: 'r', timestamp: Date.now(), source: { type: 'group', groupId: gid } }] }) } }); return JSON.stringify(gas.fetches.slice(before).map((f) => f.payload)); };
+  assert.ok(/反応しません/.test(join('G_TEST')), 'ほかのグループ');
+  assert.strictEqual(gas.props.GROUP_ID, 'G1');
+  assert.throws(() => gas.ctx.api(k1, 'switchGroup', {}), /管理者だけ/);
+  gas.ctx.api(k2, 'becomeOwner', { code: gas.run('ownerCode_()') });
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U2') r[3] = '○'; });
+  gas.ctx.api(k2, 'switchGroup', {});
+  assert.ok(gas.ctx.api(k1, 'groupInfo', {}).next, '切りかえの準備中');
+  assert.ok(/使えるようになりました/.test(join('G_REAL')));
+  assert.strictEqual(gas.props.GROUP_ID, 'G_REAL');
+  assert.ok(!gas.ctx.api(k1, 'groupInfo', {}).next);
+});
+
 test('管理者：Apps Scriptの番号を入れた人だけ。いつでも役員、ほかの人を管理者にできるのは管理者だけ', () => {
   const gas = setupClub();
   const k1 = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;

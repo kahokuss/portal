@@ -78,6 +78,8 @@ const API_ACTIONS = {
   setDuty: { admin: true, run: setDutyAction_ },
   saveBudget: { admin: true, run: saveBudgetAction_ },
   setDutyOrder: { admin: true, run: setDutyOrderAction_ },
+  groupInfo: { admin: true, raw: true, run: () => groupInfo_() },
+  switchGroup: { admin: true, run: switchGroupAction_ },
   feeRemind: { admin: true, run: feeRemindAction_ },
   swapRequest: { run: swapRequestAction_ },
   swapVolunteer: { run: swapVolunteerAction_ },

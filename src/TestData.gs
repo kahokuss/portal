@@ -1,14 +1,16 @@
 /**
- * 本番で試すための「テスト家族」（親A〜親D）。役員が管理画面から入れて、まとめて消す。
+ * 本番で試すための「テスト家族」（親A〜親E）。役員が管理画面から入れて、まとめて消す。
  * userId は TEST_ で始め、LINE には送らない（グループの確認・通知の対象にしない）。
  */
 // 保護者は家族ごとに1〜2人（父母・祖父母）。同じ家族ID で紐付け、子どもの保護者にも全員を入れる
 // 仮の役員：親A＝会長、親B＝副会長・会計係、親C＝記録係・当番係、親D＝大会係（役員ページの係ごとの見え方を試す）
+// 親E は役員でないふつうの保護者（大会ごとの「大会係」に選んで、役員でなくても入力できるかを試す）
 const TEST_FAMILIES = [
   { id: 'TEST_A', role: '会長', guardians: [['TEST_A', '親A（母）'], ['TEST_A2', '親A（父）']], kids: [{ name: 'テストA', grade: 3, sex: '男' }] },
   { id: 'TEST_B', role: '副会長・会計係', guardians: [['TEST_B', '親B（母）']], kids: [{ name: 'テストB', grade: 5, sex: '女' }] },
   { id: 'TEST_C', role: '記録係・当番係', guardians: [['TEST_C', '親C（父）'], ['TEST_C2', '親C（祖母）']], kids: [{ name: 'テストC', grade: 6, sex: '男' }, { name: 'テストC2', grade: 1, sex: '女' }] },
   { id: 'TEST_D', role: '大会係', guardians: [['TEST_D', '親D（母）'], ['TEST_D2', '親D（祖父）']], kids: [{ name: 'テストD', grade: 4, sex: '女' }] },
+  { id: 'TEST_E', role: '', staff: false, guardians: [['TEST_E', '親E（父）']], kids: [{ name: 'テストE', grade: 2, sex: '男' }] },
 ];
 
 function isTestUser_(userId) {
@@ -49,9 +51,10 @@ function testFamiliesAction_(ctx, p) {
       const ids = t.guardians.map((g) => g[0]);
       t.guardians.forEach((g) => {
         const f = fams.find((x) => x.userId === g[0]);
-        // 仮の役員として、役員の印と係も入れる
-        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id, '役員': '○', '係': t.role }); added++; }
-        else if (f['家族ID'] !== t.id || f['役員'] !== '○' || f['係'] !== t.role) { Object.assign(f, { '家族ID': t.id, '役員': '○', '係': t.role }); updateRow_(SHEETS.FAMILIES, f); }
+        // 仮の役員として、役員の印と係も入れる（親E はふつうの保護者）。入れた後に画面で係を変えたら、そのまま残す
+        const mark = t.staff === false ? '' : '○';
+        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id, '役員': mark, '係': t.role }); added++; }
+        else if (f['家族ID'] !== t.id) { f['家族ID'] = t.id; updateRow_(SHEETS.FAMILIES, f); }
       });
       // 子どもに、家族の保護者をみんな紐付ける
       t.kids.forEach((k) => {
@@ -61,7 +64,7 @@ function testFamiliesAction_(ctx, p) {
       });
     });
   });
-  return added ? 'テスト家族（親A〜親D、保護者' + added + '人）を入れました。試したら「まとめて消す」を押してください' : 'テスト家族はもう入っています';
+  return added ? 'テスト家族（親A〜親E、保護者' + added + '人）を入れました。試したら「まとめて消す」を押してください' : 'テスト家族はもう入っています';
 }
 
 /** テスト家族と、その子・家族にかかわる行（当番・エントリー・休み・記録・手続きなど）をまとめて消す */

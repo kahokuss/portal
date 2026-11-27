@@ -99,7 +99,7 @@ function handleNews_(ev) {
   const d = botData_();
   const lines = ['🔔 ' + CONFIG.CLUB_NAME + ' 新着（' + formatDate_(d.today) + '）'];
   const absences = readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] >= d.today);
-  const duties = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today);
+  const duties = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today && !isRaceStaffRow_(x));
   const labels = famLabelMap_();
 
   const np = d.events.find((e) => !e.race);
@@ -333,11 +333,12 @@ function handleDuty_(ev) {
   const u = botUser_(ev);
   const d = botData_();
   const labels = famLabelMap_();
-  const duties = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today);
-  const mine = duties.filter((x) => x['家族ID'] === u.famId);
+  const all = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today);
+  const duties = all.filter((x) => !isRaceStaffRow_(x));
+  const mine = all.filter((x) => x['家族ID'] === u.famId);
   const lines = ['🧹 わが家の当番'];
   if (!mine.length) lines.push('これからの当番はありません。');
-  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + x['種類'] + '当番\n　' + e.title + (e.place ? '・' + e.place : '')); });
+  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + (isRaceStaffRow_(x) ? '大会係（入力の担当）' : x['種類'] + '当番') + '\n　' + e.title + (e.place ? '・' + e.place : '')); });
   const next = d.events.slice(0, 5).map((e) => '・' + formatDate_(e.date) + ' ' + e.title + '：' + (duties.filter((x) => x.eventKey === e.key).map((x) => labels[x['家族ID']]).filter(Boolean).join('、') || '未定'));
   // 役員には、当番カレンダー（輪番づくり）を開くボタン
   if (u.admin) return respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n'), '🗓 当番の入れかえ・空きの自動割り当ては「当番カレンダー」で\n' + dutyCalUrl_()], [{ type: 'uri', label: '🗓 当番カレンダー', uri: dutyCalUrl_() }].concat(MAIN_QUICK)));
@@ -597,7 +598,7 @@ function short_(name) { const t = String(name).trim().split(/[\s　]+/); return 
 
 function botCtxData_() {
   return {
-    duties: readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= addDays_(today_(), -1)),
+    duties: readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= addDays_(today_(), -1) && !isRaceStaffRow_(x)),
     labels: famLabelMap_(),
     entries: readRows_(SHEETS.ENTRIES),
     absences: readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] >= today_()),
@@ -1375,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '1831f962d3';
+const SERVER_VERSION = 'f7b1b384af';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2095,7 +2096,7 @@ function markMemberChecked_(userId) {
  * グループを抜けた人は使えなくなる。確認に失敗したとき（LINE 側の一時的なエラー）は通す。
  */
 function ensureMember_(family) {
-  if (isTestUser_(family.userId)) return; // テスト家族（親A〜D）は LINE に聞かない
+  if (isTestUser_(family.userId)) return; // テスト家族（親A〜E）は LINE に聞かない
   const last = family['グループ確認'] ? new Date(family['グループ確認'].replace(' ', 'T') + '+09:00').getTime() : 0;
   if (Date.now() - last < CONFIG.MEMBER_RECHECK_HOURS * 3600000) return;
   let member;
@@ -2855,8 +2856,10 @@ function buildState_(ctx) {
   };
   const evOn = {};
   events.forEach((e) => { if (!e.cancelled) (evOn[e.date] = evOn[e.date] || []).push(e); });
-  const duties = readRows_(SHEETS.DUTIES)
-    .filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400))
+  const dutyRows = readRows_(SHEETS.DUTIES).filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400));
+  // 大会係（大会ごと）は、当番とは分けて返す
+  const raceStaff = dutyRows.filter(isRaceStaffRow_).map((x) => ({ key: x.eventKey, fam: x['家族ID'] }));
+  const duties = dutyRows.filter((x) => !isRaceStaffRow_(x))
     .map((x) => {
       let key = x.eventKey;
       if (!key) { const e = (evOn[x['日付']] || []).find((y) => (y.type !== '練習') === (x['種類'] === '大会')); key = e ? e.key : ''; }
@@ -2886,7 +2889,7 @@ function buildState_(ctx) {
     .filter((x) => kidNames[x['子ども']] && x['記録'])
     .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'], kind: /加速/.test(String(x['メモ'] || '')) ? '練習' : x['区分'] || (x.eventKey && !pracKeys[x.eventKey] ? '公式' : '練習') }));
 
-  const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
+  const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId) || raceStaff.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
@@ -2928,6 +2931,7 @@ function buildState_(ctx) {
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,
+    raceStaff: raceStaff,
     timetable: timetable,
     tasks: tasks,
     photos: photos,
@@ -3308,17 +3312,24 @@ function dutyType_(ev, races) {
   return race || (ev['種別'] || guessType_(ev['タイトル'])) !== '練習' ? '大会' : '練習';
 }
 
+/** 大会ごとの「大会係」（役員でなくても、その大会の入力ができる家族）。当番表の行に 種類＝大会係 で残す */
+const RACE_STAFF = '大会係';
+function isRaceStaffRow_(d) { return d['種類'] === RACE_STAFF; }
+
 function setDutyAction_(ctx, p) {
   const ev = findEvent_(p.key);
   if (!ev) throw new Error('予定が見つかりません。');
   const fam = String(p.fam || '');
   if (!fam) throw new Error('家族を選んでください。');
+  const staff = p.kind === RACE_STAFF;
+  if (staff && dutyType_(ev) !== '大会') throw new Error('大会係は、大会だけに決められます。');
+  const type = staff ? RACE_STAFF : dutyType_(ev);
   withLock_(() => {
-    const row = readRows_(SHEETS.DUTIES).find((d) => d.eventKey === p.key && d['家族ID'] === fam);
-    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': dutyType_(ev), '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
+    const row = readRows_(SHEETS.DUTIES).find((d) => d.eventKey === p.key && d['家族ID'] === fam && isRaceStaffRow_(d) === staff);
+    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': type, '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
     if (!p.on && row) clearRow_(SHEETS.DUTIES, row);
   });
-  if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, '当番：' + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
+  if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, (staff ? '大会係：' : '当番：') + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
   return '';
 }
 
@@ -3350,7 +3361,7 @@ function autoDutyAction_(ctx, p) {
       .filter((e) => e['状態'] !== '中止' && e['日付'] >= today && e['日付'] <= addDays_(today, days) && dutyType_(e, races) === type)
       .sort(compareEvents_);
     targets.forEach((e) => {
-      const have = duties.filter((d) => d.eventKey === e.eventKey).map((d) => d['家族ID']);
+      const have = duties.filter((d) => d.eventKey === e.eventKey && !isRaceStaffRow_(d)).map((d) => d['家族ID']);
       for (let n = have.length; n < per; n++) {
         const pick = families
           .filter((f) => have.indexOf(f.id) < 0)
@@ -3368,11 +3379,11 @@ function autoDutyAction_(ctx, p) {
   return added ? added + '件の当番を入れました。前回から日がたっている家族から順番です' : '当番を入れる予定がありませんでした（もう全部入っています）';
 }
 
-/** 大会のタイムテーブル・手続きを直せる人（役員と、その大会の当番の家族） */
+/** 大会のタイムテーブル・手続きを直せる人（役員と、その大会の当番・大会係の家族） */
 function requireManager_(ctx, key) {
   if (ctx.admin) return;
   const ok = readRows_(SHEETS.DUTIES).some((d) => d.eventKey === key && d['家族ID'] === ctx.famId);
-  if (!ok) throw new Error('この操作は、役員とこの予定の当番の人だけができます。');
+  if (!ok) throw new Error('この操作は、役員と、この予定の当番・大会係の人だけができます。');
 }
 
 // ---- タイムテーブル ----
@@ -5782,16 +5793,18 @@ function appRequestsFor_(ctx) {
 
 // ===== TestData.gs =====
 /**
- * 本番で試すための「テスト家族」（親A〜親D）。役員が管理画面から入れて、まとめて消す。
+ * 本番で試すための「テスト家族」（親A〜親E）。役員が管理画面から入れて、まとめて消す。
  * userId は TEST_ で始め、LINE には送らない（グループの確認・通知の対象にしない）。
  */
 // 保護者は家族ごとに1〜2人（父母・祖父母）。同じ家族ID で紐付け、子どもの保護者にも全員を入れる
 // 仮の役員：親A＝会長、親B＝副会長・会計係、親C＝記録係・当番係、親D＝大会係（役員ページの係ごとの見え方を試す）
+// 親E は役員でないふつうの保護者（大会ごとの「大会係」に選んで、役員でなくても入力できるかを試す）
 const TEST_FAMILIES = [
   { id: 'TEST_A', role: '会長', guardians: [['TEST_A', '親A（母）'], ['TEST_A2', '親A（父）']], kids: [{ name: 'テストA', grade: 3, sex: '男' }] },
   { id: 'TEST_B', role: '副会長・会計係', guardians: [['TEST_B', '親B（母）']], kids: [{ name: 'テストB', grade: 5, sex: '女' }] },
   { id: 'TEST_C', role: '記録係・当番係', guardians: [['TEST_C', '親C（父）'], ['TEST_C2', '親C（祖母）']], kids: [{ name: 'テストC', grade: 6, sex: '男' }, { name: 'テストC2', grade: 1, sex: '女' }] },
   { id: 'TEST_D', role: '大会係', guardians: [['TEST_D', '親D（母）'], ['TEST_D2', '親D（祖父）']], kids: [{ name: 'テストD', grade: 4, sex: '女' }] },
+  { id: 'TEST_E', role: '', staff: false, guardians: [['TEST_E', '親E（父）']], kids: [{ name: 'テストE', grade: 2, sex: '男' }] },
 ];
 
 function isTestUser_(userId) {
@@ -5832,9 +5845,10 @@ function testFamiliesAction_(ctx, p) {
       const ids = t.guardians.map((g) => g[0]);
       t.guardians.forEach((g) => {
         const f = fams.find((x) => x.userId === g[0]);
-        // 仮の役員として、役員の印と係も入れる
-        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id, '役員': '○', '係': t.role }); added++; }
-        else if (f['家族ID'] !== t.id || f['役員'] !== '○' || f['係'] !== t.role) { Object.assign(f, { '家族ID': t.id, '役員': '○', '係': t.role }); updateRow_(SHEETS.FAMILIES, f); }
+        // 仮の役員として、役員の印と係も入れる（親E はふつうの保護者）。入れた後に画面で係を変えたら、そのまま残す
+        const mark = t.staff === false ? '' : '○';
+        if (!f) { appendRow_(SHEETS.FAMILIES, { userId: g[0], '表示名': g[1], 'ポータルキー': randomKey_(), '更新日時': now_(), 'グループ確認': now_(), '家族ID': t.id, '役員': mark, '係': t.role }); added++; }
+        else if (f['家族ID'] !== t.id) { f['家族ID'] = t.id; updateRow_(SHEETS.FAMILIES, f); }
       });
       // 子どもに、家族の保護者をみんな紐付ける
       t.kids.forEach((k) => {
@@ -5844,7 +5858,7 @@ function testFamiliesAction_(ctx, p) {
       });
     });
   });
-  return added ? 'テスト家族（親A〜親D、保護者' + added + '人）を入れました。試したら「まとめて消す」を押してください' : 'テスト家族はもう入っています';
+  return added ? 'テスト家族（親A〜親E、保護者' + added + '人）を入れました。試したら「まとめて消す」を押してください' : 'テスト家族はもう入っています';
 }
 
 /** テスト家族と、その子・家族にかかわる行（当番・エントリー・休み・記録・手続きなど）をまとめて消す */

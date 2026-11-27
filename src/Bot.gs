@@ -94,7 +94,7 @@ function handleNews_(ev) {
   const d = botData_();
   const lines = ['🔔 ' + CONFIG.CLUB_NAME + ' 新着（' + formatDate_(d.today) + '）'];
   const absences = readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] >= d.today);
-  const duties = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today);
+  const duties = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today && !isRaceStaffRow_(x));
   const labels = famLabelMap_();
 
   const np = d.events.find((e) => !e.race);
@@ -328,11 +328,12 @@ function handleDuty_(ev) {
   const u = botUser_(ev);
   const d = botData_();
   const labels = famLabelMap_();
-  const duties = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today);
-  const mine = duties.filter((x) => x['家族ID'] === u.famId);
+  const all = readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= d.today);
+  const duties = all.filter((x) => !isRaceStaffRow_(x));
+  const mine = all.filter((x) => x['家族ID'] === u.famId);
   const lines = ['🧹 わが家の当番'];
   if (!mine.length) lines.push('これからの当番はありません。');
-  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + x['種類'] + '当番\n　' + e.title + (e.place ? '・' + e.place : '')); });
+  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + (isRaceStaffRow_(x) ? '大会係（入力の担当）' : x['種類'] + '当番') + '\n　' + e.title + (e.place ? '・' + e.place : '')); });
   const next = d.events.slice(0, 5).map((e) => '・' + formatDate_(e.date) + ' ' + e.title + '：' + (duties.filter((x) => x.eventKey === e.key).map((x) => labels[x['家族ID']]).filter(Boolean).join('、') || '未定'));
   // 役員には、当番カレンダー（輪番づくり）を開くボタン
   if (u.admin) return respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n'), '🗓 当番の入れかえ・空きの自動割り当ては「当番カレンダー」で\n' + dutyCalUrl_()], [{ type: 'uri', label: '🗓 当番カレンダー', uri: dutyCalUrl_() }].concat(MAIN_QUICK)));

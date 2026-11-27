@@ -101,7 +101,7 @@ function markMemberChecked_(userId) {
  * グループを抜けた人は使えなくなる。確認に失敗したとき（LINE 側の一時的なエラー）は通す。
  */
 function ensureMember_(family) {
-  if (isTestUser_(family.userId)) return; // テスト家族（親A〜D）は LINE に聞かない
+  if (isTestUser_(family.userId)) return; // テスト家族（親A〜E）は LINE に聞かない
   const last = family['グループ確認'] ? new Date(family['グループ確認'].replace(' ', 'T') + '+09:00').getTime() : 0;
   if (Date.now() - last < CONFIG.MEMBER_RECHECK_HOURS * 3600000) return;
   let member;

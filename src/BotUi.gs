@@ -93,7 +93,7 @@ function short_(name) { const t = String(name).trim().split(/[\s　]+/); return 
 
 function botCtxData_() {
   return {
-    duties: readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= addDays_(today_(), -1)),
+    duties: readRows_(SHEETS.DUTIES).filter((x) => x['日付'] >= addDays_(today_(), -1) && !isRaceStaffRow_(x)),
     labels: famLabelMap_(),
     entries: readRows_(SHEETS.ENTRIES),
     absences: readRows_(SHEETS.ABSENCES).filter((a) => a.id && a['日付'] >= today_()),

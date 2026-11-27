@@ -306,7 +306,7 @@ test('大会の日: タイムテーブル・招集・手続きの写真', () => 
   gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
   let st = gas.ctx.api(kAdmin, 'bootstrap');
   const race = st.events.find((e) => e.title === '秋季記録会');
-  assert.throws(() => gas.ctx.api(k2, 'saveTimetable', { key: race.key, rows: [] }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k2, 'saveTimetable', { key: race.key, rows: [] }), /大会係の人だけ|当番の人だけ/);
   gas.ctx.api(kAdmin, 'setDuty', { key: race.key, fam: 'U2', on: true });
   st = gas.ctx.api(k2, 'saveTimetable', { key: race.key, rows: [{ start: '1030', race: '100m', group: '5年男子', heat: '2組', call: '10:00' }, { start: '11:00', race: '走り幅跳び', group: '3年', call: '1030' }, { race: '' }] });
   assert.strictEqual(st.timetable.length, 2);
@@ -320,7 +320,7 @@ test('大会の日: タイムテーブル・招集・手続きの写真', () => 
   st = gas.ctx.api(k3, 'setTask', { key: race.key, kind: '招集', target: '鈴木けんた|' + id, done: true });
   assert.strictEqual(st.tasks[0].done, true, '招集はだれでも報告できる');
   assert.strictEqual(st.tasks[0].by, '佐藤');
-  assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: 'リレー予選', target: 'A', memo: 'x' }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: 'リレー予選', target: 'A', memo: 'x' }), /大会係の人だけ|当番の人だけ/);
   st = gas.ctx.api(k2, 'setTask', { key: race.key, kind: 'リレー決勝', target: 'Aチーム', memo: '1走:鈴木けんた', done: true });
   assert.strictEqual(st.tasks.length, 2);
 
@@ -347,8 +347,8 @@ test('結果: その子の家族・役員・当番だけが入れられ、LINE�
   const race = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.title === '秋季記録会');
   let st = gas.ctx.api(k2, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '１５．２１', round: '予選', place: '3位' });
   assert.deepStrictEqual([st.results[0].record, st.results[0].place, st.results[0].round], ['15.21', '3', '予選']);
-  assert.throws(() => gas.ctx.api(k3, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '1' }), /当番の人だけ/);
-  assert.throws(() => gas.ctx.api(k3, 'deleteResult', { id: st.results[0].id }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k3, 'saveResult', { key: race.key, child: '鈴木けんた', race: '100m', record: '1' }), /大会係の人だけ|当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k3, 'deleteResult', { id: st.results[0].id }), /大会係の人だけ|当番の人だけ/);
   gas.ctx.api(kAdmin, 'saveResult', { key: race.key, child: '鈴木けんた', race: '走り幅跳び', record: '3m20' });
   gas.line(dm('U2'), '結果 100m 14.9秒');
   st = gas.ctx.api(k3, 'bootstrap');
@@ -357,7 +357,7 @@ test('結果: その子の家族・役員・当番だけが入れられ、LINE�
   assert.strictEqual(st.results.length, 2);
   st = gas.ctx.api(k3, 'setTask', { key: race.key, kind: 'ナンバー', target: '鈴木けんた', memo: '186' });
   assert.strictEqual(st.tasks[0].memo, '186', 'ナンバーはだれでも入れられる');
-  assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: '参加費支払い', target: '', done: true }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k3, 'setTask', { key: race.key, kind: '参加費支払い', target: '', done: true }), /大会係の人だけ|当番の人だけ/);
 });
 test('会計: 大会の支払いを領収書つきで記録し、履歴に残る', () => {
   const gas = setupClub();
@@ -366,7 +366,7 @@ test('会計: 大会の支払いを領収書つきで記録し、履歴に残る
   const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key, k3 = gas.login('U3').key;
   gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
   const race = gas.ctx.api(kAdmin, 'bootstrap').events.find((e) => e.title === '秋季記録会');
-  assert.throws(() => gas.ctx.api(k2, 'saveLedger', { key: race.key, amount: 6500 }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k2, 'saveLedger', { key: race.key, amount: 6500 }), /大会係の人だけ|当番の人だけ/);
   gas.ctx.api(kAdmin, 'setDuty', { key: race.key, fam: 'U2', on: true });
   const img = 'data:image/jpeg;base64,' + Buffer.from('receipt').toString('base64');
   let st = gas.ctx.api(k2, 'saveLedger', { key: race.key, amount: '６，５００円', payee: '主催者', note: '参加料', data: img });
@@ -414,7 +414,7 @@ test('大会の詳細: 主催の申込期限・資料・履歴', () => {
   assert.deepStrictEqual([det.organizer, det.applyBy, det.applyHow, det.payBy, det.reception, det.url], ['市陸上競技協会', '2026-10-18', 'Web', '2026-10-25', '8:00〜 本部', 'https://example.com/youkou']);
   assert.ok(gas.line(dm('U1'), '新着').includes('申込期限が近い：秋季記録会'), '役員の新着に出る');
   gas.ctx.api(k2, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加', races: [] });
-  assert.throws(() => gas.ctx.api(k2, 'addDoc', { key: race.key, kind: '要項', url: 'https://example.com' }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k2, 'addDoc', { key: race.key, kind: '要項', url: 'https://example.com' }), /大会係の人だけ|当番の人だけ/);
   st = gas.ctx.api(kAdmin, 'addDoc', { key: race.key, kind: '申込書', name: '申込書（記入例）', url: 'https://example.com/form' });
   const pdf = 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 test').toString('base64');
   st = gas.ctx.api(kAdmin, 'addDoc', { key: race.key, kind: 'プログラム', name: 'プログラム', data: pdf });
@@ -438,7 +438,7 @@ test('締切: 手続きごとに日時を入れられ、役員の新着に出る
   const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
   gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
   const race = gas.ctx.api(kAdmin, 'bootstrap').events[0];
-  assert.throws(() => gas.ctx.api(k2, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '2026-11-01 10:00' }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k2, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '2026-11-01 10:00' }), /大会係の人だけ|当番の人だけ/);
   assert.throws(() => gas.ctx.api(kAdmin, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '10時' }), /読めません/);
   let st = gas.ctx.api(kAdmin, 'setDeadline', { key: race.key, kind: 'リレー予選', at: '2026-11-01 10:00' });
   assert.strictEqual(st.events[0].detail.deadlines['リレー予選'], '2026-11-01 10:00');
@@ -967,7 +967,7 @@ test('ダウン: グループの「ダウン入ります」で時刻だけ記録
   assert.ok(gas.line(dm('U2'), '今日').includes('ダウンに入りました（18:20）'));
   assert.strictEqual(gas.line(group('U3'), 'ダウンジャケット忘れた'), '', 'ほかの話には反応しない');
   assert.strictEqual(gas.ctx.api(k3, 'bootstrap').events[0].down, '18:20');
-  assert.throws(() => gas.ctx.api(k2, 'markDown', { key: st.events[0].key }), /当番の人だけ/);
+  assert.throws(() => gas.ctx.api(k2, 'markDown', { key: st.events[0].key }), /大会係の人だけ|当番の人だけ/);
   gas.ctx.api(kAdmin, 'setDuty', { key: st.events[0].key, fam: 'U2', on: true });
   st = gas.ctx.api(k2, 'markDown', { key: st.events[0].key, clear: true });
   assert.strictEqual(st.events[0].down, '');
@@ -1590,13 +1590,13 @@ test('大会は3年分残す（練習は60日）', () => {
   assert.ok(!keys.includes('too-old'), '3年より前は出さない');
 });
 
-test('テスト家族（親A〜D）：入れる・その家族で使う（LINEには送らない）・まとめて消す', () => {
+test('テスト家族（親A〜E）：入れる・その家族で使う（LINEには送らない）・まとめて消す', () => {
   const gas = setupClub();
   const kA = gas.login('U1').key;
   gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
   assert.throws(() => gas.ctx.api(gas.login('U2').key, 'testFamilies', { on: true }), /役員/);
   let st = gas.ctx.api(kA, 'testFamilies', { on: true });
-  assert.strictEqual(plain(st.testFamilies).length, 4);
+  assert.strictEqual(plain(st.testFamilies).length, 5);
   assert.strictEqual(plain(st.testFamilies).find((f) => f.id === 'TEST_C').guardians.length, 2, '親Cは父と祖母');
   // 仮の役員：係ごと
   assert.strictEqual(plain(st.testFamilies).find((f) => f.id === 'TEST_B').role, '副会長・会計係');
@@ -1618,6 +1618,21 @@ test('テスト家族（親A〜D）：入れる・その家族で使う（LINE�
   gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_B', on: true });
   gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_C', on: true });
   assert.ok(gas.ctx.api(gas.ctx.api(kA, 'testLogin', { id: 'TEST_C2' }).key, 'bootstrap').me.canManage.indexOf(race.key) >= 0, '家族の当番は祖母にも');
+  // 親E はふつうの保護者。大会係に選ぶと、役員でなくても、その大会の入力ができる（番号はいらない）
+  const kE = gas.ctx.api(kA, 'testLogin', { id: 'TEST_E' }).key;
+  let se = gas.ctx.api(kE, 'bootstrap');
+  assert.ok(!se.me.admin, '親Eは役員でない');
+  assert.strictEqual(se.me.canManage.indexOf(race.key), -1);
+  assert.throws(() => gas.ctx.api(kE, 'setDuty', { key: race.key, fam: 'TEST_E', on: true, kind: '大会係' }), /役員/);
+  se = gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_E', on: true, kind: '大会係' });
+  assert.deepStrictEqual(plain(se.raceStaff).filter((x) => x.key === race.key).map((x) => x.fam), ['TEST_E']);
+  assert.ok(!plain(se.duties).some((x) => x.key === race.key && x.fam === 'TEST_E'), '大会係は当番に数えない');
+  se = gas.ctx.api(kE, 'bootstrap');
+  assert.ok(se.me.canManage.indexOf(race.key) >= 0, '大会係は、その大会の入力ができる');
+  const other = se.events.find((e) => e.race && e.key !== race.key);
+  if (other) assert.strictEqual(se.me.canManage.indexOf(other.key), -1, 'ほかの大会はできない');
+  const prac = se.events.find((e) => e.type === '練習');
+  assert.throws(() => gas.ctx.api(kA, 'setDuty', { key: prac.key, fam: 'TEST_E', on: true, kind: '大会係' }), /大会だけ/);
   assert.throws(() => gas.ctx.api(kA, 'testLogin', { id: 'U2' }), /テスト家族だけ/);
   st = gas.ctx.api(kA, 'testFamilies', { off: true });
   assert.ok(/消しました/.test(st.message), st.message);

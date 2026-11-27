@@ -264,8 +264,10 @@ function buildState_(ctx) {
   };
   const evOn = {};
   events.forEach((e) => { if (!e.cancelled) (evOn[e.date] = evOn[e.date] || []).push(e); });
-  const duties = readRows_(SHEETS.DUTIES)
-    .filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400))
+  const dutyRows = readRows_(SHEETS.DUTIES).filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400));
+  // 大会係（大会ごと）は、当番とは分けて返す
+  const raceStaff = dutyRows.filter(isRaceStaffRow_).map((x) => ({ key: x.eventKey, fam: x['家族ID'] }));
+  const duties = dutyRows.filter((x) => !isRaceStaffRow_(x))
     .map((x) => {
       let key = x.eventKey;
       if (!key) { const e = (evOn[x['日付']] || []).find((y) => (y.type !== '練習') === (x['種類'] === '大会')); key = e ? e.key : ''; }
@@ -295,7 +297,7 @@ function buildState_(ctx) {
     .filter((x) => kidNames[x['子ども']] && x['記録'])
     .map((x, i) => ({ id: x.id || '', key: x.eventKey, meet: x['大会・練習'] || String(x['日時']).slice(0, 10), date: (x['大会・練習'] || x['日時']).slice(0, 10), child: x['子ども'], race: x['種目'], record: x['記録'], place: x['順位'], round: x['ラウンド'], memo: x['メモ'], kind: /加速/.test(String(x['メモ'] || '')) ? '練習' : x['区分'] || (x.eventKey && !pracKeys[x.eventKey] ? '公式' : '練習') }));
 
-  const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId));
+  const manageKeys = raceKeysAll.filter((k) => ctx.admin || duties.some((x) => x.key === k && x.fam === ctx.famId) || raceStaff.some((x) => x.key === k && x.fam === ctx.famId));
   const me = familyRows.find((f) => f.userId === ctx.userId) || {};
   return {
     club: CONFIG.CLUB_NAME,
@@ -337,6 +339,7 @@ function buildState_(ctx) {
     attends: readRows_(SHEETS.ATTEND).filter((x) => x['子ども'] && x['日付'] >= addDays_(today, -7)).map((x) => ({ date: x['日付'], key: x.eventKey, child: x['子ども'] })),
     notices: notices,
     duties: duties,
+    raceStaff: raceStaff,
     timetable: timetable,
     tasks: tasks,
     photos: photos,

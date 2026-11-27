@@ -64,17 +64,24 @@ function dutyType_(ev, races) {
   return race || (ev['種別'] || guessType_(ev['タイトル'])) !== '練習' ? '大会' : '練習';
 }
 
+/** 大会ごとの「大会係」（役員でなくても、その大会の入力ができる家族）。当番表の行に 種類＝大会係 で残す */
+const RACE_STAFF = '大会係';
+function isRaceStaffRow_(d) { return d['種類'] === RACE_STAFF; }
+
 function setDutyAction_(ctx, p) {
   const ev = findEvent_(p.key);
   if (!ev) throw new Error('予定が見つかりません。');
   const fam = String(p.fam || '');
   if (!fam) throw new Error('家族を選んでください。');
+  const staff = p.kind === RACE_STAFF;
+  if (staff && dutyType_(ev) !== '大会') throw new Error('大会係は、大会だけに決められます。');
+  const type = staff ? RACE_STAFF : dutyType_(ev);
   withLock_(() => {
-    const row = readRows_(SHEETS.DUTIES).find((d) => d.eventKey === p.key && d['家族ID'] === fam);
-    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': dutyType_(ev), '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
+    const row = readRows_(SHEETS.DUTIES).find((d) => d.eventKey === p.key && d['家族ID'] === fam && isRaceStaffRow_(d) === staff);
+    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': type, '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
     if (!p.on && row) clearRow_(SHEETS.DUTIES, row);
   });
-  if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, '当番：' + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
+  if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, (staff ? '大会係：' : '当番：') + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
   return '';
 }
 
@@ -106,7 +113,7 @@ function autoDutyAction_(ctx, p) {
       .filter((e) => e['状態'] !== '中止' && e['日付'] >= today && e['日付'] <= addDays_(today, days) && dutyType_(e, races) === type)
       .sort(compareEvents_);
     targets.forEach((e) => {
-      const have = duties.filter((d) => d.eventKey === e.eventKey).map((d) => d['家族ID']);
+      const have = duties.filter((d) => d.eventKey === e.eventKey && !isRaceStaffRow_(d)).map((d) => d['家族ID']);
       for (let n = have.length; n < per; n++) {
         const pick = families
           .filter((f) => have.indexOf(f.id) < 0)
@@ -124,11 +131,11 @@ function autoDutyAction_(ctx, p) {
   return added ? added + '件の当番を入れました。前回から日がたっている家族から順番です' : '当番を入れる予定がありませんでした（もう全部入っています）';
 }
 
-/** 大会のタイムテーブル・手続きを直せる人（役員と、その大会の当番の家族） */
+/** 大会のタイムテーブル・手続きを直せる人（役員と、その大会の当番・大会係の家族） */
 function requireManager_(ctx, key) {
   if (ctx.admin) return;
   const ok = readRows_(SHEETS.DUTIES).some((d) => d.eventKey === key && d['家族ID'] === ctx.famId);
-  if (!ok) throw new Error('この操作は、役員とこの予定の当番の人だけができます。');
+  if (!ok) throw new Error('この操作は、役員と、この予定の当番・大会係の人だけができます。');
 }
 
 // ---- タイムテーブル ----

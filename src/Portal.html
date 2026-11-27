@@ -2003,6 +2003,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'ledger') return adminLedger();
     if (S.admin === 'budget') return adminBudget();
     if (S.admin === 'respick') return adminResPick();
+    if (S.admin === 'export') return adminExport();
     if (S.admin === 'tmpick') return adminTmPick();
     if (S.admin === 'nearmiss') return adminNearMiss();
     if (S.admin === 'members') return adminMembers();
@@ -2074,7 +2075,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   var ROLES = [
     { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
     { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け'], ['testfam', '🧪 テスト家族']] },
-    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）'], ['tmpick', '⏱ 練習のタイムを記録する'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
+    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）'], ['tmpick', '⏱ 練習のタイムを記録する'], ['records', '📈 記録・自己ベスト表'], ['export', '📤 ベスト記録を書き出す（Excel・CSV・PDF）'], ['dash', '📊 記録ダッシュボード']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
     { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['budget', '📊 予算と残高（年度）'], ['fees', '💴 集金（期限・催促）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 お金の出入りを記録（領収書）']] },
   ];
@@ -6488,6 +6489,102 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     view.innerHTML = h;
     bindBack();
     on('[data-tpick]', function () { goTo({ ev: this.dataset.tpick, etab: '概要' }); setTimeout(function () { flashTo('times'); }, 50); });
+  }
+  // ---- 記録係：ベスト記録を書き出す（大会エントリー用の Excel・CSV、LINEで報告する PDF） ----
+  var EXP_HEAD = ['学年', '男女', '名前', '種目', 'ベスト記録', '記録した日', '大会・練習', '区分'];
+  /** 書き出す行。X.scope＝'all' か大会のキー（参加の子と、エントリーした種目）、X.kind＝'公式' か 'both'（練習もふくめてよい方）、X.sort＝'race'（種目ごと・よい順）か 'name' */
+  function exportRows(X) {
+    var ev = X.scope !== 'all' && evByKey(X.scope), rows = [];
+    var kids = ev ? ST.kids.filter(function (k) { var x = entryOf(ev.key, k.name); return x && x.join === '参加'; }) : ST.kids.slice();
+    kids.forEach(function (k) {
+      var bo = bests(k.name, '公式'), bp = X.kind === 'both' ? bests(k.name, '練習') : {};
+      var list = ev ? (entryOf(ev.key, k.name).races || []).map(function (r) { return { c: canon(r), n: r }; }) : Object.keys(bo).concat(Object.keys(bp)).filter(function (c, i, a) { return a.indexOf(c) === i; }).map(function (c) { return { c: c, n: (bo[c] || bp[c]).race }; });
+      list.forEach(function (it) {
+        var o = bo[it.c], q = bp[it.c], b = o, kind = '公式';
+        if (q && (!o || isBetter(it.c, q.record, o.record))) { b = q; kind = '練習'; }
+        if (X.race && it.c !== X.race) return;
+        rows.push({ k: k, race: it.n, c: it.c, b: b, kind: b ? kind : '' });
+      });
+    });
+    rows.sort(X.sort === 'race'
+      ? function (a, b) { return a.c < b.c ? -1 : a.c > b.c ? 1 : !a.b ? 1 : !b.b ? -1 : isBetter(a.c, a.b.record, b.b.record) ? -1 : isBetter(a.c, b.b.record, a.b.record) ? 1 : 0; }
+      : function (a, b) { return byGrade(a.k, b.k) || (a.c < b.c ? -1 : 1); });
+    return rows.map(function (r) { return [r.k.grade ? r.k.grade + '年' : '', r.k.sex || '', r.k.name, r.race, r.b ? r.b.record : '（記録なし）', r.b ? r.b.date : '', r.b ? String(r.b.meet).replace(/^\d{4}-\d{2}-\d{2}\s*/, '') : '', r.kind]; });
+  }
+  function exportTitle(X) { var ev = X.scope !== 'all' && evByKey(X.scope); return ST.club + ' ' + (ev ? ev.title + ' エントリー（ベスト記録）' : 'ベスト記録一覧') + (X.kind === 'both' ? '（練習ふくむ）' : '（公式）'); }
+  function saveBlob(blob, name) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+  function loadScript(src, test, done, fail) {
+    if (test()) return done();
+    var sc = document.createElement('script'); sc.src = src; sc.onload = done; sc.onerror = fail; document.head.appendChild(sc);
+  }
+  /** PDF：表を画像（キャンバス）にして A4 に貼る（日本語の字をそのまま出せる）。1ページ30行 */
+  function exportPdf(title, head, rows, done) {
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function () { return window.jspdf; }, function () {
+      var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' }), W = 1190, H = 1684, per = 30, pages = Math.max(1, Math.ceil(rows.length / per));
+      var cw = [70, 60, 190, 160, 140, 140, 270, 80], font = '"Hiragino Sans","Noto Sans CJK JP","Noto Sans JP","Yu Gothic",sans-serif';
+      for (var pg = 0; pg < pages; pg++) {
+        var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+        c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.fillStyle = '#182328';
+        c.font = 'bold 34px ' + font; c.fillText(title, 40, 70);
+        c.font = '22px ' + font; c.fillStyle = '#5f7079'; c.fillText(md(ST.today) + ' 時点' + (pages > 1 ? '　' + (pg + 1) + '/' + pages + 'ページ' : ''), 40, 105);
+        var y = 150, x0 = 40, drawRow = function (cells, bold, bg) {
+          if (bg) { c.fillStyle = bg; c.fillRect(x0, y - 30, W - 80, 44); }
+          c.fillStyle = '#182328'; c.font = (bold ? 'bold ' : '') + '22px ' + font;
+          var x = x0 + 8; cells.forEach(function (t, i) { var s0 = String(t == null ? '' : t); while (s0.length > 1 && c.measureText(s0).width > cw[i] - 10) s0 = s0.slice(0, -1); c.fillText(s0, x, y); x += cw[i]; });
+          c.strokeStyle = '#d6dfe3'; c.beginPath(); c.moveTo(x0, y + 14); c.lineTo(W - 40, y + 14); c.stroke(); y += 46;
+        };
+        drawRow(head, true, '#e9eef0');
+        rows.slice(pg * per, pg * per + per).forEach(function (r, i) { drawRow(r, false, i % 2 ? '#f6f8f9' : ''); });
+        if (pg) doc.addPage();
+        doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 595.28, 841.89);
+      }
+      done(doc.output('blob'));
+    }, function () { S.toast = '⚠ PDFをつくる部品を読み込めませんでした。電波のよいところでもう一度'; S.toastErr = true; render(); });
+  }
+  function adminExport() {
+    var X = S.exp || (S.exp = { scope: 'all', kind: '公式', sort: 'name', race: '' });
+    var races = ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date >= addDays(ST.today, -7); });
+    var rows = exportRows(X), raceNames = {};
+    ST.results.forEach(function (r) { raceNames[canon(r.race)] = raceNames[canon(r.race)] || r.race; });
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>📤 ベスト記録を書き出す</h2>' +
+      '<div class="lbl">だれの</div><div class="choice sm"><button type="button" data-xs="all" aria-pressed="' + (X.scope === 'all') + '">全員（記録のある種目）</button>' + races.map(function (e) { return '<button type="button" data-xs="' + e.key + '" aria-pressed="' + (X.scope === e.key) + '">' + md(e.date) + ' ' + esc(e.title) + 'のエントリー</button>'; }).join('') + '</div>' +
+      '<div class="lbl">記録</div><div class="choice sm"><button type="button" data-xk="公式" aria-pressed="' + (X.kind === '公式') + '">公式（大会）だけ</button><button type="button" data-xk="both" aria-pressed="' + (X.kind === 'both') + '">練習もふくめてよい方</button></div>' +
+      '<div class="lbl">種目</div><div class="choice sm"><button type="button" data-xr="" aria-pressed="' + (!X.race) + '">ぜんぶ</button>' + Object.keys(raceNames).map(function (c) { return '<button type="button" data-xr="' + esc(c) + '" aria-pressed="' + (X.race === c) + '">' + esc(raceNames[c]) + '</button>'; }).join('') + '</div>' +
+      '<div class="lbl">並べ方</div><div class="choice sm"><button type="button" data-xo="name" aria-pressed="' + (X.sort === 'name') + '">学年・名前順（エントリー用）</button><button type="button" data-xo="race" aria-pressed="' + (X.sort === 'race') + '">種目ごと・よい順（報告用）</button></div>' +
+      '<div class="row"><button class="btn" type="button" id="xXlsx">📗 Excel</button><button class="btn ghost" type="button" id="xCsv">CSV</button><button class="btn ghost" type="button" id="xPdf">📄 PDF</button>' + (navigator.share ? '<button class="btn ghost" type="button" id="xShare">📤 PDFをLINEなどで送る</button>' : '') + '</div>' +
+      '<div class="hint">大会のエントリーを選ぶと、「参加」の子と、その子がエントリーした種目のベスト記録を出します（記録がない種目は「記録なし」）。Excel・CSVは申込書に写すとき、PDFはLINEで報告するときに。</div></section>' +
+      '<section class="card"><h2>見本<small>' + rows.length + '行</small></h2>' + (rows.length ? '<div class="tbl-wrap"><table><thead><tr>' + EXP_HEAD.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.slice(0, 40).map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td>' + (i === 4 ? '<b>' + esc(c) + '</b>' : esc(c)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' + (rows.length > 40 ? '<div class="sub">ほか ' + (rows.length - 40) + '行（書き出すと全部入ります）</div>' : '') : '<div class="sub">書き出す記録がありません。</div>') + '</section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-xs]', function () { X.scope = this.dataset.xs; if (X.scope !== 'all') X.race = ''; render(); });
+    on('[data-xk]', function () { X.kind = this.dataset.xk; render(); });
+    on('[data-xr]', function () { X.race = this.dataset.xr; render(); });
+    on('[data-xo]', function () { X.sort = this.dataset.xo; render(); });
+    var base = function () { return exportTitle(X).replace(/[\\/:*?"<>|\s]+/g, '_') + '_' + ST.today; };
+    on('#xCsv', function () {
+      var q = function (v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var txt = [EXP_HEAD].concat(exportRows(X)).map(function (r) { return r.map(q).join(','); }).join('\r\n');
+      saveBlob(new Blob(['\ufeff' + txt], { type: 'text/csv;charset=utf-8' }), base() + '.csv');
+    });
+    on('#xXlsx', function () {
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', function () { return window.XLSX; }, function () {
+        var ws = XLSX.utils.aoa_to_sheet([[exportTitle(X)], [md(ST.today) + ' 時点'], []].concat([EXP_HEAD]).concat(exportRows(X)));
+        ws['!cols'] = [6, 5, 14, 14, 12, 12, 24, 6].map(function (w) { return { wch: w }; });
+        var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ベスト記録');
+        saveBlob(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), base() + '.xlsx');
+      }, function () { S.toast = '⚠ Excelをつくる部品を読み込めませんでした。CSVを使ってください'; S.toastErr = true; render(); });
+    });
+    on('#xPdf', function () { exportPdf(exportTitle(X), EXP_HEAD, exportRows(X), function (blob) { saveBlob(blob, base() + '.pdf'); }); });
+    on('#xShare', function () {
+      exportPdf(exportTitle(X), EXP_HEAD, exportRows(X), function (blob) {
+        var file = new File([blob], base() + '.pdf', { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) navigator.share({ files: [file], title: exportTitle(X) }).catch(function () {});
+        else saveBlob(blob, file.name);
+      });
+    });
   }
   // ---- 会計係：年度（4月はじまり）の予算・実績・残高 ----
   var MONEY_CATS = { '収入': ['年会費', '大会参加費（集金）', '寄付・協賛', '補助金', '雑収入'], '支出': ['大会参加費', '登録料', 'スポーツ保険', '用具・消耗品', 'ユニフォーム', '会場費', '交通費', '行事費', '通信・印刷', '雑費'] };

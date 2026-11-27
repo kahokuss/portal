@@ -880,7 +880,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "bcce5c79ae";
+var BUILD = "12b863c3f8";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1899,6 +1899,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'ledger') return adminLedger();
     if (S.admin === 'budget') return adminBudget();
     if (S.admin === 'respick') return adminResPick();
+    if (S.admin === 'export') return adminExport();
     if (S.admin === 'tmpick') return adminTmPick();
     if (S.admin === 'nearmiss') return adminNearMiss();
     if (S.admin === 'members') return adminMembers();
@@ -1944,7 +1945,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   var ROLES = [
     { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
     { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け'], ['testfam', '🧪 テスト家族']] },
-    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）'], ['tmpick', '⏱ 練習のタイムを記録する'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
+    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）'], ['tmpick', '⏱ 練習のタイムを記録する'], ['records', '📈 記録・自己ベスト表'], ['export', '📤 ベスト記録を書き出す（Excel・CSV・PDF）'], ['dash', '📊 記録ダッシュボード']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
     { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['budget', '📊 予算と残高（年度）'], ['fees', '💴 集金（期限・催促）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 お金の出入りを記録（領収書）']] },
   ];
@@ -5756,6 +5757,15 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // ---- 記録係：結果を入れる大会を選ぶ／練習のタイムを入れる練習を選ぶ ----
   // （役員ページだけ：adminResPick）
   // （役員ページだけ：adminTmPick）
+  var EXP_HEAD = ['学年', '男女', '名前', '種目', 'ベスト記録', '記録した日', '大会・練習', '区分'];
+  /** 書き出す行。X.scope＝'all' か大会のキー（参加の子と、エントリーした種目）、X.kind＝'公式' か 'both'（練習もふくめてよい方）、X.sort＝'race'（種目ごと・よい順）か 'name' */
+  // （役員ページだけ：exportRows）
+  // （役員ページだけ：exportTitle）
+  // （役員ページだけ：saveBlob）
+  // （役員ページだけ：loadScript）
+  /** PDF：表を画像（キャンバス）にして A4 に貼る（日本語の字をそのまま出せる）。1ページ30行 */
+  // （役員ページだけ：exportPdf）
+  // （役員ページだけ：adminExport）
   var MONEY_CATS = { '収入': ['年会費', '大会参加費（集金）', '寄付・協賛', '補助金', '雑収入'], '支出': ['大会参加費', '登録料', 'スポーツ保険', '用具・消耗品', 'ユニフォーム', '会場費', '交通費', '行事費', '通信・印刷', '雑費'] };
   var CARRY = '前年度繰越';
   // （役員ページだけ：fyOf）

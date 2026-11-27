@@ -16,7 +16,7 @@ const gsFiles = fs.readdirSync(path.join(root, 'src')).filter((f) => f.endsWith(
 const serverVersion = require('crypto').createHash('md5').update(gsFiles.map((f) => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join('\n')).digest('hex').slice(0, 10);
 
 // 保護者ポータル（軽い版）から外す、役員だけの画面（関数ごと。次の関数の手前まで消す）
-const STAFF_ONLY = ['staffHome', 'adminResPick', 'adminTmPick', 'fyOf', 'moneyFy', 'moneySummaryCard', 'moneyGuideCard', 'adminBudget', 'dutyFlowInfo', 'dutyFlowCard', 'bindDutyFlow', 'myRoleText', 'roleOwner', 'opsChecks', 'opsItem', 'opsCard', 'bindOps', 'adminOps', 'adminTestFam', 'adminNotes', 'adminDutyCal', 'shortFam', 'fyStart', 'fyEnd', 'fyDuties',
+const STAFF_ONLY = ['staffHome', 'exportRows', 'exportTitle', 'saveBlob', 'loadScript', 'exportPdf', 'adminExport', 'adminResPick', 'adminTmPick', 'fyOf', 'moneyFy', 'moneySummaryCard', 'moneyGuideCard', 'adminBudget', 'dutyFlowInfo', 'dutyFlowCard', 'bindDutyFlow', 'myRoleText', 'roleOwner', 'opsChecks', 'opsItem', 'opsCard', 'bindOps', 'adminOps', 'adminTestFam', 'adminNotes', 'adminDutyCal', 'shortFam', 'fyStart', 'fyEnd', 'fyDuties',
   'adminDuty', 'parseDutyTable', 'adminNotify', 'adminTable', 'adminRecords', 'adminMembers', 'adminLedger', 'adminSheet', 'adminPractice', 'adminFees', 'adminPolls', 'adminNotice', 'adminAbsences', 'adminNearMiss', 'adminRoster', 'updateCard'];
 function stripStaff(src) {
   const starts = []; const re = /\n  function (\w+)\(/g; let m;

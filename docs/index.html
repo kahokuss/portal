@@ -869,12 +869,11 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "c9274b4a02";
+var BUILD = "7c2abce58b";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = true;
-var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
 var STAFF_SITE = !LITE && /\/staff\/?$/.test(location.pathname);
@@ -1066,6 +1065,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function fillDefaults(st) {
     ['duties', 'raceStaff', 'swaps', 'budget', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
+    // 保護者ポータル（軽い版）は見るだけ：役員・当番・大会係でも、ここでは直せない（直すのは役員ページ staff/ で）
+    if (LITE && !st.me.liteMasked) {
+      st.me.staff = !!st.me.admin; st.me.manageKeys = st.me.canManage;
+      st.me.admin = false; st.me.canManage = []; st.me.liteMasked = true;
+    }
     if (!st.raceNotes) st.raceNotes = [];
     if (!st.testFamilies) st.testFamilies = [];
     // 加速走や、練習の日の計測は「練習」（区分が空のまま残っている古い記録も）
@@ -1336,7 +1340,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   /** わが家：役員になる（申請・役員の番号） */
   function adminRequestCard() {
-    if (ST.me.admin) return '<section class="card"><h2>役員<small>役員です</small></h2><div class="sub">下のメニューの「管理」から、予定・大会・当番・お知らせ・メンバーなどを直せます。</div></section>';
+    if (ST.me.admin || ST.me.staff) return '<section class="card"><h2>役員<small>役員です</small></h2><div class="sub">下のメニューの「管理」から、予定・大会・当番・お知らせ・メンバーなどを直せます。</div></section>';
     return '<section class="card"><h2>役員になる<small>' + (ST.me.adminRequested ? '申請中' : '役員ではありません') + '</small></h2>' +
       '<div class="sub">役員になると、下のメニューに「管理」が出て、予定・大会・当番・お知らせなどを直せます。</div>' +
       (ST.me.adminRequested ? '<div class="row"><span class="pill p-warn">申請中</span><span class="sub">役員の人が承認すると「管理」が出ます</span><button class="btn small ghost" id="arCancel" type="button">取り下げる</button></div>'
@@ -1359,7 +1363,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // （役員ページだけ：opsItem）
   /** 軽い版のホーム（役員だけ）：役員ページへの入口 */
   function staffLinkCard() {
-    if (!ST.me.admin) return '';
+    if (!ST.me.admin && !ST.me.staff) return '';
     return '<section class="card staffcard"><div class="between"><b>🛠 役員ページ</b><a class="btn small" href="' + staffUrl('menu') + '" style="text-decoration:none">開く ›</a></div><div class="sub">係ごとの「今やること」と、当番カレンダー・会計・記録などの道具は役員ページにあります。</div></section>';
   }
   // （役員ページだけ：opsCard）
@@ -1650,7 +1654,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var ETAB_IC = { '概要': '📋', 'エントリー': '✋', 'タイムテーブル': '⏱', '結果': '🏅', '写真': '📷', 'わが家': '🏠' };
     h += '<nav class="etabs" role="group" aria-label="大会の情報" style="grid-template-columns:repeat(' + tabs.length + ',minmax(0,1fr))">' + tabs.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '"><span class="ei" aria-hidden="true">' + ETAB_IC[t] + '</span>' + (t === 'タイムテーブル' ? '時刻表' : t === 'エントリー' ? 'エントリー' : t) + '</button>'; }).join('') + '</nav>' +
       (staff.length ? '<div class="tabs staff" role="group" aria-label="役員・当番"><span class="stl">🛠 役員・当番</span>' + staff.map(function (t) { return '<button type="button" data-et="' + t + '" aria-pressed="' + (S.etab === t) + '">' + (t === '手続き' ? '手続きの流れ' : '種目・リレー') + '</button>'; }).join('') + '</div>' : '') + toastHtml();
-    if (LITE && canManage(e.key)) h += '<a class="card staffcard dutylink" href="staff/?ev=' + encodeURIComponent(e.key) + '&et=' + encodeURIComponent('手続き') + '" style="text-decoration:none;color:inherit"><b>🛠 大会の入力（手続き・種目・時刻表・結果）</b><span class="sub">この大会の当番・大会係です。入力や直しは、役員用のページで ›</span></a>';
+    if (LITE && (ST.me.manageKeys || []).indexOf(e.key) >= 0) h += '<a class="card staffcard dutylink" href="staff/?ev=' + encodeURIComponent(e.key) + '&et=' + encodeURIComponent('手続き') + '" style="text-decoration:none;color:inherit"><b>🛠 大会の入力（手続き・種目・時刻表・結果）</b><span class="sub">この大会の当番・大会係です。入力や直しは、役員用のページで ›</span></a>';
     if (S.etab === '概要') {
       if (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1)) h += jinchiCard(e);
       h += (canManage(e.key) && !LITE ? raceNoteCard(e) : '') + (e.date >= ST.today ? '<section class="card">' + raceHero(e) + raceTodoHtml(e, true) + '</section>' : '') + statusCard(e);
@@ -1868,7 +1872,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // ---- 管理（役員） ----
   function staffUrl(adm) { return 'staff/' + (adm && adm !== 'menu' ? '?adm=' + encodeURIComponent(adm) : ''); }
   function admin() {
-    if (LITE && STAFF_KEEP.indexOf(S.admin) < 0) { view.innerHTML = '<section class="card"><div class="sub">役員ページを開いています…</div><a class="btn" href="' + staffUrl(S.admin) + '">役員ページを開く</a></section>'; location.href = staffUrl(S.admin); return; }
+    // 保護者ポータルでは直さない：管理はいつも役員ページへ
+    if (LITE) { view.innerHTML = '<section class="card"><div class="sub">役員ページを開いています…</div><a class="btn" href="' + staffUrl(S.admin) + '">役員ページを開く</a></section>'; location.href = staffUrl(S.admin); return; }
     if (S.admin === 'race') return adminRace();
     if (S.admin === 'notes') return adminNotes();
     if (S.admin === 'dutycal') return adminDutyCal();
@@ -5853,10 +5858,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var nav = document.getElementById('nav');
     nav.hidden = false; document.getElementById('view').classList.add('navpad');
     if (STAFF_SITE) return renderStaffNav(nav);
-    nav.className = 'nav' + (ST.me.admin ? ' admin' : '');
+    var navStaff = ST.me.admin || ST.me.staff;
+    nav.className = 'nav' + (navStaff ? ' admin' : '');
     var badges = { home: ST.me.children.length ? todoItems().length : 0, events: 0, admin: 0 };
     if (ST.me.admin) badges.admin = ST.absences.filter(function (a) { return a.date >= ST.today && !a.ack; }).length + ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; }).length + ST.parents.filter(function (p) { return p.request; }).length;
-    nav.innerHTML = NAV.filter(function (n) { return n[0] !== 'admin' || ST.me.admin; }).map(function (n) {
+    nav.innerHTML = NAV.filter(function (n) { return n[0] !== 'admin' || navStaff; }).map(function (n) {
       var b = badges[n[0]] ? '<span class="badge" aria-label="' + badges[n[0]] + '件">' + badges[n[0]] + '</span>' : '';
       return '<button type="button" data-nav="' + n[0] + '"' + (S.tab === n[0] ? ' aria-current="page"' : '') + '>' + b + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n[0]] + '</svg>' + n[1] + '</button>';
     }).join('');
@@ -5891,7 +5897,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       if (!(S.tab === 'admin' || S.tab === 'dash' || (S.tab === 'events' && S.event))) { S.tab = 'admin'; S.admin = 'menu'; }
       var tl = document.getElementById('toLine'); if (tl) { tl.href = '../'; tl.textContent = 'ポータル'; tl.target = '_top'; }
     }
-    if (S.tab === 'admin' && !ST.me.admin && !(S.admin === 'race' && S.draft && S.draft.from === 'edit')) S.tab = 'home';
+    if (S.tab === 'admin' && !ST.me.admin && !(LITE && ST.me.staff) && !(S.admin === 'race' && S.draft && S.draft.from === 'edit')) S.tab = 'home';
     renderNav();
     testBar();
     var vt = document.getElementById('vtip'); if (vt) vt.hidden = true;

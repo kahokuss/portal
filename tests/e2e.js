@@ -839,6 +839,10 @@ async function openPortal(browser, gas, userId, name) {
       await g2.goto(PAGES);
       await g2.waitForSelector('#nav:not([hidden])');
       assert.ok((await g2.textContent('#view')).includes('役員ページ'), 'ホームに役員ページの入口');
+      // 保護者ポータルでは、役員でも直せない（当番の割り当て・大会の入力のボタンが出ない）
+      await g2.click('[data-nav="events"]');
+      await g2.click('.ev:has-text("秋季記録会")');
+      assert.ok(!(await g2.$('[data-duty]')) && !(await g2.$('[data-rstaff]')) && !(await g2.$('#ttEdit')) && !(await g2.$('[data-pay]')), 'ポータルでは直せない');
       await g2.click('[data-nav="admin"]');
       await g2.waitForURL(/\/staff\//);
       await g2.waitForSelector('.staffhead');

@@ -110,6 +110,7 @@ var GAS_MOCK_SRC = "// Apps Script のサービス（スプレッドシート・
     }
     gas.calendar.add({ title: '第3回 お試し記録会', start: jst(day(10) + 'T00:00:00'), end: jst(day(11) + 'T00:00:00'), allDay: true, location: '市営陸上競技場' });
     gas.calendar.add({ title: 'お試しロードレース大会', start: jst(day(31) + 'T00:00:00'), end: jst(day(32) + 'T00:00:00'), allDay: true, location: '運動公園' });
+    gas.calendar.add({ title: '第2回 お試し記録会', start: jst(day(-5) + 'T00:00:00'), end: jst(day(-4) + 'T00:00:00'), allDay: true, location: '市営陸上競技場' });
     gas.calendar.add({ title: '秋の陸上競技会', start: jst(day(-20) + 'T00:00:00'), end: jst(day(-19) + 'T00:00:00'), allDay: true, location: '県営陸上競技場' });
     SEI.forEach(function (s, k) {
       var u = 'U' + (k + 1);
@@ -138,7 +139,7 @@ var GAS_MOCK_SRC = "// Apps Script のサービス（スプレッドシート・
     prac.forEach(function (e, n) { api('U1', 'setDuty', { key: e.key, fam: fams[(n * 7) % fams.length], on: true }); });
     api('U1', 'setDuty', { key: past.key, fam: 'U3', on: true });
     api('U1', 'setDuty', { key: past.key, fam: 'U4', on: true });
-    api('U1', 'autoDuty', { type: '練習', days: 14, per: 1 });
+    api('U1', 'autoDuty', { type: '練習', days: 6, per: 1 }); // 2週目の当番はわざと空けておく（当番係の「今やること」に出る）
     api('U1', 'setDuty', { key: race.key, fam: 'U5', on: true });
     api('U1', 'setDuty', { key: race.key, fam: 'U6', on: true });
     // エントリー（保護者は参加・不参加、種目は役員が登録）
@@ -159,6 +160,35 @@ var GAS_MOCK_SRC = "// Apps Script のサービス（スプレッドシート・
     var next = st.events.filter(function (e) { return e.type === '練習' && e.date >= today; })[0];
     if (next) [2, 6, 9].forEach(function (k) { api('U' + (k + 1), 'reportAbsence', { child: SEI[k] + ' ' + MEI[k], date: next.date, reason: '体調不良' }); });
     api('U1', 'saveNotice', { title: 'お試しポータルへようこそ', body: 'ここはダミーデータのお試し用です。自由に押して大丈夫です。本物のデータには何も入りません。', important: false });
+    // ---- 役員の係ごとに「今やること」が出るように ----
+    var rec = st.events.find(function (e) { return e.title === '第2回 お試し記録会'; });
+    api('U1', 'saveRace', { key: rec.key, title: rec.title, date: rec.date, place: '市営陸上競技場', type: '記録会', target: '全員', fee: 400, races: ['50m', '100m', '800m'], payBy: rec.date });
+    api('U1', 'saveRace', { key: past.key, title: past.title, date: past.date, place: '県営陸上競技場', type: '大会', target: '全員', fee: 500, races: ['100m', '走幅跳'] });
+    SEI.forEach(function (s0, k) {
+      var name = s0 + ' ' + MEI[k], g = (k % 6) + 1;
+      if (k % 3 !== 2) api('U1', 'saveEntry', { key: rec.key, child: name, join: '参加', races: [g <= 2 ? '50m' : '100m'] }); // 結果はまだ（記録係）
+      if (k % 2 === 0) {
+        api('U1', 'saveEntry', { key: past.key, child: name, join: '参加', races: ['100m'] });
+        api('U1', 'saveResult', { key: past.key, child: name, race: '100m', record: (21 - g * 0.9 + (k % 5) * 0.2).toFixed(2), place: String((k % 8) + 1), kind: '公式' });
+      }
+    });
+    // 練習の記録（記録ダッシュボード用）
+    var recs = [];
+    SEI.forEach(function (s0, k) { var g = (k % 6) + 1; for (var mth = 5; mth >= 1; mth--) recs.push({ child: s0 + ' ' + MEI[k], race: g <= 2 ? '50m' : '100m', record: (g <= 2 ? 11 - g * 0.4 - (5 - mth) * 0.05 : 21 - g * 0.9 - (5 - mth) * 0.08).toFixed(2), date: day(-mth * 30), meet: '練習', kind: '練習' }); });
+    api('U1', 'addRecords', { rows: recs });
+    // 会計：年会費の集金（半分くらい済み）、大会の参加費の集金、過去の大会への支払い、年会費の入金
+    api('U1', 'saveFee', { name: '年会費', amount: 3000, target: '全員', deadline: day(10) });
+    var fee = api('U1', 'bootstrap').fees.find(function (f) { return f.name === '年会費'; });
+    if (fee) SEI.forEach(function (s0, k) { if (k % 2 === 0) api('U1', 'setFeePaid', { id: fee.id, child: s0 + ' ' + MEI[k], paid: true }); });
+    SEI.forEach(function (s0, k) { if (k % 5 !== 4 && k % 7 !== 6 && k % 3 === 0) api('U1', 'setPaid', { key: race.key, child: s0 + ' ' + MEI[k], paid: true }); });
+    api('U1', 'saveLedger', { key: past.key, kind: '支払い', amount: 5000, payee: '県陸上競技協会', note: '参加料（10人）', date: past.date });
+    api('U1', 'saveLedger', { kind: '入金', amount: 30000, note: '年会費（10家族分）', date: day(-3) });
+    // 全体：ヒヤリハット（対策まだ）、アンケート
+    var lastPrac = st.events.filter(function (e) { return e.type === '練習' && e.date < today; }).slice(-1)[0];
+    if (lastPrac) api('U6', 'saveComment', { key: lastPrac.key, kind: 'ヒヤリハット', body: '駐車場から車が急に出てきて、子どもとぶつかりそうになった', place: '校庭の駐車場の出入口' });
+    api('U1', 'savePoll', { title: '記録会の送迎、車を出せますか', options: ['出せる', '出せない'], deadline: day(6) });
+    // 大会：来年への引き継ぎ
+    api('U1', 'saveRaceNote', { key: road.key, memo: 'エントリーは先着順。申込開始日（例年10月はじめ）の朝にすぐ申し込む' });
     return { gas: gas, key: key };
   }
 

@@ -757,9 +757,11 @@ tr.sel td { background: var(--sky-soft); }
 .sitesw a.ss-s[aria-current] { background: #5b3fa8; border-color: #5b3fa8; color: #fff; }
 body.staffsite .sitesw { background: #f6f3fc; }
 /* 説明・手順のカード：入力のカードとまちがえないよう、色と見出しの札で分ける */
-.card.guide { background: var(--sky-soft); border: 1.5px dashed var(--sky); box-shadow: none; }
-.card.guide > h2 { color: var(--sky); }
-.card.guide > h2::before { content: '📘 説明'; display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: middle; }
+.card.howto { background: var(--sky-soft); border: 1.5px dashed var(--sky); box-shadow: none; }
+.card.howto > h2 { color: var(--sky); justify-content: flex-start; }
+.card.howto > h2::before { content: '📘 説明'; flex: none; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; }
+.card.howto > h2 small { margin-left: auto; white-space: nowrap; }
+.card.howto > h2 .fold-ic { margin-left: auto; } .card.howto > h2 small + .fold-ic { margin-left: 0; }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
 .qnav b { font-size: 14px; text-align: center; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
@@ -883,7 +885,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "d08c47b17d";
+var BUILD = "a469295ce4";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "30114f1d3f";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -2111,7 +2113,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<span class="row"><button class="btn small' + (short ? '' : ' ghost') + '" type="button" data-flowgo="practice">📅 練習の予定をつくる</button><button class="btn small ghost" type="button" data-flowgo="race">➕ 大会をつくる</button></span></div>';
     var step2 = '<div class="flowst' + (I.empty ? ' now' : I.prLast ? ' ok' : '') + '"><b>② 当番を決める</b><span class="sub">' + (I.prLast || I.rcLast ? (I.empty ? '2か月先までで、当番が決まっていない予定 <b>' + I.empty + '件</b>' : '2か月先までの予定には、当番が入っています') : '①で予定をつくってから') + '</span>' +
       (compact ? '' : '<span class="row"><button class="btn small' + (I.empty ? '' : ' ghost') + '" type="button" data-flowgo="dutycal">🗓 当番カレンダーで決める</button></span>') + '</div>';
-    return '<section class="card flow guide"><h2>当番を決める流れ</h2><div class="hint">当番は「予定」に入れます。カレンダーに予定がない日には、当番を入れられません。</div>' + step1 + '<div class="flowarr">↓</div>' + step2 + '</section>';
+    return '<section class="card flow howto"><h2>当番を決める流れ</h2><div class="hint">当番は「予定」に入れます。カレンダーに予定がない日には、当番を入れられません。</div>' + step1 + '<div class="flowarr">↓</div>' + step2 + '</section>';
   }
   function bindDutyFlow() { on('[data-flowgo]', function () { S.admin = this.dataset.flowgo; if (S.admin === 'race') { S.draft = null; S.filled = {}; } S.toast = ''; render(); window.scrollTo(0, 0); }); }
   function myRoleText() { var f = ST.families.filter(function (x) { return x.id === ST.me.fam; })[0]; return (f && f.role) || ''; }
@@ -6670,7 +6672,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   function moneyGuideCard() {
     var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、催促の文をコピーして手作業で催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会のページで ✓）→ 主催者に支払い → 領収書を写真で残す', '_nextpay'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
-    return '<section class="card guide"><h2>会計係の1年<small>はじめての人へ</small></h2><div class="list">' + steps.map(function (x) { return '<button type="button" class="opsit" data-stool="' + x[2] + '"><span class="pill p-gray">' + x[0] + '</span><span class="main"><span class="sub" style="color:var(--fg)">' + esc(x[1]) + '</span></span><span class="go">›</span></button>'; }).join('') + '</div>' +
+    return '<section class="card howto"><h2>会計係の1年<small>はじめての人へ</small></h2><div class="list">' + steps.map(function (x) { return '<button type="button" class="opsit" data-stool="' + x[2] + '"><span class="pill p-gray">' + x[0] + '</span><span class="main"><span class="sub" style="color:var(--fg)">' + esc(x[1]) + '</span></span><span class="go">›</span></button>'; }).join('') + '</div>' +
       '<div class="hint">お金は「集金」「大会の参加費」「お金の出入り」の3つで記録すると、予算と残高にまとめて出ます。現金の残りと、ここの残高がときどき合っているかを確かめましょう。</div></section>';
   }
   function adminBudget() {

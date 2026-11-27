@@ -855,7 +855,7 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok(await g2.$('#siteSw a.ss-s[aria-current]'), '役員ページにいる');
       assert.strictEqual(await g2.getAttribute('#siteSw a.ss-p', 'href'), '../');
       await g2.click('[data-snav="duty"]');
-      assert.ok(await g2.$('.card.guide'), '説明のカードは色と札で分かれている');
+      assert.ok(await g2.$('.card.howto'), '説明のカードは色と札で分かれている');
       if (process.env.SHOT_DIR2) await g2.screenshot({ path: process.env.SHOT_DIR2 + '/staff-duty.png', fullPage: true });
       // 役員ページは係の仕事だけ：下のメニューは係（全体・当番・記録・大会・会計）
       assert.ok(!(await g2.$('[data-nav="album"]')) && (await g2.$('[data-snav="money"]')), '下のメニューは係');

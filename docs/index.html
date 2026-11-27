@@ -756,9 +756,11 @@ tr.sel td { background: var(--sky-soft); }
 .sitesw a.ss-s[aria-current] { background: #5b3fa8; border-color: #5b3fa8; color: #fff; }
 body.staffsite .sitesw { background: #f6f3fc; }
 /* 説明・手順のカード：入力のカードとまちがえないよう、色と見出しの札で分ける */
-.card.guide { background: var(--sky-soft); border: 1.5px dashed var(--sky); box-shadow: none; }
-.card.guide > h2 { color: var(--sky); }
-.card.guide > h2::before { content: '📘 説明'; display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: middle; }
+.card.howto { background: var(--sky-soft); border: 1.5px dashed var(--sky); box-shadow: none; }
+.card.howto > h2 { color: var(--sky); justify-content: flex-start; }
+.card.howto > h2::before { content: '📘 説明'; flex: none; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; }
+.card.howto > h2 small { margin-left: auto; white-space: nowrap; }
+.card.howto > h2 .fold-ic { margin-left: auto; } .card.howto > h2 small + .fold-ic { margin-left: 0; }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
 .qnav b { font-size: 14px; text-align: center; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
@@ -882,7 +884,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "d08c47b17d";
+var BUILD = "a469295ce4";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "30114f1d3f";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ

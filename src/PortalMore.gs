@@ -104,8 +104,13 @@ function autoDutyAction_(ctx, p) {
     const last = {};
     const count = {};
     families.forEach((f) => { last[f.id] = ''; count[f.id] = 0; });
+    const order = dutyOrder_(type);
+    const idx = (id) => { const i = order.indexOf(id); return i < 0 ? 9999 : i; };
+    // 回数は今年度（4月から）の分。これからの予定に入っている当番も数える
+    const fy0 = fyStart_(today);
     duties.filter((d) => d['種類'] === type && d['日付'] >= addDays_(today, -400)).forEach((d) => {
       if (!(d['家族ID'] in last)) return;
+      if (d['日付'] < fy0) { if (d['日付'] > last[d['家族ID']]) last[d['家族ID']] = d['日付']; return; }
       if (d['日付'] > last[d['家族ID']]) last[d['家族ID']] = d['日付'];
       count[d['家族ID']]++;
     });
@@ -117,8 +122,8 @@ function autoDutyAction_(ctx, p) {
       for (let n = have.length; n < per; n++) {
         const pick = families
           .filter((f) => have.indexOf(f.id) < 0)
-          // 回数が少ない家族から（交代で代わりに入った家族は後回し、代わってもらった家族は先）。同じ回数なら前回から日がたっている順
-          .sort((a, b) => count[a.id] - count[b.id] || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
+          // 回数が少ない家族から（交代で代わりに入った家族は後回し、代わってもらった家族は先）。同じ回数なら役員が決めた順番、なければ前回から日がたっている順
+          .sort((a, b) => count[a.id] - count[b.id] || idx(a.id) - idx(b.id) || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
         if (!pick) break;
         const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_() });
         duties.push(row);
@@ -129,7 +134,19 @@ function autoDutyAction_(ctx, p) {
       }
     });
   });
-  return added ? added + '件の当番を入れました。前回から日がたっている家族から順番です' : '当番を入れる予定がありませんでした（もう全部入っています）';
+  return added ? added + '件の当番を入れました（回数が少ない家族から、当番の順番どおり）' : '当番を入れる予定がありませんでした（もう全部入っています）';
+}
+
+/** 当番の順番（役員が並べかえたもの）。家族IDの並び */
+function dutyOrder_(type) {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('DUTY_ORDER_' + type) || '[]'); } catch (e) { return []; }
+}
+function setDutyOrderAction_(ctx, p) {
+  const type = p.type === '大会' ? '大会' : '練習';
+  const ids = (p.order || []).map(String).filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 300);
+  PropertiesService.getScriptProperties().setProperty('DUTY_ORDER_' + type, JSON.stringify(ids));
+  invalidateTable_(SHEETS.DUTIES.name); // 画面のデータを作り直させる
+  return type + '当番の順番を保存しました';
 }
 
 /** 大会のタイムテーブル・手続きを直せる人（役員と、その大会の当番・大会係の家族） */

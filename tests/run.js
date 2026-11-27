@@ -1717,6 +1717,28 @@ test('当番の交代：お願い → 代わりに入る（先着）で入れか
   assert.ok(!gas.rows('当番の交代').some((x) => /^TEST_/.test(x['依頼家族ID'])));
 });
 
+test('当番の順番：役員が並べた順で自動で埋まる（回数が少ない家族が先）・今年度の回数はこれからの分も', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kA, 'testFamilies', { on: true });
+  assert.throws(() => gas.ctx.api(gas.ctx.api(kA, 'testLogin', { id: 'TEST_E' }).key, 'setDutyOrder', { type: '練習', order: [] }), /役員/);
+  let st = gas.ctx.api(kA, 'setDutyOrder', { type: '練習', order: ['TEST_E', 'TEST_D', 'TEST_C', 'TEST_B', 'TEST_A'] });
+  assert.deepStrictEqual(plain(st.dutyOrder['練習']).slice(0, 2), ['TEST_E', 'TEST_D']);
+  gas.ctx.api(kA, 'bootstrap'); // 予定をカレンダーから読みこむ
+  gas.ctx.api(kA, 'autoDuty', { type: '練習', days: 60 });
+  st = gas.ctx.api(kA, 'bootstrap');
+  const prac = st.events.filter((e) => e.type === '練習' && e.date >= st.today);
+  const first = (k) => plain(st.duties).filter((x) => x.key === k).map((x) => x.fam)[0];
+  assert.strictEqual(first(prac[0].key), 'TEST_E', '並べた順の先頭から');
+  assert.strictEqual(first(prac[1].key), 'TEST_D');
+  // 回数が同じになるまで、同じ家族は続かない
+  const n = {};
+  prac.forEach((e) => { const f = first(e.key); if (f) n[f] = (n[f] || 0) + 1; });
+  const counts = Object.keys(n).map((k) => n[k]);
+  assert.ok(Math.max.apply(null, counts) - Math.min.apply(null, counts) <= 1, JSON.stringify(n));
+});
+
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
   const gas = setupClub();
   gas.login('U1');

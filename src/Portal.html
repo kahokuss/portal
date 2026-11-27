@@ -2055,7 +2055,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // ---- 役員ページ：係ごとに「今やること」と道具だけ ----
   var ROLES = [
     { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
-    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '📋 当番表を貼り付け'], ['testfam', '🧪 テスト家族']] },
+    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け'], ['testfam', '🧪 テスト家族']] },
     { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['_lastres', '🏅 最近の大会の結果を入れる'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
     { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['budget', '📊 予算と残高（年度）'], ['fees', '💴 集金（期限・催促）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 お金の出入りを記録（領収書）']] },
@@ -2488,9 +2488,12 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function dutyType(e) { return isRace(e) ? '大会' : '練習'; }
   /** 家族の、この1年の当番の回数と前回（exceptKey の予定は数えない） */
   function dutyHistory(fam, type, exceptKey) {
-    var r = { last: '', next: '', count: 0 };
+    // fy＝今年度（4月から）の回数（これからの予定に入っている分も）、done＝そのうち済んだ回数
+    var ty = +ST.today.slice(0, 4), tm = +ST.today.slice(5, 7), fy0 = (tm >= 4 ? ty : ty - 1) + '-04-01';
+    var r = { last: '', next: '', count: 0, fy: 0, done: 0 };
     ST.duties.forEach(function (x) {
       if (x.fam !== fam || x.type !== type || x.key === exceptKey) return;
+      if (x.date >= fy0) { r.fy++; if (x.date < ST.today) r.done++; }
       if (x.date < ST.today) { if (x.date >= addDays(ST.today, -365)) r.count++; if (x.date > r.last) r.last = x.date; }
       else if (!r.next || x.date < r.next) r.next = x.date;
     });
@@ -2523,6 +2526,22 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
     on('[data-swapvol]', function () { var id = this.dataset.swapvol, x = (ST.swaps || []).filter(function (y) { return y.id === id; })[0]; if (x && confirm(md(x.date) + 'の' + x.type + '当番に、わが家が代わりに入ります。よろしいですか？')) call('swapVolunteer', { id: id }); });
     on('[data-swapx]', function () { if (confirm('交代のお願いを取り消しますか？（当番はわが家のままです）')) call('swapCancel', { id: this.dataset.swapx }); });
+  }
+  /**
+   * 当番の順番（自動で埋めるときの順）：回数（今年度）が少ない家族から。同じ回数なら役員が並べた順番、なければ前回から日がたっている順。
+   * サーバーの自動割り当て（autoDuty）と同じ並べ方
+   */
+  function dutyOrderIds(type) {
+    if (S.dqEdit && S.dqEdit.type === type) return S.dqEdit.ids;
+    var saved = ((ST.dutyOrder || {})[type] || []).filter(function (id) { return ST.families.some(function (f) { return f.id === id; }); });
+    var rest = ST.families.filter(function (f) { return saved.indexOf(f.id) < 0; }).map(function (f) { var r = dutyHistory(f.id, type); return { id: f.id, last: r.last }; })
+      .sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : 0; }).map(function (x) { return x.id; });
+    return saved.concat(rest);
+  }
+  function dutyQueue(type, exceptKey) {
+    var ids = dutyOrderIds(type);
+    return ST.families.map(function (f) { var r = dutyHistory(f.id, type, exceptKey); r.f = f; r.idx = ids.indexOf(f.id); return r; })
+      .sort(function (a, b) { return a.fy - b.fy || a.idx - b.idx || (a.last < b.last ? -1 : a.last > b.last ? 1 : 0); });
   }
   function myDuties() { return ST.duties.filter(function (x) { return x.fam === ST.me.fam && x.date >= ST.today; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
   function tkey(t) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? pad(+m[1]) + ':' + m[2] : '99:99'; }
@@ -2588,10 +2607,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       if (ST.choices.dutyGuide && ST.choices.dutyGuide.length) h += '<details class="hint"><summary>当番の仕事</summary><ul style="margin:4px 0 0;padding-left:1.2em;line-height:1.7">' + ST.choices.dutyGuide.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></details>';
     }
     if (ST.me.admin && !e.cancelled) {
-      var fams = ST.families.map(function (f) { var r = dutyHistory(f.id, type, e.key); r.f = f; r.on = list.some(function (x) { return x.fam === f.id; }); return r; })
-        .sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : a.count - b.count; });
-      h += fams.length ? '<div class="lbl">タップで当番にする・外す（前回から日がたっている順）</div><div class="choice duty">' + fams.map(function (x) {
-        return '<button type="button" data-duty="' + esc(x.f.id) + '" data-on="' + (x.on ? '' : '1') + '" aria-pressed="' + x.on + '">' + esc(x.f.label) + '<small>' + (x.last ? '前回 ' + md(x.last) : '前回なし') + '・' + x.count + '回' + (x.next && x.next !== e.date ? '・次 ' + md(x.next) : '') + '</small></button>';
+      var fams = dutyQueue(type, e.key).map(function (r) { r.on = list.some(function (x) { return x.fam === r.f.id; }); return r; });
+      h += fams.length ? '<div class="lbl">タップで当番にする・外す（当番の順番：回数が少ない家族から）</div><div class="choice duty">' + fams.map(function (x) {
+        return '<button type="button" data-duty="' + esc(x.f.id) + '" data-on="' + (x.on ? '' : '1') + '" aria-pressed="' + x.on + '">' + esc(x.f.label) + '<small>今年度' + x.fy + '回' + (x.last ? '・前回 ' + md(x.last) : '') + (x.next && x.next !== e.date ? '・次 ' + md(x.next) : '') + '</small></button>';
       }).join('') + '</div>' : '<div class="hint">お子さんを登録した家族がここに出ます。</div>';
     }
     return h + '</section>' + (type === '大会' && !(ST.me.admin && !LITE) ? raceStaffCard(e) : '');
@@ -6003,15 +6021,21 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
 
   function adminDuty() {
-    var type = S.dutyType || '練習', A = S.auto || (S.auto = { days: 30, per: 1 });
-    var fams = ST.families.map(function (f) { var r = dutyHistory(f.id, type); r.f = f; return r; }).sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : a.count - b.count; });
+    var type = S.dutyType || '練習', A = S.auto || (S.auto = { days: 61, per: 1 });
+    var ids = dutyOrderIds(type), q = dutyQueue(type);
+    var fams = ids.map(function (id) { return q.filter(function (r) { return r.f.id === id; })[0]; }).filter(Boolean);
+    var editing = S.dqEdit && S.dqEdit.type === type;
     var h = backBtn() + toastHtml() + '<div class="tabs" role="group" aria-label="当番の種類">' + ['練習', '大会'].map(function (t) { return '<button type="button" data-dt="' + t + '" aria-pressed="' + (type === t) + '">' + t + '当番</button>'; }).join('') + '</div>' +
-      '<section class="card"><h2>' + type + '当番の順番<small>前回から日がたっている順</small></h2>' + (fams.length ? '<div class="tbl-wrap"><table><thead><tr><th>家族</th><th>前回</th><th>1年の回数</th><th>次</th></tr></thead><tbody>' + fams.map(function (x) {
-        return '<tr' + (x.f.id === ST.me.fam ? ' class="hl"' : '') + '><td>' + esc(x.f.label) + '</td><td>' + (x.last ? md(x.last) : '—') + '</td><td>' + x.count + '回</td><td>' + (x.next ? md(x.next) : '') + '</td></tr>';
-      }).join('') + '</tbody></table></div>' : '<div class="sub">お子さんを登録した家族がまだいません。</div>') +
+      '<section class="card"><h2>' + type + '当番の順番<small>↑↓で並べかえ</small></h2>' + (fams.length ? '<div class="sub">次に自動で入る順：<b>' + q.slice(0, 6).map(function (x) { return esc(x.f.label.replace(/（.*$/, '')); }).join(' → ') + '</b>' + (q.length > 6 ? ' → …' : '') + '</div>' +
+        '<div class="tbl-wrap"><table class="dqtbl"><thead><tr><th>順</th><th>家族</th><th>今年度</th><th>前回</th><th>次</th><th></th></tr></thead><tbody>' + fams.map(function (x, i) {
+        return '<tr' + (x.f.id === ST.me.fam ? ' class="hl"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.f.label) + '</td><td><b>' + x.fy + '</b>回' + (x.fy > x.done ? '<span class="sub">（済' + x.done + '）</span>' : '') + '</td><td>' + (x.last ? md(x.last) : '—') + '</td><td>' + (x.next ? md(x.next) : '') + '</td>' +
+          '<td class="nowrap"><button class="icon-btn" type="button" data-dqmv="' + esc(x.f.id) + '|-1" aria-label="上へ"' + (i ? '' : ' disabled') + '>↑</button><button class="icon-btn" type="button" data-dqmv="' + esc(x.f.id) + '|1" aria-label="下へ"' + (i < fams.length - 1 ? '' : ' disabled') + '>↓</button></td></tr>';
+      }).join('') + '</tbody></table></div>' +
+        (editing ? '<div class="row"><button class="btn" type="button" id="dqSave">この順番で保存</button><button class="btn ghost" type="button" id="dqCancel">やめる</button></div>' : '<div class="row"><button class="btn small ghost" type="button" id="dqReset">前回から日がたっている順に並べなおす</button></div>') : '<div class="sub">お子さんを登録した家族がまだいません。</div>') +
+      '<div class="hint">今年度の回数は、これからの予定に入っている当番も数えます。自動で埋めるときは<b>回数が少ない家族から</b>、同じ回数なら<b>この順番</b>で入ります（交代で代わりに入った家族は後回しになります）。</div>' +
       '<div class="hint">' + (type === '大会' ? '大会当番は1家族年2回くらいが目安です。' : '') + '練習当番と大会当番は別々に数えます。</div></section>' +
-      '<section class="card"><h2>まだ当番のいない' + type + 'に、順番に入れる</h2><div class="lbl">どこまで</div><div class="choice">' + [14, 30, 60, 90].map(function (n) { return '<button type="button" data-adays="' + n + '" aria-pressed="' + (A.days === n) + '">' + n + '日先まで</button>'; }).join('') + '</div>' +
-      '<div class="lbl">1回に</div><div class="choice">' + [1, 2, 3].map(function (n) { return '<button type="button" data-aper="' + n + '" aria-pressed="' + (A.per === n) + '">' + n + '家族</button>'; }).join('') + '</div>' +
+      '<section class="card"><h2>まだ当番のいない' + type + 'に、順番に入れる</h2><div class="lbl">どこまで</div><div class="choice">' + [[61, '2か月分（ふだんはこれ）'], [30, '1か月分']].map(function (n) { return '<button type="button" data-adays="' + n[0] + '" aria-pressed="' + (A.days === n[0]) + '">' + n[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="sub">1回に1家族。上の「当番の順番」のとおりに入ります。</div>' +
       '<button class="btn" type="button" id="autoDuty">自動で入れる</button><div class="hint">入れたあとも、予定を開いて家族をタップすれば入れかえられます。</div></section>';
     var I = S.dutyImp || (S.dutyImp = { text: '', preview: null });
     h += '<section class="card"><h2>当番表を貼り付けて入れる</h2><div class="sub">1行に1日、<b>日付・種類（練習／大会）・当番の名字</b>を書いて貼り付けてください。2家族以上は「・」でつなぎます。同じ名字が2家族あるときは「川辺(り)」のように下の名前の1文字を付けます。</div>' +
@@ -6030,10 +6054,22 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     }).join('') + '</div>' : '<div class="sub">予定がありません。</div>') + '</section>';
     view.innerHTML = h;
     bindBack(); bindCommon();
-    on('[data-dt]', function () { S.dutyType = this.dataset.dt; render(); });
+    on('[data-dt]', function () { S.dutyType = this.dataset.dt; S.dqEdit = null; render(); });
+    on('[data-dqmv]', function () {
+      var p = this.dataset.dqmv.split('|'), list = dutyOrderIds(type).slice(), i = list.indexOf(p[0]), j = i + +p[1];
+      if (i < 0 || j < 0 || j >= list.length) return;
+      list.splice(i, 1); list.splice(j, 0, p[0]);
+      S.dqEdit = { type: type, ids: list }; render();
+    });
+    on('#dqSave', function () { var ids = S.dqEdit.ids; S.dqEdit = null; call('setDutyOrder', { type: type, order: ids }); });
+    on('#dqCancel', function () { S.dqEdit = null; render(); });
+    on('#dqReset', function () {
+      if (!confirm('前回から日がたっている順に並べなおして保存しますか？')) return;
+      var ids = ST.families.map(function (f) { var r = dutyHistory(f.id, type); return { id: f.id, last: r.last }; }).sort(function (a, b) { return a.last < b.last ? -1 : a.last > b.last ? 1 : 0; }).map(function (x) { return x.id; });
+      call('setDutyOrder', { type: type, order: ids });
+    });
     on('[data-adays]', function () { A.days = +this.dataset.adays; render(); });
-    on('[data-aper]', function () { A.per = +this.dataset.aper; render(); });
-    on('#autoDuty', function () { call('autoDuty', { type: type, days: A.days, per: A.per }); });
+    on('#autoDuty', function () { call('autoDuty', { type: type, days: A.days }); });
     var di = document.getElementById('diForm');
     if (di) di.addEventListener('submit', function (x) { x.preventDefault(); I.text = document.getElementById('diIn').value; I.preview = parseDutyTable(I.text); render(); });
     on('#diX', function () { I.preview = null; render(); });
@@ -6088,12 +6124,13 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var se = C.sel && evByKey(C.sel);
     if (se) {
       var cur = dutyOf(se.key).map(function (x) { return x.fam; });
+      var dqIds = dutyOrderIds(C.type), dqIdx = function (id) { return dqIds.indexOf(id); };
       var cands = ST.families.map(function (f) {
         var r = dutyHistory(f.id, C.type, se.key), warn = [];
         ST.duties.forEach(function (x) { if (x.fam === f.id && x.key !== se.key && Math.abs(diff(x.date, se.date)) <= 7) warn.push(md(x.date) + 'に' + x.type + '当番'); });
         if (absentOn(se.date).some(function (a) { return (f.kids || []).indexOf(a.child) >= 0; })) warn.push('この日 休みの連絡あり');
         return { f: f, r: r, warn: warn, on: cur.indexOf(f.id) >= 0, fy: fyDuties(f.id, C.type) };
-      }).sort(function (a, b) { return (b.on - a.on) || (a.r.last < b.r.last ? -1 : a.r.last > b.r.last ? 1 : a.r.count - b.r.count); });
+      }).sort(function (a, b) { return (b.on - a.on) || a.r.fy - b.r.fy || dqIdx(a.f.id) - dqIdx(b.f.id); });
       h += '<section class="card" id="dcPanel"><h2>' + md(se.date) + ' ' + esc(se.title) + '<small>' + (se.start && se.start !== '終日' ? esc(se.start) + '〜' : '') + esc(se.place || '') + '</small></h2>' +
         '<div class="list">' + cands.map(function (x) {
           return '<button type="button" class="dccand' + (x.on ? ' on' : '') + '" data-dcfam="' + esc(x.f.id) + '"><span class="main"><b>' + (x.on ? '✓ ' : '') + esc(x.f.label) + '</b>' + (/^TEST_/.test(x.f.id) ? ' <span class="pill p-gray">テスト</span>' : '') +
@@ -6109,7 +6146,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var maxFy = Math.max.apply(null, sum.map(function (x) { return x.fy; }).concat([1]));
     var avgFy = sum.length ? sum.reduce(function (t, x) { return t + x.fy; }, 0) / sum.length : 0;
     h += '<section class="card"><h2>担当した回数（' + C.type + '当番）<small>今年度 ' + md(fyStart()).replace(/\(.\)/, '') + '〜・多い順</small></h2>' +
-      '<div class="sub">1家族あたり平均 <b>' + (Math.round(avgFy * 10) / 10) + '回</b>。棒は今年度の回数（濃い＝済んだ、うすい＝これから）。</div><div class="tbl-wrap"><table class="dcsum"><thead><tr><th>家族</th><th>今年度</th><th></th><th>' + m + '月</th><th>前回</th><th>次</th><th>' + (C.type === '練習' ? '大会' : '練習') + '当番</th></tr></thead><tbody>' +
+      '<div class="sub"><button class="link inl" type="button" data-flowgo="duty">🔢 当番の順番を並べかえる ›</button></div><div class="sub">1家族あたり平均 <b>' + (Math.round(avgFy * 10) / 10) + '回</b>。棒は今年度の回数（濃い＝済んだ、うすい＝これから）。</div><div class="tbl-wrap"><table class="dcsum"><thead><tr><th>家族</th><th>今年度</th><th></th><th>' + m + '月</th><th>前回</th><th>次</th><th>' + (C.type === '練習' ? '大会' : '練習') + '当番</th></tr></thead><tbody>' +
       sum.map(function (x) {
         return '<tr' + (/^TEST_/.test(x.f.id) ? ' class="sub"' : '') + '><td>' + esc(x.f.label) + '</td><td class="num"><b>' + x.fy + '</b>回</td><td class="barc"><span class="dbar"><i class="d" style="width:' + (x.done / maxFy * 100).toFixed(0) + '%"></i><i class="p" style="width:' + ((x.fy - x.done) / maxFy * 100).toFixed(0) + '%"></i></span></td><td>' + (x.inM || '') + '</td><td>' + (x.r.last ? md(x.r.last) : '—') + '</td><td>' + (x.r.next ? md(x.r.next) : '') + '</td><td class="num">' + (x.other || '') + '</td></tr>';
       }).join('') + '</tbody></table></div></section>';

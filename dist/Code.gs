@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '2cf87d410e';
+const SERVER_VERSION = '30114f1d3f';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -3452,6 +3452,7 @@ function autoDutyAction_(ctx, p) {
     families.forEach((f) => { last[f.id] = ''; count[f.id] = 0; });
     const order = dutyOrder_(type);
     const idx = (id) => { const i = order.indexOf(id); return i < 0 ? 9999 : i; };
+    const w = (f) => Math.max(1, (f.kids || []).length); // 子どもの人数（当番は子ども1人ずつ）
     // 回数は今年度（4月から）の分。これからの予定に入っている当番も数える
     const fy0 = fyStart_(today);
     duties.filter((d) => d['種類'] === type && d['日付'] >= addDays_(today, -400)).forEach((d) => {
@@ -3468,8 +3469,9 @@ function autoDutyAction_(ctx, p) {
       for (let n = have.length; n < per; n++) {
         const pick = families
           .filter((f) => have.indexOf(f.id) < 0)
-          // 回数が少ない家族から（交代で代わりに入った家族は後回し、代わってもらった家族は先）。同じ回数なら役員が決めた順番、なければ前回から日がたっている順
-          .sort((a, b) => count[a.id] - count[b.id] || idx(a.id) - idx(b.id) || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
+          // 子ども1人あたりの回数が少ない家族から（きょうだい2人の家は2回分）。交代で代わりに入った家族は後回し、代わってもらった家族は先。
+          // 同じなら役員が決めた順番、なければ前回から日がたっている順
+          .sort((a, b) => count[a.id] * w(b) - count[b.id] * w(a) || idx(a.id) - idx(b.id) || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
         if (!pick) break;
         const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_() });
         duties.push(row);

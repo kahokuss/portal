@@ -1745,9 +1745,12 @@ test('当番の順番：役員が並べた順で自動で埋まる（回数が�
   const first = (k) => plain(st.duties).filter((x) => x.key === k).map((x) => x.fam)[0];
   assert.strictEqual(first(prac[0].key), 'TEST_E', '並べた順の先頭から');
   assert.strictEqual(first(prac[1].key), 'TEST_D');
-  // 回数が同じになるまで、同じ家族は続かない
+  // 当番は子ども1人ずつ：きょうだい2人の家（親C：テストC・テストC2）は、ほかの家の2回分
+  const nC = prac.filter((e) => first(e.key) === 'TEST_C').length, nA = prac.filter((e) => first(e.key) === 'TEST_A').length;
+  if (prac.length >= 12) assert.ok(nC >= 2 * nA - 1 && nC > nA, 'きょうだい2人は2回分 C=' + nC + ' A=' + nA);
+  // 子ども1人あたりの回数がそろう
   const n = {};
-  prac.forEach((e) => { const f = first(e.key); if (f) n[f] = (n[f] || 0) + 1; });
+  prac.forEach((e) => { const f = first(e.key); if (f) n[f] = (n[f] || 0) + (f === 'TEST_C' ? 0.5 : 1); });
   const counts = Object.keys(n).map((k) => n[k]);
   assert.ok(Math.max.apply(null, counts) - Math.min.apply(null, counts) <= 1, JSON.stringify(n));
 });

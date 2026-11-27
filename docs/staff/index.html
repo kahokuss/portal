@@ -760,6 +760,8 @@ body.staffsite .sitesw { background: #f6f3fc; }
 .card.guide { background: var(--sky-soft); border: 1.5px dashed var(--sky); box-shadow: none; }
 .card.guide > h2 { color: var(--sky); }
 .card.guide > h2::before { content: '📘 説明'; display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: middle; }
+.qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+.qnav b { font-size: 14px; text-align: center; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .mstat > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
 .mstat .big { font-size: 1.35rem; }
@@ -881,9 +883,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "4a358a7431";
+var BUILD = "d08c47b17d";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "2cf87d410e";
+var EXPECT_SERVER = "30114f1d3f";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = false;
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1706,14 +1708,23 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     on('[data-cd]', function () { S.calDay = this.dataset.cd; render(); });
     on('#calAdd', function () { S.tab = 'admin'; S.admin = 'practice'; S.prac = null; render(); S.prac.month = sel.slice(0, 7); S.prac.dates = [sel]; render(); window.scrollTo(0, 0); });
   }
+  /** 年度の四半期：'2026-3' のような形（4月はじまり） */
+  function qOf(date) { var y = +date.slice(0, 4), m = +date.slice(5, 7), fy = m >= 4 ? y : y - 1; return fy + '-' + (m >= 4 ? Math.floor((m - 4) / 3) + 1 : 4); }
+  function qRange(q) { var p = q.split('-'), fy = +p[0], n = +p[1], sm = [4, 7, 10, 1][n - 1], y = n === 4 ? fy + 1 : fy; var em = sm + 2; return [y + '-' + pad(sm) + '-01', y + '-' + pad(em) + '-' + pad(new Date(Date.UTC(y, em, 0)).getUTCDate())]; }
+  function qShift(q, by) { var p = q.split('-'), i = (+p[0]) * 4 + (+p[1] - 1) + by; return Math.floor(i / 4) + '-' + (i % 4 + 1); }
   function events() {
     if (S.event) { var e = evByKey(S.event); if (e) return eventDetail(e); S.event = null; }
     if (S.calView) return eventsCalendar();
     var h = toastHtml() + viewTabs();
-    var month = '', open = false, todayMark = false;
+    // 年度の四半期ごとにページを分ける（第1＝4〜6月、第2＝7〜9月、第3＝10〜12月、第4＝1〜3月）
+    var curQ = qOf(ST.today), Q = S.evQ || curQ, R = qRange(Q);
+    var qLabel = function (q) { var p = q.split('-'); return p[0] + '年度 第' + p[1] + '四半期（' + ['4〜6', '7〜9', '10〜12', '1〜3'][+p[1] - 1] + '月）'; };
+    h += '<div class="qnav"><button class="btn small ghost" type="button" data-q="-1" aria-label="前の四半期">‹ 前</button><b>' + qLabel(Q) + '</b><button class="btn small ghost" type="button" data-q="1" aria-label="次の四半期">次 ›</button></div>' +
+      (Q !== curQ ? '<button class="link" type="button" id="qNow" style="justify-self:center">今の四半期にもどる</button>' : '');
+    var month = '', open = false, todayMark = Q !== curQ;
     ST.events.forEach(function (e) {
+      if (e.date < R[0] || e.date > R[1]) return;
       if (S.onlyRace && !isRace(e)) return;
-      if (!S.onlyRace && !isRace(e) && e.date < addDays(ST.today, -7)) return;
       var m = e.date.slice(0, 7);
       if (m !== month) { if (open) h += '</div></section>'; month = m; open = true; h += '<div class="month">' + Number(m.slice(5)) + '月</div><section class="card"><div class="list">'; }
       var cls = (e.date < ST.today ? ' past' : '') + (e.cancelled ? ' cancel' : '');
@@ -1727,11 +1738,13 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         (commentsOf(e.key).some(function (c) { return c.kind === 'ヒヤリハット'; }) ? ' <span class="pill p-nm">⚠</span>' : commentsOf(e.key).filter(function (c) { return c.kind !== '変更連絡'; }).length ? ' <span class="pill p-gray">💬' + commentsOf(e.key).filter(function (c) { return c.kind !== '変更連絡'; }).length + '</span>' : '') +
         ' ' + (e.start && e.start !== '終日' ? e.start.replace(/^0/, '') + '〜 ' : '') + esc(e.place || '') + '</div></div>›</button>';
     });
-    if (open) h += '</div></section>'; else h += '<div class="card empty">予定がありません</div>';
-    h += '<div class="hint">予定はクラブのGoogleカレンダーから取り込んでいます。</div>';
+    if (open) h += '</div></section>'; else h += '<div class="card empty">この四半期の' + (S.onlyRace ? '大会' : '予定') + 'はありません</div>';
+    h += '<div class="hint">予定はクラブのGoogleカレンダーから取り込んでいます。「‹ 前」「次 ›」で3か月ずつ移ります。</div>';
     view.innerHTML = h;
     bindCommon();
     bindViewTabs();
+    on('[data-q]', function () { S.evQ = qShift(Q, +this.dataset.q); render(); window.scrollTo(0, 0); });
+    on('#qNow', function () { S.evQ = ''; S.evNowDone = false; render(); });
     // 一覧を開いたときは、今日のところまで動く（1回だけ。上に過去の大会が並ぶため）
     var tm = document.getElementById('evToday');
     if (tm && !S.evNowDone) {
@@ -2563,8 +2576,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   function dutyQueue(type, exceptKey) {
     var ids = dutyOrderIds(type);
-    return ST.families.map(function (f) { var r = dutyHistory(f.id, type, exceptKey); r.f = f; r.idx = ids.indexOf(f.id); return r; })
-      .sort(function (a, b) { return a.fy - b.fy || a.idx - b.idx || (a.last < b.last ? -1 : a.last > b.last ? 1 : 0); });
+    // 当番は子ども1人ずつ：きょうだい2人の家は2回分（子ども1人あたりの回数で並べる）
+    return ST.families.map(function (f) { var r = dutyHistory(f.id, type, exceptKey); r.f = f; r.idx = ids.indexOf(f.id); r.w = Math.max(1, (f.kids || []).length); return r; })
+      .sort(function (a, b) { return a.fy * b.w - b.fy * a.w || a.idx - b.idx || (a.last < b.last ? -1 : a.last > b.last ? 1 : 0); });
   }
   function myDuties() { return ST.duties.filter(function (x) { return x.fam === ST.me.fam && x.date >= ST.today; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
   function tkey(t) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? pad(+m[1]) + ':' + m[2] : '99:99'; }
@@ -6061,11 +6075,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var h = backBtn() + toastHtml() + '<div class="tabs" role="group" aria-label="当番の種類">' + ['練習', '大会'].map(function (t) { return '<button type="button" data-dt="' + t + '" aria-pressed="' + (type === t) + '">' + t + '当番</button>'; }).join('') + '</div>' +
       '<section class="card"><h2>' + type + '当番の順番<small>↑↓で並べかえ</small></h2>' + (fams.length ? '<div class="sub">次に自動で入る順：<b>' + q.slice(0, 6).map(function (x) { return esc(x.f.label.replace(/（.*$/, '')); }).join(' → ') + '</b>' + (q.length > 6 ? ' → …' : '') + '</div>' +
         '<div class="tbl-wrap"><table class="dqtbl"><thead><tr><th>順</th><th>家族</th><th>今年度</th><th>前回</th><th>次</th><th></th></tr></thead><tbody>' + fams.map(function (x, i) {
-        return '<tr' + (x.f.id === ST.me.fam ? ' class="hl"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.f.label) + '</td><td><b>' + x.fy + '</b>回' + (x.fy > x.done ? '<span class="sub">（済' + x.done + '）</span>' : '') + '</td><td>' + (x.last ? md(x.last) : '—') + '</td><td>' + (x.next ? md(x.next) : '') + '</td>' +
+        return '<tr' + (x.f.id === ST.me.fam ? ' class="hl"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(x.f.label) + '</td><td><b>' + x.fy + '</b>回' + (x.w > 1 ? '<span class="sub">／' + x.w + '人分</span>' : '') + (x.fy > x.done ? '<span class="sub">（済' + x.done + '）</span>' : '') + '</td><td>' + (x.last ? md(x.last) : '—') + '</td><td>' + (x.next ? md(x.next) : '') + '</td>' +
           '<td class="nowrap"><button class="icon-btn" type="button" data-dqmv="' + esc(x.f.id) + '|-1" aria-label="上へ"' + (i ? '' : ' disabled') + '>↑</button><button class="icon-btn" type="button" data-dqmv="' + esc(x.f.id) + '|1" aria-label="下へ"' + (i < fams.length - 1 ? '' : ' disabled') + '>↓</button></td></tr>';
       }).join('') + '</tbody></table></div>' +
         (editing ? '<div class="row"><button class="btn" type="button" id="dqSave">この順番で保存</button><button class="btn ghost" type="button" id="dqCancel">やめる</button></div>' : '<div class="row"><button class="btn small ghost" type="button" id="dqReset">前回から日がたっている順に並べなおす</button></div>') : '<div class="sub">お子さんを登録した家族がまだいません。</div>') +
-      '<div class="hint">今年度の回数は、これからの予定に入っている当番も数えます。自動で埋めるときは<b>回数が少ない家族から</b>、同じ回数なら<b>この順番</b>で入ります（交代で代わりに入った家族は後回しになります）。</div>' +
+      '<div class="hint">当番は<b>子ども1人ずつ</b>の割り当てです（きょうだい2人の家は2回分）。今年度の回数は、これからの予定に入っている当番も数えます。自動で埋めるときは<b>子ども1人あたりの回数が少ない家族から</b>、同じ回数なら<b>この順番</b>で入ります（交代で代わりに入った家族は後回しになります）。</div>' +
       '<div class="hint">' + (type === '大会' ? '大会当番は1家族年2回くらいが目安です。' : '') + '練習当番と大会当番は別々に数えます。</div></section>' +
       '<section class="card"><h2>まだ当番のいない' + type + 'に、順番に入れる</h2><div class="lbl">どこまで</div><div class="choice">' + [[61, '2か月分（ふだんはこれ）'], [30, '1か月分']].map(function (n) { return '<button type="button" data-adays="' + n[0] + '" aria-pressed="' + (A.days === n[0]) + '">' + n[1] + '</button>'; }).join('') + '</div>' +
       '<div class="sub">1回に1家族。上の「当番の順番」のとおりに入ります。</div>' +
@@ -6163,7 +6177,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         ST.duties.forEach(function (x) { if (x.fam === f.id && x.key !== se.key && Math.abs(diff(x.date, se.date)) <= 7) warn.push(md(x.date) + 'に' + x.type + '当番'); });
         if (absentOn(se.date).some(function (a) { return (f.kids || []).indexOf(a.child) >= 0; })) warn.push('この日 休みの連絡あり');
         return { f: f, r: r, warn: warn, on: cur.indexOf(f.id) >= 0, fy: fyDuties(f.id, C.type) };
-      }).sort(function (a, b) { return (b.on - a.on) || a.r.fy - b.r.fy || dqIdx(a.f.id) - dqIdx(b.f.id); });
+      }).sort(function (a, b) { var wa = Math.max(1, (a.f.kids || []).length), wb = Math.max(1, (b.f.kids || []).length); return (b.on - a.on) || a.r.fy * wb - b.r.fy * wa || dqIdx(a.f.id) - dqIdx(b.f.id); });
       h += '<section class="card" id="dcPanel"><h2>' + md(se.date) + ' ' + esc(se.title) + '<small>' + (se.start && se.start !== '終日' ? esc(se.start) + '〜' : '') + esc(se.place || '') + '</small></h2>' +
         '<div class="list">' + cands.map(function (x) {
           return '<button type="button" class="dccand' + (x.on ? ' on' : '') + '" data-dcfam="' + esc(x.f.id) + '"><span class="main"><b>' + (x.on ? '✓ ' : '') + esc(x.f.label) + '</b>' + (/^TEST_/.test(x.f.id) ? ' <span class="pill p-gray">テスト</span>' : '') +
@@ -6181,7 +6195,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     h += '<section class="card"><h2>担当した回数（' + C.type + '当番）<small>今年度 ' + md(fyStart()).replace(/\(.\)/, '') + '〜・多い順</small></h2>' +
       '<div class="sub"><button class="link inl" type="button" data-flowgo="duty">🔢 当番の順番を並べかえる ›</button></div><div class="sub">1家族あたり平均 <b>' + (Math.round(avgFy * 10) / 10) + '回</b>。棒は今年度の回数（濃い＝済んだ、うすい＝これから）。</div><div class="tbl-wrap"><table class="dcsum"><thead><tr><th>家族</th><th>今年度</th><th></th><th>' + m + '月</th><th>前回</th><th>次</th><th>' + (C.type === '練習' ? '大会' : '練習') + '当番</th></tr></thead><tbody>' +
       sum.map(function (x) {
-        return '<tr' + (/^TEST_/.test(x.f.id) ? ' class="sub"' : '') + '><td>' + esc(x.f.label) + '</td><td class="num"><b>' + x.fy + '</b>回</td><td class="barc"><span class="dbar"><i class="d" style="width:' + (x.done / maxFy * 100).toFixed(0) + '%"></i><i class="p" style="width:' + ((x.fy - x.done) / maxFy * 100).toFixed(0) + '%"></i></span></td><td>' + (x.inM || '') + '</td><td>' + (x.r.last ? md(x.r.last) : '—') + '</td><td>' + (x.r.next ? md(x.r.next) : '') + '</td><td class="num">' + (x.other || '') + '</td></tr>';
+        return '<tr' + (/^TEST_/.test(x.f.id) ? ' class="sub"' : '') + '><td>' + esc(x.f.label) + ((x.f.kids || []).length > 1 ? ' <span class="sub">（' + x.f.kids.length + '人分）</span>' : '') + '</td><td class="num"><b>' + x.fy + '</b>回</td><td class="barc"><span class="dbar"><i class="d" style="width:' + (x.done / maxFy * 100).toFixed(0) + '%"></i><i class="p" style="width:' + ((x.fy - x.done) / maxFy * 100).toFixed(0) + '%"></i></span></td><td>' + (x.inM || '') + '</td><td>' + (x.r.last ? md(x.r.last) : '—') + '</td><td>' + (x.r.next ? md(x.r.next) : '') + '</td><td class="num">' + (x.other || '') + '</td></tr>';
       }).join('') + '</tbody></table></div></section>';
     view.innerHTML = h;
     bindBack(); bindCommon();

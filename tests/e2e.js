@@ -813,7 +813,15 @@ async function openPortal(browser, gas, userId, name) {
       for (const n of ['events', 'album', 'family', 'train', 'home']) { await g.click('[data-nav="' + n + '"]'); await g.waitForTimeout(150); }
       await g.click('[data-nav="events"]');
       await g.click('.ev:has-text("秋季記録会")');
-      for (const t of ['エントリー', 'タイムテーブル', '結果', '写真', '概要']) { await g.click('[data-et="' + t + '"]'); await g.waitForTimeout(150); }
+      // 大会のページは見る中心：概要・わが家・結果・写真。入力・編集（案内を直す・時刻表の貼り付け）はない
+      const tabsT = await g.$$eval('.etabs button', (bs) => bs.map((b) => b.textContent.trim()));
+      assert.deepStrictEqual(tabsT.map((x) => x.replace(/^\S+?(?=[概わ結写])/u, '')), ['概要', 'わが家', '結果', '写真'], JSON.stringify(tabsT));
+      assert.ok(!(await g.$('#editRace')), '案内を直すはない（知らせるだけ）');
+      for (const t of ['わが家', '結果', '写真', '概要']) { await g.click('[data-et="' + t + '"]'); await g.waitForTimeout(150); }
+      await g.click('[data-et="わが家"]');
+      const myT = await g.textContent('#view');
+      assert.ok(myT.includes('わが家のエントリー') && !(await g.$('#ttEdit')), 'わが家：参加の回答と時刻表（直すボタンなし）');
+      if (SHOTS) await g.screenshot({ path: path.join(shotDir, 'pages-race-mine.png'), fullPage: true });
       assert.deepStrictEqual(errs, []);
       await g.close();
       // 役員が軽い版で「管理」を押すと、役員ページ（staff/）に移る
@@ -843,6 +851,29 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await g2.textContent('#back')).includes('係のページ'), '大会のページから係のページへもどる');
       await g2.click('#back');
       assert.ok((await g2.textContent('.staffhead')).includes('大会係'), 'もどると大会係');
+      assert.deepStrictEqual(errs2, []);
+      await g2.close();
+      // 役員でない当番の家族：役員ページでは、当番の大会だけ（手続き・種目）
+      const race0 = gas.ctx.api(gas.login('U1').key, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+      gas.ctx.api(gas.login('U1').key, 'setDuty', { key: race0.key, fam: 'U3', on: true });
+      const g3 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      const errs3 = []; g3.on('pageerror', (e) => errs3.push(e.message));
+      await g3.route('**/fonts.googleapis.com/**', (r) => r.abort());
+      await g3.route(PAGES + '**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: /\/staff\//.test(r.request().url()) ? staffHtml : html }));
+      await g3.route(apiUrl, (r) => { const out = gas.ctx.doPost({ parameter: {}, postData: { contents: r.request().postData() } }); r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out.text }); });
+      await g3.addInitScript((k) => { try { localStorage.setItem('clubPortalKey', k); } catch (e) {} }, gas.login('U3').key);
+      await g3.goto(PAGES);
+      await g3.waitForSelector('#nav:not([hidden])');
+      await g3.click('[data-nav="events"]');
+      await g3.click('.ev:has-text("秋季記録会")');
+      await g3.click('.dutylink');
+      await g3.waitForURL(/\/staff\//);
+      await g3.waitForSelector('[data-et="手続き"]');
+      assert.ok(await g3.$('[data-et="手続き"][aria-pressed="true"]'), '当番の人は、役員ページで当番の大会の手続きを開ける');
+      assert.deepStrictEqual(errs3, []);
+      await g3.close();
+      gas.ctx.api(gas.login('U1').key, 'setDuty', { key: race0.key, fam: 'U3', on: false });
+      return;
       assert.deepStrictEqual(errs2, []);
       await g2.close();
     });

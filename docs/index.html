@@ -856,7 +856,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "7be9fc7fb7";
+var BUILD = "aa49b96c5d";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "f7b1b384af";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1584,7 +1584,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.etab === 'エントリー') h += entryHtml(e);
     if (S.etab === 'タイムテーブル') h += timetableHtml(e);
     if (S.etab === 'わが家') h += entryHtml(e, true) + timetableHtml(e);
-    if (S.etab === '手続き') h += tasksHtml(e);
+    if (S.etab === '手続き') h += (ST.me.admin ? raceStaffCard(e) : '') + tasksHtml(e);
     if (S.etab === '写真') h += photosTab(e);
     if (S.etab === '結果') h += resultsTab(e);
     if (S.etab === '種目') h += racesTab(e);
@@ -1592,7 +1592,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     bindDuty(e);
     if (S.etab === '概要') { bindRaceNote(e); bindComments(e); bindRaceInfo(e); bindDeadlines(e); bindJinchi(e); bindPhotos(e); }
     if (S.etab === 'タイムテーブル' || S.etab === 'わが家') bindTimetable(e);
-    if (S.etab === '手続き') { bindTasks(e); bindTimetable(e); }
+    if (S.etab === '手続き') { bindTasks(e); bindTimetable(e); bindRaceStaff(e); }
     if (S.etab === '写真') bindPhotos(e);
     if (S.etab === '結果') bindResults(e);
     if (S.etab === '種目') { bindRoster(e); bindRelay(e); bindDeadlines(e); bindTimetable(e); bindPhotos(e); }
@@ -1841,10 +1841,10 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   // ---- 役員ページ：係ごとに「今やること」と道具だけ ----
   var ROLES = [
-    { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート']] },
+    { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
     { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['dutycal', '🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['practice', '📅 練習の予定をつくる'], ['duty', '📋 当番表を貼り付け'], ['testfam', '🧪 テスト家族']] },
     { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['_lastres', '🏅 最近の大会の結果を入れる'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
-    { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ']] },
+    { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
     { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['fees', '💴 集金（年会費など）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 会計（領収書の履歴）']] },
   ];
   // （役員ページだけ：myRoleText）
@@ -2149,7 +2149,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         return '<button type="button" data-duty="' + esc(x.f.id) + '" data-on="' + (x.on ? '' : '1') + '" aria-pressed="' + x.on + '">' + esc(x.f.label) + '<small>' + (x.last ? '前回 ' + md(x.last) : '前回なし') + '・' + x.count + '回' + (x.next && x.next !== e.date ? '・次 ' + md(x.next) : '') + '</small></button>';
       }).join('') + '</div>' : '<div class="hint">お子さんを登録した家族がここに出ます。</div>';
     }
-    return h + '</section>' + (type === '大会' ? raceStaffCard(e) : '');
+    return h + '</section>' + (type === '大会' && !(ST.me.admin && !LITE) ? raceStaffCard(e) : '');
   }
   /** この大会の大会係：役員が家族を選ぶ。選ばれた家族は、役員でなくても、この大会の手続き・種目・時刻表・結果を入力できる */
   function raceStaffCard(e) {
@@ -2165,13 +2165,16 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     return h + '</section>';
   }
   function bindDuty(e) {
-    on('[data-rstaff]', function () {
-      var fam = this.dataset.rstaff, onn = !!this.dataset.on;
-      quick('setDuty', { key: e.key, fam: fam, on: onn, kind: '大会係' }, function (st) { st.raceStaff = (st.raceStaff || []).filter(function (x) { return !(x.key === e.key && x.fam === fam); }); if (onn) st.raceStaff.push({ key: e.key, fam: fam }); });
-    });
+    bindRaceStaff(e);
     on('[data-duty]', function () {
       var fam = this.dataset.duty, onn = !!this.dataset.on;
       quick('setDuty', { key: e.key, fam: fam, on: onn }, function (st) { st.duties = st.duties.filter(function (x) { return !(x.key === e.key && x.fam === fam); }); if (onn) st.duties.push({ key: e.key, date: e.date, type: dutyType(e), fam: fam }); });
+    });
+  }
+  function bindRaceStaff(e) {
+    on('[data-rstaff]', function () {
+      var fam = this.dataset.rstaff, onn = !!this.dataset.on;
+      quick('setDuty', { key: e.key, fam: fam, on: onn, kind: '大会係' }, function (st) { st.raceStaff = (st.raceStaff || []).filter(function (x) { return !(x.key === e.key && x.fam === fam); }); if (onn) st.raceStaff.push({ key: e.key, fam: fam }); });
     });
   }
 

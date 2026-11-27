@@ -742,8 +742,16 @@ tr.sel td { background: var(--sky-soft); }
 .stools { display: grid; gap: 6px; }
 .stools button { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
 .stabs.hide { display: none; }
+.link.inl { display: inline; padding: 0; font-size: inherit; text-decoration: underline; }
 .staffnav { grid-template-columns: repeat(5, 1fr) !important; }
 .staffnav .snavi { font-size: 20px; line-height: 1.1; }
+/* パソコン：左に縦1列（アイコンと名前を横に） */
+@media (min-width: 900px) {
+  .staffnav { grid-template-columns: 1fr !important; }
+  .staffnav button { grid-auto-flow: column; justify-content: start; }
+  .staffnav .snavi { font-size: 18px; }
+  .staffnav .badge { position: static; margin-left: 4px; order: 3; }
+}
 .testbar { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--staff); color: #fff; padding: 6px 12px; font-size: 13px; }
 .testbar button { border: 0; border-radius: 8px; background: #fff; color: var(--staff); font: inherit; font-weight: 700; padding: 4px 10px; }
 .notecard { box-shadow: inset 4px 0 0 var(--warn); }
@@ -848,7 +856,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "d1e8b5ade9";
+var BUILD = "22e4856412";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "1831f962d3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1127,7 +1135,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     train: '🎯 目標・自主トレ：「いつまでに・何を」の目標と、そのためにやること（曜日で毎週のスケジュールに）。家での練習を記録すると、グラフとレポートになります。',
     album: '🖼 写真：LINEグループに送った写真が、大会・練習ごとに自動でまとまります。',
     family: '👪 わが家：お子さんの登録・家族の招待・役員や係の確認はここです。',
-    admin: '🛠 役員ページ：下のメニューで係（全体・当番・記録・大会・会計）を選ぶと、その係の「今やること」と「道具」だけが出ます。開いたときは、あなたの係です。',
+    admin: '🛠 役員ページ：メニューで係（全体・当番・記録・大会・会計）を選ぶと、その係の「今やること」と「道具」だけが出ます。開いたときは、あなたの係です。',
   };
   function injectGuide() {
     var key = S.tab, text = GUIDES[key];

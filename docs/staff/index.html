@@ -743,8 +743,16 @@ tr.sel td { background: var(--sky-soft); }
 .stools { display: grid; gap: 6px; }
 .stools button { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
 .stabs.hide { display: none; }
+.link.inl { display: inline; padding: 0; font-size: inherit; text-decoration: underline; }
 .staffnav { grid-template-columns: repeat(5, 1fr) !important; }
 .staffnav .snavi { font-size: 20px; line-height: 1.1; }
+/* パソコン：左に縦1列（アイコンと名前を横に） */
+@media (min-width: 900px) {
+  .staffnav { grid-template-columns: 1fr !important; }
+  .staffnav button { grid-auto-flow: column; justify-content: start; }
+  .staffnav .snavi { font-size: 18px; }
+  .staffnav .badge { position: static; margin-left: 4px; order: 3; }
+}
 .testbar { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--staff); color: #fff; padding: 6px 12px; font-size: 13px; }
 .testbar button { border: 0; border-radius: 8px; background: #fff; color: var(--staff); font: inherit; font-weight: 700; padding: 4px 10px; }
 .notecard { box-shadow: inset 4px 0 0 var(--warn); }
@@ -849,7 +857,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "d1e8b5ade9";
+var BUILD = "22e4856412";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "1831f962d3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1128,7 +1136,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     train: '🎯 目標・自主トレ：「いつまでに・何を」の目標と、そのためにやること（曜日で毎週のスケジュールに）。家での練習を記録すると、グラフとレポートになります。',
     album: '🖼 写真：LINEグループに送った写真が、大会・練習ごとに自動でまとまります。',
     family: '👪 わが家：お子さんの登録・家族の招待・役員や係の確認はここです。',
-    admin: '🛠 役員ページ：下のメニューで係（全体・当番・記録・大会・会計）を選ぶと、その係の「今やること」と「道具」だけが出ます。開いたときは、あなたの係です。',
+    admin: '🛠 役員ページ：メニューで係（全体・当番・記録・大会・会計）を選ぶと、その係の「今やること」と「道具」だけが出ます。開いたときは、あなたの係です。',
   };
   function injectGuide() {
     var key = S.tab, text = GUIDES[key];
@@ -1964,7 +1972,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (STAFF_SITE) S.staffTab = tab;
     var ops = opsChecks(), of = function (r) { return ops.filter(function (x) { return r.areas.indexOf(x.area) >= 0; }); };
     var h = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') +
-      '<section class="card staffhead"><div class="between"><b class="sh-ttl">' + (STAFF_SITE ? R.icon + ' ' + R.t + (R.id === 'all' ? '（会長）' : '係') : '🛠 役員ページ') + '</b><span class="sub">' + (mine ? 'あなたの係：' + esc(mine) : '係が決まっていません') + '</span></div>' +
+      '<section class="card staffhead"><div class="between"><b class="sh-ttl">' + (STAFF_SITE ? R.icon + ' ' + R.t + (R.id === 'all' ? '（会長）' : '係') : '🛠 役員ページ') + '</b><span class="sub">' + (mine ? 'あなたの係：' + esc(mine) : '<button class="link inl" type="button" data-gomem>係が決まっていません（決める ›）</button>') + '</span></div>' +
       '<div class="stabs' + (STAFF_SITE ? ' hide' : '') + '" role="group" aria-label="係">' + ROLES.map(function (r) {
         var n = of(r).length, hi = of(r).filter(function (x) { return x.pri === 1; }).length;
         return '<button type="button" data-stab="' + r.id + '" aria-pressed="' + (r === R) + '"' + (my.indexOf(r) >= 0 ? ' class="mine"' : '') + '><span class="si">' + r.icon + '</span>' + r.t + (n ? '<i class="sn' + (hi ? ' hi' : '') + '">' + n + '</i>' : '') + '</button>';
@@ -1974,10 +1982,10 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       h += '<section class="card"><h2>係ごとの「やること」</h2><div class="list">' + ROLES.slice(1).map(function (r) {
         var n = of(r).length, hi = of(r).filter(function (x) { return x.pri === 1; }).length, who = roleOwner(r);
         return '<button type="button" class="opsit" data-stab="' + r.id + '"><span class="pill ' + (hi ? 'p-race' : n ? 'p-warn' : 'p-ok') + '">' + (hi ? '急ぎ' + hi : n ? n + '件' : '✓') + '</span><span class="main"><b>' + r.icon + ' ' + r.t + '係</b><span class="sub">' + (who.length ? esc(who.join('・')) : '担当が決まっていません') + '</span></span><span class="go">›</span></button>';
-      }).join('') + '</div><div class="hint">係の担当は「👥 メンバー・役員と係」で、家族ごとに「係」を入れて決めます（例：副会長・会計係）。</div></section>';
+      }).join('') + '</div><div class="hint">係の担当は<button class="link inl" type="button" data-gomem>👥 メンバー・役員と係 ›</button>で、家族ごとに「係」を入れて決めます（例：副会長・会計係）。</div></section>';
     } else {
       var who = roleOwner(R);
-      h += '<div class="sub" style="padding:0 4px">担当：' + (who.length ? esc(who.join('・')) : 'まだ決まっていません') + '</div>';
+      h += '<div class="sub" style="padding:0 4px">担当：' + (who.length ? esc(who.join('・')) : 'まだ決まっていません <button class="link inl" type="button" data-gomem>係を決める ›</button>') + '</div>';
     }
     h += '<section class="card"><h2>今やること<small>' + (todo.length ? todo.length + '件' : 'なし') + '</small></h2>' + (todo.length ? '<div class="list">' + todo.map(function (x) { return opsItem(x, ops.indexOf(x)); }).join('') + '</div>' : '<div class="todo-done">✓ いま、' + R.t + 'でやることはありません</div>') + '</section>';
     h += '<section class="card"><h2>' + R.icon + ' ' + R.t + (R.id === 'all' ? '' : '係') + 'の道具</h2><div class="stools">' + R.tools.map(function (t) { return '<button type="button" data-stool="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></section>';
@@ -1986,6 +1994,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     bindCommon(); bindOps();
     on('[data-stab]', function () { S.staffTab = this.dataset.stab; render(); window.scrollTo(0, 0); });
     on('#adminAll', function () { S.adminAll = true; render(); window.scrollTo(0, 0); });
+    on('[data-gomem]', function () { S.admin = 'members'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-stool]', function () {
       var k = this.dataset.stool;
       var nextRace = ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date >= ST.today; })[0];

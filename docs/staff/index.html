@@ -857,7 +857,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "aa49b96c5d";
+var BUILD = "ecee0c9b62";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "f7b1b384af";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -5911,7 +5911,14 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var byDay = {}; evs.forEach(function (e) { (byDay[e.date] = byDay[e.date] || []).push(e); });
     var RANGES = [['month', 'この月', monthEnd], ['3m', '3か月先まで', addDays(ST.today, 91)], ['fy', '年度末（' + md(fyEnd()).replace(/\(.\)/, '') + '）まで', fyEnd()]];
     var R = RANGES.filter(function (x) { return x[0] === (C.range || 'month'); })[0] || RANGES[0];
-    var empty = ST.events.filter(function (e) { return !e.cancelled && dutyType(e) === C.type && e.date >= ST.today && e.date <= R[2] && dutyOf(e.key).length < C.per; }).length;
+    var inR = ST.events.filter(function (e) { return !e.cancelled && dutyType(e) === C.type && e.date >= ST.today && e.date <= R[2]; });
+    var empty = inR.filter(function (e) { return dutyOf(e.key).length < C.per; }).length;
+    // 空きがないときは、なぜかを出す（予定がまだない／もう全部入っている）
+    var lastEv = ST.events.filter(function (e) { return !e.cancelled && dutyType(e) === C.type && e.date >= ST.today; }).map(function (e) { return e.date; }).sort().pop();
+    var why = empty ? '' : !inR.length ? 'この期間に' + C.type + 'の予定がありません。' : 'この期間の' + C.type + ' ' + inR.length + '回は、もう全部に当番が入っています（1回に' + C.per + '家族）。';
+    if (!empty && lastEv && lastEv < R[2]) why += C.type + 'の予定は <b>' + md(lastEv) + '</b> までしかありません（その先は予定がないので、当番を入れられません）。' + (C.type === '練習' ? '<button class="link inl" type="button" data-dcgo="practice">先に練習の予定をつくる ›</button><br>' : '先に大会の予定を入れてください。');
+    else if (!empty && !lastEv) why += C.type === '練習' ? '<button class="link inl" type="button" data-dcgo="practice">練習の予定をつくる ›</button>' : '';
+    if (!empty && inR.length && C.per < 3) why += '1回の人数を増やすなら、上で「1回に' + (C.per + 1) + '家族」を選んでください。';
     var h = backBtn() + toastHtml() + '<section class="card dcal"><div class="between"><h2 style="margin:0">🗓 当番カレンダー<small>輪番づくり</small></h2></div>' +
       '<div class="tabs" role="group" aria-label="当番の種類">' + ['練習', '大会'].map(function (t) { return '<button type="button" data-dct="' + t + '" aria-pressed="' + (C.type === t) + '">' + t + '当番</button>'; }).join('') + '</div>' +
       '<div class="between"><button class="btn small ghost" type="button" data-dcm="-1">‹</button><b>' + y + '年' + m + '月</b><button class="btn small ghost" type="button" data-dcm="1">›</button></div>' +
@@ -5928,7 +5935,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     h += '</div><div class="dcauto"><div class="lbl">空いている当番を自動で埋める</div>' +
       '<div class="choice sm">' + RANGES.map(function (x) { return '<button type="button" data-dcrange="' + x[0] + '" aria-pressed="' + (x === R) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="choice sm">' + [1, 2, 3].map(function (k) { return '<button type="button" data-dcper="' + k + '" aria-pressed="' + (C.per === k) + '">1回に' + k + '家族</button>'; }).join('') + '</div>' +
-      '<div class="row"><button class="btn" type="button" id="dcAuto"' + (empty ? '' : ' disabled') + '>' + (empty ? '空き ' + empty + '件を自動で埋める' : '空きはありません') + '</button><button class="btn small ghost noprint" type="button" id="dcPrint">印刷</button></div>' +
+      '<div class="row"><button class="btn" type="button" id="dcAuto"' + (empty ? '' : ' disabled') + '>' + (empty ? '空き ' + empty + '件を自動で埋める' : '空きはありません') + '</button><button class="btn small ghost noprint" type="button" id="dcPrint">印刷</button></div>' + (why ? '<div class="toast">' + why + '</div>' : '') +
       '<div class="hint">今日から選んだ日までの、当番が足りない' + C.type + 'に、<b>前回から日がたっている家族から順番に</b>入れます（回数が少ない家族が先）。もう入っている当番は変えません。入れたあとも、予定を押せば入れかえられます。家族の名前の横の丸数字は、今年度の何回目か。</div></div></section>';
     // 選んだ予定：候補の家族
     var se = C.sel && evByKey(C.sel);
@@ -5975,6 +5982,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       if (confirm(md(R[2]) + 'までの、当番が足りない' + C.type + ' ' + empty + '件に、1回' + C.per + '家族ずつ順番に入れます。よろしいですか？')) call('autoDuty', { type: C.type, days: n2, per: C.per });
     });
     on('#dcPrint', function () { window.print(); });
+    on('[data-dcgo]', function () { S.admin = this.dataset.dcgo; S.toast = ''; render(); window.scrollTo(0, 0); });
   }
   /** 当番表の文を読む：「2026-10-25,大会,海野・川辺(り)」「10/25 大会 海野・川辺(り)」など */
   function parseDutyTable(text) {

@@ -1645,6 +1645,27 @@ test('Bot：役員には当番カレンダー（輪番づくり）を開くリ�
   assert.ok(gas.line(dm('U2'), '管理').includes('役員だけ'), '保護者が「管理」と送っても開かない');
 });
 
+test('画面のデータは、表が変わっていなければ前に作った分を使う（変わればすぐ作り直す）', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.props.NO_TABLE_CACHE = '';
+  gas.ctx.api(kA, 'refresh'); // 表をおぼえなおす
+  gas.run('globalThis.__built = 0; var __bs = buildState_; buildState_ = function (c) { globalThis.__built++; return __bs(c); }');
+  const a = gas.ctx.api(kA, 'bootstrap');
+  const n1 = gas.run('globalThis.__built');
+  const b = gas.ctx.api(kA, 'bootstrap');
+  assert.strictEqual(gas.run('globalThis.__built'), n1, '2回目は作らない');
+  assert.strictEqual(JSON.stringify(b), JSON.stringify(a), '同じ中身');
+  const race = a.events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kA, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加' });
+  const c = gas.ctx.api(kA, 'bootstrap');
+  assert.ok(c.entries.some((x) => x.child === '鈴木けんた' && x.join === '参加'), '書きかえたらすぐ新しい中身');
+  const k2 = gas.login('U2').key;
+  assert.strictEqual(gas.ctx.api(k2, 'bootstrap').me.name, '鈴木', 'ほかの人の分はまざらない');
+  gas.props.NO_TABLE_CACHE = '1';
+});
+
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {
   const gas = setupClub();
   const post = (body) => JSON.parse(gas.ctx.doPost({ parameter: {}, postData: { contents: JSON.stringify(body) } }).text);

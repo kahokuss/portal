@@ -22,10 +22,33 @@ function api(key, action, payload) {
   if (fresh) { ctx.famId = famIdOf_(fresh); ctx.coach = isCoach_(fresh); ctx.admin = isAdmin_(fresh); ctx.owner = isOwner_(fresh); }
   const t1 = Date.now();
   prefetchTables_(); // 書きかえた表だけ読み直し、ほかは覚えている分をまとめて
+  // 画面のデータ：表の版（どれか書きかわると変わる）・人・日付が同じなら、前に作った分をそのまま使う
+  const sKey = stateCacheKey_(ctx);
+  const cache = CacheService.getScriptCache();
+  if (sKey) {
+    let hit = null;
+    try { hit = cache.get(sKey); } catch (e) { /* なければ作る */ }
+    if (hit) {
+      const st0 = JSON.parse(hit);
+      if (message) st0.message = message;
+      console.log('api ' + action + '：操作 ' + (t1 - t0) + 'ms・画面（おぼえていた分） ' + (Date.now() - t1) + 'ms');
+      return st0;
+    }
+  }
   const state = buildState_(ctx);
+  if (sKey) { try { const js = JSON.stringify(state); if (js.length < 95000) cache.put(sKey, js, 600); } catch (e) { /* 大きすぎるときは覚えない */ } }
   if (message) state.message = message;
   console.log('api ' + action + '：操作 ' + (t1 - t0) + 'ms・画面 ' + (Date.now() - t1) + 'ms');
   return state;
+}
+
+/** 画面のデータを覚えておくときの名前。表の版（TV_*）・サーバーの版・人・今日が同じなら同じ名前 */
+function stateCacheKey_(ctx) {
+  if (!tableCacheOn_()) return '';
+  const props = PropertiesService.getScriptProperties().getProperties();
+  const tv = Object.keys(props).filter((k) => /^TV_/.test(k)).sort().map((k) => k + '=' + props[k]).join('&');
+  const raw = [SERVER_VERSION, ctx.userId, ctx.famId, ctx.admin, ctx.coach, today_(), tv].join('|');
+  return 'st:' + Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, raw, Utilities.Charset.UTF_8).map((b) => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
 }
 
 const API_ACTIONS = {

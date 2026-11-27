@@ -159,6 +159,8 @@ form.f, .f { display: grid; gap: 8px; }
 .menu button { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; text-align: left; border: 0; background: var(--surface); color: var(--fg); border-radius: 14px; padding: 10px 12px; font: inherit; cursor: pointer; }
 .menu b { display: block; font-size: 14px; }
 .menu span.d { font-size: 12px; color: var(--muted); }
+.qbar { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--warn); color: #fff; border: 0; padding: 8px 16px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; z-index: 11; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.qbar[hidden] { display: none; }
 .busy { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--surface); padding: 6px 14px; border-radius: 999px; font-size: 12.5px; z-index: 10; }
 .kidcard { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .kc-no { font-size: 13px; }
@@ -920,6 +922,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   var LASTJS = '';
   function call(action, payload, done) {
+    // まだ送っていない変更があれば、先にまとめて保存してから
+    if (QB.ops.length || QB.busy) { flushQ(function () { call(action, payload, done); }); return; }
     document.getElementById('busy').hidden = false;
     rpc(action, payload, function (st) {
         document.getElementById('busy').hidden = true;
@@ -952,7 +956,73 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
    * 何回か続けて押したときは、最後の返事だけ使う。失敗したら元にもどして知らせる
    */
   var QSEQ = 0, QPEND = 0;
+  /**
+   * まとめて保存：当番・エントリー・支払いの ✓ などは、押すたびに送らず、ためておいて一度に送る。
+   * 送るのは、押し終わって少したったとき・ほかの画面へ移るとき・アプリを閉じる（裏に回す）とき・「今すぐ保存」を押したとき
+   */
+  var BATCH = { setDuty: 1, saveEntry: 1, setPaid: 1, setFeePaid: 1 };
+  var QB = { ops: [], snap: null, timer: 0, busy: false, key: '', after: [] };
+  var QB_WAIT = 2500;
+  function qbKey(a, p) { return [a, p.key || p.id || '', p.child || p.fam || '', p.kind || ''].join('|'); }
+  function queueOp(action, payload, apply) {
+    if (!QB.ops.length && !QB.busy) { QB.snap = JSON.stringify(ST); QB.key = KEY; }
+    try { apply(ST); } catch (x) { console.warn(x); }
+    var k = qbKey(action, payload);
+    QB.ops = QB.ops.filter(function (o) { return o.k !== k; }); // 同じものを押しなおしたら、最後の分だけ
+    QB.ops.push({ k: k, a: action, p: payload });
+    clearTimeout(QB.timer); QB.timer = setTimeout(function () { flushQ(); }, QB_WAIT);
+    S.toast = '';
+    render();
+  }
+  function qbar() {
+    var el = document.getElementById('qbar');
+    if (!el) { el = document.createElement('button'); el.id = 'qbar'; el.type = 'button'; el.className = 'qbar'; el.onclick = function () { flushQ(); }; document.body.appendChild(el); }
+    var n = QB.ops.length;
+    el.hidden = !n && !QB.busy;
+    el.textContent = QB.busy ? '保存しています…' + (n ? '（あと' + n + '件）' : '') : '未保存 ' + n + '件・今すぐ保存';
+  }
+  function flushQ(after) {
+    if (after) QB.after.push(after);
+    clearTimeout(QB.timer);
+    if (QB.busy) { qbar(); return; }
+    if (!QB.ops.length) { var a0 = QB.after; QB.after = []; a0.forEach(function (f) { f(); }); qbar(); return; }
+    var ops = QB.ops.map(function (o) { return { a: o.a, p: o.p }; });
+    QB.ops = []; QB.busy = true; qbar();
+    var k0 = KEY; KEY = QB.key || KEY;
+    var fin = function () {
+      QB.busy = false;
+      if (QB.ops.length) { flushQ(); return; } // 送っているあいだに押した分
+      QB.snap = null; qbar();
+      var a = QB.after; QB.after = []; a.forEach(function (f) { f(); });
+    };
+    rpc('batch', { ops: ops }, function (st) {
+      if (!QB.ops.length) { ST = fillDefaults(st); saveState(st); if (st.message) { S.toast = '⚠ ' + st.message; S.toastErr = true; } render(); }
+      fin();
+    }, function (err) {
+      var msg = String((err && err.message) || err).replace(/^(Exception|Error):\s*/, '');
+      if (/不明な操作です/.test(msg)) { // サーバーが古い版：1件ずつ送る
+        var i = 0, next = function () {
+          if (i >= ops.length) { fin(); return; }
+          var o = ops[i++];
+          rpc(o.a, o.p, function (st) { if (i >= ops.length && !QB.ops.length) { ST = fillDefaults(st); saveState(st); render(); } next(); }, function (e2) { S.toast = '⚠ 保存できませんでした：' + String((e2 && e2.message) || e2).replace(/^(Exception|Error):\s*/, ''); S.toastErr = true; render(); next(); });
+        };
+        next(); return;
+      }
+      if (/ログインが切れ|グループのメンバーではない/.test(msg)) { QB.ops = []; QB.busy = false; qbar(); clearKey(); ST = null; showLogin(msg); return; }
+      if (QB.snap) ST = fillDefaults(JSON.parse(QB.snap));
+      QB.ops = []; QB.snap = null;
+      S.toast = '⚠ 保存できませんでした（' + ops.length + '件）：' + msg + '。もう一度押してください。'; S.toastErr = true;
+      render(); fin();
+    });
+    KEY = k0;
+  }
+  // アプリを閉じる・裏に回すときは、すぐ送る。送る前にページを離れようとしたら知らせる
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && QB.ops.length) flushQ(); });
+  window.addEventListener('beforeunload', function (ev) { if (QB.ops.length || QB.busy) { flushQ(); ev.preventDefault(); ev.returnValue = ''; } });
+  var QB_SIG = '';
+  window.flushSaves = function () { flushQ(); };
   function quick(action, payload, apply, done) {
+    if (BATCH[action] && !done) return queueOp(action, payload, apply);
     var snap = JSON.stringify(ST);
     try { apply(ST); } catch (x) { console.warn(x); }
     var seq = ++QSEQ;
@@ -6430,6 +6500,10 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   function render() {
     CURKEY = ''; FORMDROP = {};
+    // ほかの画面へ移るときは、ためていた変更をまとめて保存
+    var sig = [S.tab, S.admin, S.event, S.etab, S.staffTab, S.adminAll].join('|');
+    if (sig !== QB_SIG) { QB_SIG = sig; if (QB.ops.length) flushQ(); }
+    qbar();
     document.getElementById('clubName').textContent = ST.club + (STAFF_SITE ? ' 役員ページ' : ' ポータル');
     document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.owner ? '・管理者' : ST.me.admin ? '・役員' : '');
     document.getElementById('reload').hidden = false;

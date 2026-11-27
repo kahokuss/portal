@@ -109,7 +109,11 @@ async function openPortal(browser, gas, userId, name) {
     };
   }
   page.shot = async (n) => { if (SHOTS) await page.screenshot({ path: path.join(shotDir, name + '-' + n + '.png'), fullPage: true }); };
-  page.idle = () => page.waitForSelector('#busy[hidden]', { state: 'attached' });
+  // まとめて保存：ためている分をすぐ送り、送り終わるまで待つ
+  page.idle = async () => {
+    await page.evaluate(() => window.flushSaves && window.flushSaves());
+    await page.waitForFunction(() => { const q = document.getElementById('qbar'); return (!q || q.hidden) && document.getElementById('busy').hidden; });
+  };
   return page;
 }
 

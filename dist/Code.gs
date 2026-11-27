@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'f7b1b384af';
+const SERVER_VERSION = '9bfa4d73de';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2634,6 +2634,20 @@ function api(key, action, payload) {
   return state;
 }
 
+/** まとめて保存：画面でためた ✓（当番・エントリー・支払い）を一度に書いて、画面のデータは1回だけ作る */
+const BATCHABLE_ = ['setDuty', 'saveEntry', 'setPaid', 'setFeePaid'];
+function batchAction_(ctx, p) {
+  const ops = (p.ops || []).slice(0, 300), ng = [];
+  let ok = 0;
+  ops.forEach((o) => {
+    const h = BATCHABLE_.indexOf(o && o.a) >= 0 ? API_ACTIONS[o.a] : null;
+    if (!h) return ng.push('まとめて保存できない操作です');
+    if (h.admin && !ctx.admin) return ng.push('役員だけができる操作です');
+    try { h.run(ctx, o.p || {}); ok++; } catch (e) { ng.push(String(e.message || e).replace(/^Error:\s*/, '')); }
+  });
+  return ng.length ? (ok ? ok + '件は保存しました。' : '') + '保存できなかったもの ' + ng.length + '件：' + ng.filter((x, i, a) => a.indexOf(x) === i).slice(0, 3).join('／') : '';
+}
+
 /** 画面のデータを覚えておくときの名前。表の版（TV_*）・サーバーの版・人・今日が同じなら同じ名前 */
 function stateCacheKey_(ctx) {
   if (!tableCacheOn_()) return '';
@@ -2654,6 +2668,7 @@ const API_ACTIONS = {
   setNotify: { admin: true, run: setNotifyAction_ },
   setAdmin: { admin: true, run: setAdminAction_ },
   setDuty: { admin: true, run: setDutyAction_ },
+  batch: { run: (ctx, p) => batchAction_(ctx, p) },
   importDuties: { admin: true, run: importDutiesAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
   saveTimetable: { run: saveTimetableAction_ },

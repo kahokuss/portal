@@ -1644,6 +1644,25 @@ test('テスト家族（親A〜E）：入れる・その家族で使う（LINE�
   assert.ok(gas.rows('家族').some((f) => f.userId === 'U1' && f['役員'] === '○'), '本物の家族（役員）は残る');
 });
 
+test('まとめて保存（batch）：当番・支払いを一度に書いて、役員だけの操作は役員だけ', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key, kB = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kA, 'bootstrap');
+  const evs = st.events.filter((e) => !e.cancelled).slice(0, 3);
+  const fam = gas.ctx.api(kB, 'bootstrap').me.fam;
+  st = gas.ctx.api(kA, 'batch', { ops: evs.map((e) => ({ a: 'setDuty', p: { key: e.key, fam: fam, on: true } })) });
+  assert.ok(!st.message, st.message);
+  assert.strictEqual(gas.rows('当番').filter((d) => d['家族ID'] === fam).length, 3);
+  // 役員でない人：当番は書けない（ほかの分は書ける）
+  st = gas.ctx.api(kB, 'batch', { ops: [{ a: 'setDuty', p: { key: evs[0].key, fam: fam, on: false } }] });
+  assert.ok(/役員だけ/.test(st.message), st.message);
+  assert.strictEqual(gas.rows('当番').filter((d) => d['家族ID'] === fam).length, 3);
+  // まとめられない操作は断る
+  st = gas.ctx.api(kA, 'batch', { ops: [{ a: 'setAdmin', p: {} }] });
+  assert.ok(/まとめて保存できない/.test(st.message), st.message);
+});
+
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
   const gas = setupClub();
   gas.login('U1');

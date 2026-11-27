@@ -748,6 +748,7 @@ tr.sel td { background: var(--sky-soft); }
 .flow .flowst { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); }
 .flow .flowst.now { border-color: var(--track); background: var(--track-soft); }
 .flow .flowst.ok b::after { content: ' ✓'; color: var(--field); }
+.dcf.swp { outline: 2px dashed var(--warn); }
 .flow .flowarr { text-align: center; color: var(--muted); line-height: 1; }
 .staffnav { grid-template-columns: repeat(5, 1fr) !important; }
 .staffnav .snavi { font-size: 20px; line-height: 1.1; }
@@ -862,9 +863,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9ea90fe73f";
+var BUILD = "f2f9d18441";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "9bfa4d73de";
+var EXPECT_SERVER = "ca8ddb569a";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = true;
 var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
@@ -1057,7 +1058,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // 加速走（助走をつけた計測）は公式記録にしない
   function isFlying(r) { return /加速/.test(String(r.memo || '') + String(r.race || '') + String(r.round || '')); }
   function fillDefaults(st) {
-    ['duties', 'raceStaff', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'raceStaff', 'swaps', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.raceNotes) st.raceNotes = [];
     if (!st.testFamilies) st.testFamilies = [];
@@ -1379,11 +1380,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       info += '<section class="card" id="notices"><h2>お知らせ' + (ST.notices.length > shown.length ? '<small>新しい' + shown.length + '件</small>' : '') + '</h2><div class="list">' + shown.map(noticeItem).join('') + '</div></section>';
     }
     ST.polls.filter(function (p) { return !p.closed; }).forEach(function (p) { info += pollCard(p); });
-    info += myFeesCard();
+    info += swapCard() + myFeesCard();
 
     var md0 = myDuties()[0], mdE = md0 && evByKey(md0.key);
     if (mdE && diff(ST.today, mdE.date) <= (LITE ? 30 : 14) && (LITE || diff(ST.today, mdE.date) > 7)) {
-      info += '<section class="card banner"><h2>わが家の当番<small>' + (mdE.date === ST.today ? '今日' : 'あと' + diff(ST.today, mdE.date) + '日') + '</small></h2><button class="ev" type="button" data-ev="' + mdE.key + '"><span class="main"><span class="big">' + md(mdE.date) + ' ' + esc(md0.type) + '当番</span><br><span class="sub">' + esc(mdE.title) + (mdE.place ? '・' + esc(mdE.place) : '') + '</span></span>›</button></section>';
+      info += '<section class="card banner"><h2>わが家の当番<small>' + (mdE.date === ST.today ? '今日' : 'あと' + diff(ST.today, mdE.date) + '日') + '</small></h2><button class="ev" type="button" data-ev="' + mdE.key + '"><span class="main"><span class="big">' + md(mdE.date) + ' ' + esc(md0.type) + '当番</span><br><span class="sub">' + esc(mdE.title) + (mdE.place ? '・' + esc(mdE.place) : '') + '</span></span>›</button><div class="row">' + swapBtn(mdE.key) + '</div></section>';
     }
     upcoming(function (e) { return isRace(e) && e.date <= addDays(ST.today, 1); }).forEach(function (e) { h += jinchiCard(e, true); });
     var today = upcoming(function (e) { return isRace(e) && e.date <= addDays(ST.today, 1); }).filter(function (e) { return myCalls(e).length; })[0];
@@ -1496,6 +1497,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     on('[data-ttnew]', function () { var p = this.dataset.ttnew.split('|'); openTTEdit(p[0], '', p.slice(1).join('|')); });
   }
   function bindCommon() {
+    bindSwap();
     on('[data-ev]', function () { S.tab = 'events'; S.event = this.dataset.ev; S.etab = '概要'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-entry]', function () { S.tab = 'events'; S.event = this.dataset.entry; S.etab = 'エントリー'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-gott]', function () { S.tab = 'events'; S.event = this.dataset.gott; S.etab = 'タイムテーブル'; S.ttf = ''; S.toast = ''; render(); window.scrollTo(0, 0); });
@@ -2158,6 +2160,34 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
     return r;
   }
+  // ---- 当番の交代：当番の家族がお願いする → ほかの家族が「代わりに入る」（先着）で入れかわる ----
+  function swapOf(key, fam) { return (ST.swaps || []).filter(function (x) { return x.key === key && x.fam === fam && x.status === '募集中'; })[0]; }
+  function swapsOpen() { return (ST.swaps || []).filter(function (x) { return x.status === '募集中' && x.date >= ST.today; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
+  /** わが家の当番の行につける：「交代をお願いする」か「お願い中（取り消す）」 */
+  function swapBtn(key) {
+    var e = evByKey(key); if (!e || e.date < ST.today) return '';
+    var sw = swapOf(key, ST.me.fam);
+    return sw ? '<span class="pill p-warn">⇄ 交代をお願い中</span> <button class="link" type="button" data-swapx="' + sw.id + '">取り消す</button>' : '<button class="btn small ghost" type="button" data-swapreq="' + key + '">⇄ 交代をお願いする</button>';
+  }
+  /** ホーム：交代の募集（ほかの家族の分は「代わりに入る」）と、わが家が代わってもらえた知らせ */
+  function swapCard() {
+    var open = swapsOpen(), done = (ST.swaps || []).filter(function (x) { return x.status === '決定' && x.fam === ST.me.fam && x.date >= ST.today; });
+    if (!open.length && !done.length) return '';
+    return '<section class="card banner" id="secSwap"><h2>⇄ 当番の交代' + (open.length ? '<small>募集 ' + open.length + '件</small>' : '') + '</h2><div class="list">' + open.map(function (x) {
+      var e = evByKey(x.key), mine = x.fam === ST.me.fam;
+      return '<div class="between"><span><b>' + md(x.date) + ' ' + esc(x.type) + '当番</b> <span class="sub">' + esc(e ? e.title : '') + '</span><br><span class="sub">' + esc(famName(x.fam)) + (x.reason ? '：' + esc(x.reason) : '') + '</span></span>' +
+        (mine ? '<span class="row nowrap"><span class="pill p-warn">お願い中</span><button class="link" type="button" data-swapx="' + x.id + '">取り消す</button></span>' : '<button class="btn small" type="button" data-swapvol="' + x.id + '">🙋 代わりに入る</button>') + '</div>';
+    }).join('') + done.map(function (x) { return '<div class="sub">✅ ' + md(x.date) + 'の' + esc(x.type) + '当番は、<b>' + esc(famName(x.to) || x.toName) + '</b>が代わりに入ってくれました</div>'; }).join('') +
+      '</div><div class="hint">代わりに入ると、その日の当番はわが家になります（先に押した1家族）。回数は自動で数えるので、次の割り当てで調整されます。</div></section>';
+  }
+  function bindSwap() {
+    on('[data-swapreq]', function () {
+      var key = this.dataset.swapreq, e = evByKey(key);
+      askForm({ title: '当番の交代をお願いする', hint: md(e.date) + ' ' + dutyType(e) + '当番（' + e.title + '）。ほかの家族が「代わりに入る」を押すと、その家族に入れかわります。', fields: [{ label: '理由（なくてもOK）', placeholder: '例：仕事が入ったため', chips: ['仕事が入った', '用事', '体調不良'] }], ok: 'お願いする' }, function (v) { call('swapRequest', { key: key, reason: v[0] }); });
+    });
+    on('[data-swapvol]', function () { var id = this.dataset.swapvol, x = (ST.swaps || []).filter(function (y) { return y.id === id; })[0]; if (x && confirm(md(x.date) + 'の' + x.type + '当番に、わが家が代わりに入ります。よろしいですか？')) call('swapVolunteer', { id: id }); });
+    on('[data-swapx]', function () { if (confirm('交代のお願いを取り消しますか？（当番はわが家のままです）')) call('swapCancel', { id: this.dataset.swapx }); });
+  }
   function myDuties() { return ST.duties.filter(function (x) { return x.fam === ST.me.fam && x.date >= ST.today; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
   function tkey(t) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})/); return m ? pad(+m[1]) + ':' + m[2] : '99:99'; }
   function tsub(t, min) { var m = String(t || '').match(/^(\d{1,2}):(\d{2})/); if (!m) return ''; var x = Math.max(0, +m[1] * 60 + +m[2] - min); return Math.floor(x / 60) + ':' + pad(x % 60); }
@@ -2213,7 +2243,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function dutyCard(e) {
     var type = dutyType(e), list = dutyOf(e.key);
     var h = '<section class="card" id="secDuty"><h2>' + type + '当番' + (list.length ? '' : '<small>まだ決まっていません</small>') + '</h2>';
-    if (list.length) h += '<div class="row">' + list.map(function (x) { return '<span class="pill ' + (x.fam === ST.me.fam ? 'p-race' : 'p-gray') + '">🏠 ' + esc(famName(x.fam)) + (x.fam === ST.me.fam ? '（わが家）' : '') + '</span>'; }).join(' ') + '</div>';
+    if (list.length) h += '<div class="row">' + list.map(function (x) { return '<span class="pill ' + (x.fam === ST.me.fam ? 'p-race' : 'p-gray') + '">🏠 ' + esc(famName(x.fam)) + (x.fam === ST.me.fam ? '（わが家）' : '') + '</span>' + (x.fam !== ST.me.fam && swapOf(e.key, x.fam) ? ' <button class="btn small" type="button" data-swapvol="' + swapOf(e.key, x.fam).id + '">🙋 代わりに入る</button>' : ''); }).join(' ') + '</div>';
+    if (list.some(function (x) { return x.fam === ST.me.fam; })) h += '<div class="row">' + swapBtn(e.key) + '</div>';
     if (type === '練習') {
       // 次の練習の当番（カギをかけて返す人）
       var nx = ST.events.filter(function (x) { return !x.cancelled && x.date > e.date && dutyType(x) === '練習' && dutyOf(x.key).length; })[0];
@@ -5681,7 +5712,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     h += '<form class="f" id="joinForm"><label>家族から招待番号をもらったとき<input id="joinCode" inputmode="numeric" maxlength="6" placeholder="6けたの番号"></label><button class="btn small ghost" type="submit" style="justify-self:start">家族になる</button></form>';
     if (ST.me.family.length > 1) h += '<button class="link" id="leaveFam" type="button">家族のまとまりから外れる</button>';
     var mine = myDuties();
-    if (mine.length) h += '<div class="lbl">わが家の当番</div><div class="list">' + mine.map(function (x) { var e = evByKey(x.key); return e ? '<button class="ev" type="button" data-ev="' + e.key + '"><span><b>' + md(e.date) + '</b> ' + esc(x.type) + '当番・' + esc(e.title) + '</span>›</button>' : ''; }).join('') + '</div>';
+    if (mine.length) h += '<div class="lbl">わが家の当番</div><div class="list">' + mine.map(function (x) { var e = evByKey(x.key); return e ? '<button class="ev" type="button" data-ev="' + e.key + '"><span><b>' + md(e.date) + '</b> ' + esc(x.type) + '当番・' + esc(e.title) + '</span>›</button><div class="row" style="margin:-2px 0 6px">' + swapBtn(e.key) + '</div>' : ''; }).join('') + '</div>';
     return h + '</section>';
   }
   function bindFamilyCard() {

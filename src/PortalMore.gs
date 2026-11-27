@@ -91,7 +91,7 @@ function setDutyAction_(ctx, p) {
  */
 function autoDutyAction_(ctx, p) {
   const type = p.type === '大会' ? '大会' : '練習';
-  const per = Math.max(1, Math.min(4, Number(p.per) || 1));
+  const per = 1; // 当番は1回に1家族
   const days = Math.max(1, Math.min(400, Number(p.days) || 30));
   const today = today_();
   const families = familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_());
@@ -117,7 +117,8 @@ function autoDutyAction_(ctx, p) {
       for (let n = have.length; n < per; n++) {
         const pick = families
           .filter((f) => have.indexOf(f.id) < 0)
-          .sort((a, b) => (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : count[a.id] - count[b.id] || (a.label < b.label ? -1 : 1)))[0];
+          // 回数が少ない家族から（交代で代わりに入った家族は後回し、代わってもらった家族は先）。同じ回数なら前回から日がたっている順
+          .sort((a, b) => count[a.id] - count[b.id] || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
         if (!pick) break;
         const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_() });
         duties.push(row);

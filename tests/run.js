@@ -1663,6 +1663,38 @@ test('まとめて保存（batch）：当番・支払いを一度に書いて、
   assert.ok(/まとめて保存できない/.test(st.message), st.message);
 });
 
+test('当番の交代：お願い → 代わりに入る（先着）で入れかわり、次の自動割り当てで回数を調整', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kA, 'testFamilies', { on: true });
+  const tk = (id) => gas.ctx.api(kA, 'testLogin', { id: id }).key;
+  const kB = tk('TEST_B'), kC = tk('TEST_C'), kD = tk('TEST_D');
+  let st = gas.ctx.api(kA, 'bootstrap');
+  const prac = st.events.filter((e) => e.type === '練習' && e.date >= st.today)[0];
+  gas.ctx.api(kA, 'setDuty', { key: prac.key, fam: 'TEST_B', on: true });
+  assert.throws(() => gas.ctx.api(kC, 'swapRequest', { key: prac.key }), /わが家ではありません/);
+  st = gas.ctx.api(kB, 'swapRequest', { key: prac.key, reason: '仕事が入った' });
+  assert.ok(/お願いしました/.test(st.message));
+  const sw = plain(st.swaps).find((x) => x.key === prac.key);
+  assert.strictEqual(sw.status, '募集中');
+  assert.throws(() => gas.ctx.api(kB, 'swapVolunteer', { id: sw.id }), /自分の家/);
+  st = gas.ctx.api(kC, 'swapVolunteer', { id: sw.id });
+  assert.ok(/代わりに入りました/.test(st.message), st.message);
+  assert.deepStrictEqual(plain(st.duties).filter((x) => x.key === prac.key).map((x) => x.fam), ['TEST_C']);
+  assert.throws(() => gas.ctx.api(kD, 'swapVolunteer', { id: sw.id }), /もう終わって/);
+  assert.strictEqual(plain(gas.ctx.api(kB, 'bootstrap').swaps).find((x) => x.id === sw.id).status, '決定');
+  // 取り消し：お願いした家族か役員だけ
+  gas.ctx.api(kA, 'setDuty', { key: prac.key, fam: 'TEST_D', on: true });
+  st = gas.ctx.api(kD, 'swapRequest', { key: prac.key });
+  const sw2 = plain(st.swaps).find((x) => x.fam === 'TEST_D' && x.status === '募集中');
+  assert.throws(() => gas.ctx.api(tk('TEST_E'), 'swapCancel', { id: sw2.id }), /お願いした家族と役員/);
+  gas.ctx.api(kD, 'swapCancel', { id: sw2.id });
+  // テスト家族を消すと、交代の行も消える
+  gas.ctx.api(kA, 'testFamilies', { off: true });
+  assert.ok(!gas.rows('当番の交代').some((x) => /^TEST_/.test(x['依頼家族ID'])));
+});
+
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
   const gas = setupClub();
   gas.login('U1');

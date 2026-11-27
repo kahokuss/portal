@@ -78,6 +78,7 @@ function clearTestData_() {
         (h.indexOf('userId') >= 0 && isTestUser_(r.userId)) ||
         (h.indexOf('保護者userId') >= 0 && splitNames_(r['保護者userId']).some(isTestUser_)) ||
         (h.indexOf('連絡者userId') >= 0 && isTestUser_(r['連絡者userId'])) ||
+        (h.indexOf('依頼家族ID') >= 0 && (isTestUser_(r['依頼家族ID']) || isTestUser_(r['代わり家族ID']))) ||
         (h.indexOf('家族ID') >= 0 && isTestUser_(r['家族ID'])) ||
         (h.indexOf('子ども') >= 0 && kidNames[r['子ども']]) ||
         (h.indexOf('対象') >= 0 && kidNames[String(r['対象'] || '').split('|')[0]]);

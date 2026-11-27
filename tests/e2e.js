@@ -1849,8 +1849,9 @@ async function openPortal(browser, gas, userId, name) {
         await q.idle();
         assert.ok(!gas.rows('当番').some((r) => r.eventKey === key), '外れた');
       }
-      // 3か月先まで、空きを自動で埋める（年度末までも同じしくみ）
-      await q.click('[data-dcrange="3m"]');
+      // 2か月分の空きを、1回1家族で自動で埋める
+      await q.click('[data-dcrange="2m"]');
+      assert.ok(!(await q.$('[data-dcper]')), '1回1家族（人数の選択はない）');
       const before = gas.rows('当番').length;
       if (!(await q.$('#dcAuto[disabled]'))) {
         await q.click('#dcAuto'); await q.idle();

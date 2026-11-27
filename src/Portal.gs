@@ -76,6 +76,9 @@ const API_ACTIONS = {
   setNotify: { admin: true, run: setNotifyAction_ },
   setAdmin: { admin: true, run: setAdminAction_ },
   setDuty: { admin: true, run: setDutyAction_ },
+  swapRequest: { run: swapRequestAction_ },
+  swapVolunteer: { run: swapVolunteerAction_ },
+  swapCancel: { run: swapCancelAction_ },
   batch: { run: (ctx, p) => batchAction_(ctx, p) },
   importDuties: { admin: true, run: importDutiesAction_ },
   autoDuty: { admin: true, run: autoDutyAction_ },
@@ -268,15 +271,7 @@ function buildState_(ctx) {
 
   // 当番は、前回からどれくらいたったかを見るために1年分を渡す
   // 当番：取り込んだときに予定がなかった分はその日の予定に、保護者がまだだった子（kid:名前）は今の家族に結びつける
-  const famOfUser = {};
-  readRows_(SHEETS.FAMILIES).forEach((f) => (famOfUser[f.userId] = famIdOf_(f)));
-  const allKids = activeChildren_();
-  const kidFam = (v) => {
-    if (!/^kid:/.test(v)) return v;
-    const k = allKids.find((c) => c.name === v.slice(4));
-    const u = k && k.parents.find((x) => famOfUser[x]);
-    return u ? famOfUser[u] : v;
-  };
+  const kidFam = dutyFamResolver_();
   const evOn = {};
   events.forEach((e) => { if (!e.cancelled) (evOn[e.date] = evOn[e.date] || []).push(e); });
   const dutyRows = readRows_(SHEETS.DUTIES).filter((x) => x['家族ID'] && x['日付'] >= addDays_(today, -400));
@@ -355,6 +350,7 @@ function buildState_(ctx) {
     notices: notices,
     duties: duties,
     raceStaff: raceStaff,
+    swaps: swapsFor_(today),
     timetable: timetable,
     tasks: tasks,
     photos: photos,

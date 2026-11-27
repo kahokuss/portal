@@ -1635,6 +1635,14 @@ test('Bot：役員には当番カレンダー（輪番づくり）を開くリ�
   assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /adm=dutycal/.test(b.uri) && /当番カレンダー/.test(b.label)), '「当番カレンダー」でボタン');
   assert.ok(!gas.line(dm('U2'), '当番').includes('adm=dutycal'), '保護者には出さない');
   assert.ok(!gas.line(dm('U2'), '輪番').includes('adm=dutycal'), '保護者が「輪番」と送っても、わが家の当番');
+  // 役員ページ：「役員」「管理」でボタン、メニューにも役員だけボタン
+  gas.line(dm('U1'), '役員');
+  assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /役員ページ/.test(b.label)), '「役員」で役員ページのボタン');
+  gas.line(dm('U1'), 'メニュー');
+  assert.ok(gas.lastButtons().some((b) => b.type === 'uri' && /役員ページ/.test(b.label)), 'メニューにも（役員）');
+  gas.line(dm('U2'), 'メニュー');
+  assert.ok(!gas.lastButtons().some((b) => /役員ページ/.test(b.label || '')), '保護者のメニューには出さない');
+  assert.ok(gas.line(dm('U2'), '管理').includes('役員だけ'), '保護者が「管理」と送っても開かない');
 });
 
 test('ポータル画面（別の場所に置いた画面）からのPOSTでログインと操作ができる', () => {

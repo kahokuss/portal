@@ -702,7 +702,7 @@ function handlePostback_(ev) {
       case 'trmv': return moveTrainingBot_(ev, p.id);
       case 'trdel': return deleteTrainingBot_(ev, p.id);
       case 'trlog': return showTrainingLog_(ev, botUser_(ev));
-      case 'menu': return respond_(ev, [p.g ? subMenuBubble_(p.g) : helpBubble_()]);
+      case 'menu': return respond_(ev, [p.g ? subMenuBubble_(p.g) : helpBubble_(botUser_(ev).admin)]);
     }
   } catch (err) {
     respond_(ev, botMessages_(['⚠ ' + String((err && err.message) || err)]));
@@ -962,7 +962,14 @@ function menuRow_(icon, title, desc, action) {
 }
 
 /** メニュー（1段目：目的を選ぶ） */
-function helpBubble_() {
+/** 役員ページ（係ごとの今やること・道具）。GitHub Pages のポータルなら staff/ を直接 */
+function staffUrl_() {
+  if (CONFIG.PORTAL_URL) return String(CONFIG.PORTAL_URL).replace(/\/?$/, '/') + 'staff/';
+  const u = portalUrl_();
+  return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'tab=admin';
+}
+
+function helpBubble_(admin) {
   return flex_('メニュー', {
     type: 'bubble',
     body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
@@ -971,7 +978,7 @@ function helpBubble_() {
     ].concat(BOT_MENU.map((g) => menuRow_(g.icon, g.t, g.d, pbAction_(g.t, { a: 'menu', g: g.id }, g.t)))).concat([
       txt_('💻 タイムテーブル・記録・大会の案内・名簿など、くわしい入力はポータルで', { size: 'xs', color: C_SUB, margin: 'md' }),
       btn_(uriAction_('ポータルを開く', portalUrl_()), 'primary', C_RACE),
-    ]) },
+    ]).concat(admin ? [btn_(uriAction_('🛠 役員ページを開く', staffUrl_()), 'secondary')] : []) },
   });
 }
 
@@ -1222,6 +1229,7 @@ function parseCommand_(text) {
     'ヘルプ': 'help', '使い方': 'help', 'help': 'help',
     '登録': 'register',
     'ポータル': 'portal', 'portal': 'portal',
+    '役員': 'staff', '役員ページ': 'staff', '管理': 'staff', '役員サイト': 'staff',
     '新着': 'news', '確認': 'news', 'お知らせ': 'notices', 'メニュー': 'help', 'もっと': 'help',
     'カレンダー': 'calendar', '月': 'calendar', 'アンケート': 'polls', '集金': 'fees', '自主トレ': 'training', 'トレーニング': 'training', 'ふりかえり': 'review', '振り返り': 'review',
     '今日': 'today', 'きょう': 'today',
@@ -1262,7 +1270,7 @@ function handleText_(ev) {
   ev.privateAnswer = CONFIG.GROUP_PRIVATE_REPLY && ev.source.type === 'group' && PUBLIC_COMMANDS.indexOf(cmd.name) < 0;
   switch (cmd.name) {
     case 'help':
-      return respond_(ev, [helpBubble_()]);
+      return respond_(ev, [helpBubble_(botUser_(ev).admin)]);
     case 'calendar':
       return handleCalendar_(ev, /^\d{1,2}$/.test(toHalfWidth_(cmd.args)) ? botMonthOf_(Number(toHalfWidth_(cmd.args))) : '');
     case 'notices':
@@ -1279,6 +1287,8 @@ function handleText_(ev) {
       return handleRegister_(ev, cmd.args);
     case 'portal':
       return handlePortal_(ev);
+    case 'staff':
+      return handleStaff_(ev);
     case 'news':
       return handleNews_(ev);
     case 'today':
@@ -1332,9 +1342,21 @@ function handleRegister_(ev, args) {
  * ポータルのリンクはみんな同じ。開くと LINE ログインがあり、グループのメンバーだけが入れるので、グループに出してよい。
  */
 function handlePortal_(ev) {
+  const admin = botUser_(ev).admin;
   respond_(ev, [
-    text_('🏃 ' + CONFIG.CLUB_NAME + ' ポータル\n' + portalUrl_() + '\n\n開くと「LINEでログイン」が出ます。' + CONFIG.CLUB_NAME + 'のLINEグループのメンバーだけが見られます。'),
+    text_('🏃 ' + CONFIG.CLUB_NAME + ' ポータル\n' + portalUrl_() + '\n\n開くと「LINEでログイン」が出ます。' + CONFIG.CLUB_NAME + 'のLINEグループのメンバーだけが見られます。' + (admin ? '\n\n🛠 役員ページ\n' + staffUrl_() : '')),
   ]);
+}
+
+/** 「役員」「役員ページ」「管理」：役員には役員ページ（係ごと）を開くボタン */
+function handleStaff_(ev) {
+  if (!botUser_(ev).admin) return respond_(ev, botMessages_(['役員ページは役員だけが使えます。ポータルはこちら\n' + portalUrl_()]));
+  respond_(ev, [flex_('役員ページ', { type: 'bubble', body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
+    txt_('🛠 役員ページ', { weight: 'bold', size: 'md' }),
+    txt_('係ごと（全体・当番・記録・大会・会計）の「今やること」と道具', { size: 'xs', color: C_SUB }),
+    btn_(uriAction_('役員ページを開く', staffUrl_()), 'primary', C_RACE),
+    btn_(uriAction_('🗓 当番カレンダー', dutyCalUrl_()), 'secondary'),
+  ] } })]);
 }
 
 // ===== Config.gs =====
@@ -1353,7 +1375,7 @@ function handlePortal_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '17c2b4db1c';
+const SERVER_VERSION = '6b5f7c945e';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',

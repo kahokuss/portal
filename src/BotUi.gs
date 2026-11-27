@@ -198,7 +198,7 @@ function handlePostback_(ev) {
       case 'trmv': return moveTrainingBot_(ev, p.id);
       case 'trdel': return deleteTrainingBot_(ev, p.id);
       case 'trlog': return showTrainingLog_(ev, botUser_(ev));
-      case 'menu': return respond_(ev, [p.g ? subMenuBubble_(p.g) : helpBubble_()]);
+      case 'menu': return respond_(ev, [p.g ? subMenuBubble_(p.g) : helpBubble_(botUser_(ev).admin)]);
     }
   } catch (err) {
     respond_(ev, botMessages_(['⚠ ' + String((err && err.message) || err)]));
@@ -458,7 +458,14 @@ function menuRow_(icon, title, desc, action) {
 }
 
 /** メニュー（1段目：目的を選ぶ） */
-function helpBubble_() {
+/** 役員ページ（係ごとの今やること・道具）。GitHub Pages のポータルなら staff/ を直接 */
+function staffUrl_() {
+  if (CONFIG.PORTAL_URL) return String(CONFIG.PORTAL_URL).replace(/\/?$/, '/') + 'staff/';
+  const u = portalUrl_();
+  return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'tab=admin';
+}
+
+function helpBubble_(admin) {
   return flex_('メニュー', {
     type: 'bubble',
     body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '12px', contents: [
@@ -467,7 +474,7 @@ function helpBubble_() {
     ].concat(BOT_MENU.map((g) => menuRow_(g.icon, g.t, g.d, pbAction_(g.t, { a: 'menu', g: g.id }, g.t)))).concat([
       txt_('💻 タイムテーブル・記録・大会の案内・名簿など、くわしい入力はポータルで', { size: 'xs', color: C_SUB, margin: 'md' }),
       btn_(uriAction_('ポータルを開く', portalUrl_()), 'primary', C_RACE),
-    ]) },
+    ]).concat(admin ? [btn_(uriAction_('🛠 役員ページを開く', staffUrl_()), 'secondary')] : []) },
   });
 }
 

@@ -833,6 +833,16 @@ async function openPortal(browser, gas, userId, name) {
       assert.ok((await g2.textContent('#view')).includes('今やること'), '役員ページが開く（ログインはそのまま）');
       assert.ok(await g2.$eval('body', (b) => b.classList.contains('staffsite')) && (await g2.textContent('#clubName')).includes('役員ページ'), '役員ページは紫の配色・名前も役員ページ');
       if (SHOTS) await g2.screenshot({ path: path.join(shotDir, 'staff-site.png') });
+      // 役員ページは係の仕事だけ：下のメニューは係（全体・当番・記録・大会・会計）
+      assert.ok(!(await g2.$('[data-nav="album"]')) && (await g2.$('[data-snav="money"]')), '下のメニューは係');
+      await g2.click('[data-snav="money"]');
+      assert.ok((await g2.textContent('.staffhead')).includes('会計係'), '会計係のページ');
+      await g2.click('[data-snav="race"]');
+      await g2.click('[data-stool="_nextrace"]');
+      await g2.waitForSelector('#back');
+      assert.ok((await g2.textContent('#back')).includes('係のページ'), '大会のページから係のページへもどる');
+      await g2.click('#back');
+      assert.ok((await g2.textContent('.staffhead')).includes('大会係'), 'もどると大会係');
       assert.deepStrictEqual(errs2, []);
       await g2.close();
     });

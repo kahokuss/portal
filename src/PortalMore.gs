@@ -492,6 +492,7 @@ function saveLedgerAction_(ctx, p) {
     appendRow_(SHEETS.LEDGER, {
       id: randomKey_().slice(0, 10), '日付': date, eventKey: ev ? ev.eventKey : '', '種類': kind, '金額': String(amount),
       '相手': String(p.payee || '').trim().slice(0, 60), '但し書き': String(p.note || '').trim().slice(0, 100), '写真ID': photo, '記録者': ctx.name, '日時': now_(),
+      '科目': String(p.cat || (ev && kind === '支払い' ? '大会参加費' : '')).trim().slice(0, 30),
     });
   });
   if (ev) logHistory_(ev.eventKey, ctx, kind + ' ¥' + amount.toLocaleString('ja-JP') + (p.payee ? '（' + String(p.payee).slice(0, 30) + '）' : '') + (photo ? '・領収書の写真あり' : ''));
@@ -512,7 +513,7 @@ function deleteLedgerAction_(ctx, p) {
 function ledgerFor_(ctx, manageKeys) {
   return readRows_(SHEETS.LEDGER)
     .filter((x) => x.id && (ctx.admin || (x.eventKey && manageKeys.indexOf(x.eventKey) >= 0)))
-    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'] }))
+    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'], cat: x['科目'] || '' }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -1009,10 +1010,10 @@ function feesFor_(ctx, children) {
     // 役員以外には、自分の子の分だけ見せる（だれが払ったかは役員だけ）
     const target = children.filter((c) => inTarget_(x['対象'], c.grade) && (ctx.admin || c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
     return {
-      id: x.id, name: x['名前'], amount: Number(x['金額']) || 0, target: x['対象'], deadline: x['期限'], memo: x['メモ'], closed: x['終了'] === '○', at: x['日時'],
+      id: x.id, name: x['名前'], amount: Number(x['金額']) || 0, target: x['対象'], deadline: x['期限'], memo: x['メモ'], closed: x['終了'] === '○', at: x['日時'], remindAt: ctx.admin ? x['催促'] || '' : '',
       kids: target, paid: paid.filter((y) => y['集金id'] === x.id && target.indexOf(y['子ども']) >= 0).map((y) => y['子ども']),
     };
-  }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120));
+  }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120) || (ctx.admin && String(f.at).slice(0, 10) >= fyStart_(today_())));
 }
 
 // ---- 練習の出席（✓ を押した子）と、練習中のタイム計測 ----

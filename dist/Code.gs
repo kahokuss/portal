@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'ca8ddb569a';
+const SERVER_VERSION = '2e4fe6b658';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2362,6 +2362,70 @@ function syncNow() {
   console.log('同期しました');
 }
 
+// ===== Money.gs =====
+/**
+ * 会計係：年度（4月はじまり）の予算と実績、集金の催促。
+ * 実績は「会計」の記録（科目つき）と、集金で受け取った分（集金の名前＝科目）から数える
+ */
+
+function fyStart_(date) {
+  const y = Number(String(date).slice(0, 4)), m = Number(String(date).slice(5, 7));
+  return (m >= 4 ? y : y - 1) + '-04-01';
+}
+
+function budgetFor_(ctx) {
+  if (!ctx.admin) return [];
+  return readRows_(SHEETS.BUDGET).filter((x) => x.id).map((x) => ({ id: x.id, fy: Number(x['年度']) || 0, kind: x['区分'] === '収入' ? '収入' : '支出', cat: x['科目'], amount: Number(x['金額']) || 0, memo: x['メモ'] || '' }));
+}
+
+/** 予算の行を入れる・直す・消す（年度・区分・科目・金額） */
+function saveBudgetAction_(ctx, p) {
+  if (p.remove) {
+    withLock_(() => { const row = readRows_(SHEETS.BUDGET).find((x) => x.id && x.id === p.id); if (row) clearRow_(SHEETS.BUDGET, row); });
+    return '予算の行を消しました';
+  }
+  const fy = Number(p.fy) || Number(fyStart_(today_()).slice(0, 4));
+  const kind = p.kind === '収入' ? '収入' : '支出';
+  const cat = String(p.cat || '').trim().slice(0, 30);
+  if (!cat) throw new Error('科目を入れてください（例：年会費、大会参加費）。');
+  const amount = Number(toHalfWidth_(String(p.amount || '')).replace(/[^0-9]/g, '')) || 0;
+  withLock_(() => {
+    const rows = readRows_(SHEETS.BUDGET);
+    const row = (p.id && rows.find((x) => x.id === p.id)) || rows.find((x) => x.id && Number(x['年度']) === fy && x['区分'] === kind && x['科目'] === cat);
+    const data = { '年度': String(fy), '区分': kind, '科目': cat, '金額': String(amount), 'メモ': String(p.memo || '').slice(0, 100), '更新者': ctx.name, '日時': now_() };
+    if (row) updateRow_(SHEETS.BUDGET, Object.assign(row, data));
+    else appendRow_(SHEETS.BUDGET, Object.assign({ id: randomKey_().slice(0, 10) }, data));
+  });
+  return fy + '年度の予算「' + cat + '」を保存しました';
+}
+
+/** 集金の催促：まだの子の保護者に、LINEで1人ずつ知らせる（グループには送らない）。同じ集金は1日1回まで */
+function feeRemindAction_(ctx, p) {
+  const today = today_();
+  let sent = 0, kids = [];
+  withLock_(() => {
+    const fee = readRows_(SHEETS.FEES).find((x) => x.id && x.id === p.id);
+    if (!fee) throw new Error('集金が見つかりません。');
+    if (fee['終了'] === '○') throw new Error('終わった集金です。');
+    if (fee['催促'] === today) throw new Error('この集金の催促は、今日はもう送りました（1日1回まで）。');
+    const paid = readRows_(SHEETS.FEE_PAID).filter((x) => x['集金id'] === fee.id && x['状態'] === '済').map((x) => x['子ども']);
+    const unpaid = activeChildren_().filter((c) => inTarget_(fee['対象'], c.grade) && paid.indexOf(c.name) < 0);
+    if (!unpaid.length) throw new Error('まだの人はいません。');
+    const to = {};
+    unpaid.forEach((c) => c.parents.forEach((u) => { (to[u] = to[u] || []).push(c.name); }));
+    const amount = Number(fee['金額']) || 0;
+    Object.keys(to).forEach((u) => {
+      const text = '💴 集金のお知らせ（' + CONFIG.CLUB_NAME + '）\n' + fee['名前'] + '　' + amount.toLocaleString('ja-JP') + '円／人\n' + to[u].join('・') + ' の分が、まだ確認できていません。' +
+        (fee['期限'] ? '\n期限：' + formatDate_(fee['期限']) + (fee['期限'] < today ? '（過ぎています）' : '') : '') + (fee['メモ'] ? '\n' + fee['メモ'] : '') + '\nすでにお渡し済みでしたら、会計係までお知らせください。';
+      try { push_(u, [text_(text)]); if (!isTestUser_(u)) sent++; } catch (e) { console.warn('催促の送信に失敗: ' + e); }
+    });
+    kids = unpaid.map((c) => c.name);
+    fee['催促'] = today;
+    updateRow_(SHEETS.FEES, fee);
+  });
+  return 'まだの ' + kids.length + '人の保護者に、LINEで個別に知らせました（' + sent + '通）';
+}
+
 // ===== Notice.gs =====
 /**
  * グループに流れた「練習の変更の連絡」を拾って、その日の練習に結びつけて残す（Botは返事をしない）。
@@ -2668,6 +2732,8 @@ const API_ACTIONS = {
   setNotify: { admin: true, run: setNotifyAction_ },
   setAdmin: { admin: true, run: setAdminAction_ },
   setDuty: { admin: true, run: setDutyAction_ },
+  saveBudget: { admin: true, run: saveBudgetAction_ },
+  feeRemind: { admin: true, run: feeRemindAction_ },
   swapRequest: { run: swapRequestAction_ },
   swapVolunteer: { run: swapVolunteerAction_ },
   swapCancel: { run: swapCancelAction_ },
@@ -2948,6 +3014,7 @@ function buildState_(ctx) {
     photos: photos,
     results: results,
     ledger: ledgerFor_(ctx, manageKeys),
+    budget: budgetFor_(ctx),
     comments: commentsFor_(ctx),
     polls: pollsFor_(ctx, families),
     fees: feesFor_(ctx, children),
@@ -3751,6 +3818,7 @@ function saveLedgerAction_(ctx, p) {
     appendRow_(SHEETS.LEDGER, {
       id: randomKey_().slice(0, 10), '日付': date, eventKey: ev ? ev.eventKey : '', '種類': kind, '金額': String(amount),
       '相手': String(p.payee || '').trim().slice(0, 60), '但し書き': String(p.note || '').trim().slice(0, 100), '写真ID': photo, '記録者': ctx.name, '日時': now_(),
+      '科目': String(p.cat || (ev && kind === '支払い' ? '大会参加費' : '')).trim().slice(0, 30),
     });
   });
   if (ev) logHistory_(ev.eventKey, ctx, kind + ' ¥' + amount.toLocaleString('ja-JP') + (p.payee ? '（' + String(p.payee).slice(0, 30) + '）' : '') + (photo ? '・領収書の写真あり' : ''));
@@ -3771,7 +3839,7 @@ function deleteLedgerAction_(ctx, p) {
 function ledgerFor_(ctx, manageKeys) {
   return readRows_(SHEETS.LEDGER)
     .filter((x) => x.id && (ctx.admin || (x.eventKey && manageKeys.indexOf(x.eventKey) >= 0)))
-    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'] }))
+    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'], cat: x['科目'] || '' }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -4268,10 +4336,10 @@ function feesFor_(ctx, children) {
     // 役員以外には、自分の子の分だけ見せる（だれが払ったかは役員だけ）
     const target = children.filter((c) => inTarget_(x['対象'], c.grade) && (ctx.admin || c.parents.indexOf(ctx.userId) >= 0)).map((c) => c.name);
     return {
-      id: x.id, name: x['名前'], amount: Number(x['金額']) || 0, target: x['対象'], deadline: x['期限'], memo: x['メモ'], closed: x['終了'] === '○', at: x['日時'],
+      id: x.id, name: x['名前'], amount: Number(x['金額']) || 0, target: x['対象'], deadline: x['期限'], memo: x['メモ'], closed: x['終了'] === '○', at: x['日時'], remindAt: ctx.admin ? x['催促'] || '' : '',
       kids: target, paid: paid.filter((y) => y['集金id'] === x.id && target.indexOf(y['子ども']) >= 0).map((y) => y['子ども']),
     };
-  }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120));
+  }).filter((f) => !f.closed || String(f.at).slice(0, 10) >= addDays_(today_(), -120) || (ctx.admin && String(f.at).slice(0, 10) >= fyStart_(today_())));
 }
 
 // ---- 練習の出席（✓ を押した子）と、練習中のタイム計測 ----
@@ -5098,7 +5166,7 @@ const SHEETS = {
   READS: { name: '既読', headers: ['お知らせid', 'userId', '日時'] },
   POLLS: { name: 'アンケート', headers: ['id', 'タイトル', '説明', '選択肢', '複数', '締切', 'eventKey', '作成者', '日時', '終了'] },
   ANSWERS: { name: '回答', headers: ['アンケートid', '家族ID', '回答', 'コメント', '更新者', '日時'] },
-  FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了'] },
+  FEES: { name: '集金', headers: ['id', '名前', '金額', '対象', '期限', 'メモ', '作成者', '日時', '終了', '催促'] },
   FEE_PAID: { name: '集金状況', headers: ['集金id', '子ども', '状態', '更新者', '日時'] },
   TRAINING: { name: '自主トレ', headers: ['id', '日付', '子ども', '種類', '距離km', '時間分', '回数', '調子', 'メモ', 'userId', '表示名', '日時'] },
   TRAIN_SHARE: { name: '自主トレ公開', headers: ['子ども', '公開', '更新者', '日時', '家族既読'] },
@@ -5113,7 +5181,8 @@ const SHEETS = {
   COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時', '提案'] },
   DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
   HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },
-  LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時'] },
+  LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時', '科目'] },
+  BUDGET: { name: '予算', headers: ['id', '年度', '区分', '科目', '金額', 'メモ', '更新者', '日時'] },
   GOALS: { name: '目標', headers: ['id', '子ども', '種類', '期間', 'タイトル', '種目', '目標記録', '開始記録', '期限', 'eventKey', 'やること', '親id', '状態', '達成日', 'ひとこと', '出した人', 'userId', '日時', '更新日時'] },
   GOAL_LOG: { name: '目標のやること', headers: ['goalId', 'やること', '日付', '子ども', 'userId', '日時'] },
   RACE_NOTES: { name: '大会の引き継ぎ', headers: ['id', '大会名', 'メモ', '更新者', '日時'] },

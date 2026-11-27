@@ -748,6 +748,12 @@ tr.sel td { background: var(--sky-soft); }
 .flow .flowst { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); }
 .flow .flowst.now { border-color: var(--track); background: var(--track-soft); }
 .flow .flowst.ok b::after { content: ' ✓'; color: var(--field); }
+.mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.mstat > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+.mstat .big { font-size: 1.35rem; }
+.meter.sm { height: 5px; margin-top: 3px; }
+.meter.over i { background: var(--track); }
+.btbl td, .btbl th { text-align: right; } .btbl td:first-child, .btbl th:first-child { text-align: left; }
 .dcf.swp { outline: 2px dashed var(--warn); }
 .flow .flowarr { text-align: center; color: var(--muted); line-height: 1; }
 .staffnav { grid-template-columns: repeat(5, 1fr) !important; }
@@ -863,9 +869,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "f2f9d18441";
+var BUILD = "cfa462c5e6";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "ca8ddb569a";
+var EXPECT_SERVER = "2e4fe6b658";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = true;
 var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
@@ -1058,7 +1064,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // 加速走（助走をつけた計測）は公式記録にしない
   function isFlying(r) { return /加速/.test(String(r.memo || '') + String(r.race || '') + String(r.round || '')); }
   function fillDefaults(st) {
-    ['duties', 'raceStaff', 'swaps', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
+    ['duties', 'raceStaff', 'swaps', 'budget', 'timetable', 'tasks', 'photos', 'families', 'parents', 'results', 'ledger', 'comments', 'docs', 'history', 'polls', 'fees', 'attends', 'training', 'videos'].forEach(function (k) { if (!st[k]) st[k] = []; });
     if (!st.me.canManage) st.me.canManage = [];
     if (!st.raceNotes) st.raceNotes = [];
     if (!st.testFamilies) st.testFamilies = [];
@@ -1282,7 +1288,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       var mine = f.kids.filter(function (k) { return names.indexOf(k) >= 0; });
       return '<div><div class="between"><b>' + esc(f.name) + '</b><span>' + yen(f.amount) + '<span class="sub">／人</span></span></div>' + (f.memo ? '<div class="sub">' + esc(f.memo) + '</div>' : '') +
         '<div class="row">' + mine.map(function (k) { var ok = f.paid.indexOf(k) >= 0; return '<span class="pill ' + (ok ? 'p-ok' : 'p-warn') + '">' + esc(k) + '：' + (ok ? '受け取り済み' : 'まだ') + '</span>'; }).join('') +
-        (f.deadline ? '<span class="sub">期限 ' + md(f.deadline) + '</span>' : '') + '</div></div>';
+        (f.deadline ? '<span class="sub"' + (f.deadline < ST.today && mine.some(function (k) { return f.paid.indexOf(k) < 0; }) ? ' style="color:var(--track);font-weight:700">期限 ' + md(f.deadline) + '（過ぎています）' : '>期限 ' + md(f.deadline)) + '</span>' : '') + '</div></div>';
     }).join('') + '</div><div class="hint">お金は役員に渡してください。受け取ると役員が「済み」にします。</div></section>';
   }
   /** Googleカレンダーに入れるリンク */
@@ -1875,6 +1881,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'notify') return adminNotify();
     if (S.admin === 'sheet') return adminSheet();
     if (S.admin === 'ledger') return adminLedger();
+    if (S.admin === 'budget') return adminBudget();
     if (S.admin === 'nearmiss') return adminNearMiss();
     if (S.admin === 'members') return adminMembers();
     if (S.admin === 'table') return adminTable();
@@ -1885,14 +1892,14 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'fees') return adminFees();
     if (S.admin === 'ops') return adminOps();
     if (!S.adminAll) return staffHome();
-    var items = [['dutycal', '🗓 当番カレンダー（輪番づくり）', '月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で。前回からの日数や近い日の当番も見ながら'], ['testfam', '🧪 テスト家族（親A〜E）', '本番で当番・エントリーなどを試すための架空の家族。入れて試して、まとめて消す'], ['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
+    var items = [['dutycal', '🗓 当番カレンダー（輪番づくり）', '月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で。前回からの日数や近い日の当番も見ながら'], ['testfam', '🧪 テスト家族（親A〜E）', '本番で当番・エントリーなどを試すための架空の家族。入れて試して、まとめて消す'], ['budget', '📊 予算と残高（年度）', '年度の予算（収入・支出の科目ごと）と、実際に入った・出たお金、いまの残高。収支報告（決算）もコピーできます'], ['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
       ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     // 目的ごとにまとめ、足りないもの（運用チェック）の件数を出す
     var ops = opsChecks(), cnt = {};
     ops.forEach(function (x) { var k = x.go.admin || (x.go.editRace || x.go.ev ? 'race' : ''); if (k) cnt[k] = (cnt[k] || 0) + 1; });
-    var GROUPS = [['ふだん使う', ['dutycal', 'duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'notes', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'testfam', 'members', 'notify']], ['お金', ['fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
+    var GROUPS = [['ふだん使う', ['dutycal', 'duty', 'notice', 'absences', 'polls']], ['大会', ['race', 'ttb', 'records', 'notes', 'dash']], ['予定', ['practice', 'table']], ['メンバー', ['roster', 'testfam', 'members', 'notify']], ['お金', ['budget', 'fees', 'ledger']], ['安全・そのほか', ['nearmiss', 'sheet']]];
     var byKey = {}; items.forEach(function (x) { byKey[x[0]] = x; });
     var menuHtml = GROUPS.map(function (g) {
       var list = g[1].map(function (k) { return byKey[k]; }).filter(Boolean);
@@ -1921,7 +1928,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '📋 当番表を貼り付け'], ['testfam', '🧪 テスト家族']] },
     { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['_lastres', '🏅 最近の大会の結果を入れる'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
-    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['fees', '💴 集金（年会費など）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 会計（領収書の履歴）']] },
+    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['budget', '📊 予算と残高（年度）'], ['fees', '💴 集金（期限・催促）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 お金の出入りを記録（領収書）']] },
   ];
   /** 当番を決める流れ：① カレンダーに練習・大会の予定をつくる → ② 当番を入れる（予定がない日には当番を入れられない） */
   // （役員ページだけ：dutyFlowInfo）
@@ -5699,6 +5706,15 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
 
   // （役員ページだけ：adminMembers）
+  var MONEY_CATS = { '収入': ['年会費', '大会参加費（集金）', '寄付・協賛', '補助金', '雑収入'], '支出': ['大会参加費', '登録料', 'スポーツ保険', '用具・消耗品', 'ユニフォーム', '会場費', '交通費', '行事費', '通信・印刷', '雑費'] };
+  var CARRY = '前年度繰越';
+  // （役員ページだけ：fyOf）
+  /** 年度の、科目ごとの予算と実績。実績＝会計の記録（科目）＋集金で受け取った分（集金の名前）＋大会の参加費の集金 */
+  // （役員ページだけ：moneyFy）
+  /** 会計係のページ：いまの残高と、今年度の収入・支出 */
+  // （役員ページだけ：moneySummaryCard）
+  // （役員ページだけ：moneyGuideCard）
+  // （役員ページだけ：adminBudget）
   // （役員ページだけ：adminLedger）
   // （役員ページだけ：adminSheet）
 

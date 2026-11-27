@@ -880,7 +880,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "4ecc8b0e94";
+var BUILD = "c41d8aaac6";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -3160,6 +3160,16 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     else if (!t.done) h += '<div class="hint">' + hint + '（役員・当番の人が付けます）</div>';
     return h + '</section>';
   }
+  /** 子どもを選ぶリストは、学年・男女ごとに分ける（6年 男子・6年 女子…） */
+  function kidOptions(list, cur) {
+    var groups = [], by = {};
+    list.slice().sort(function (a, b) { return (b.grade || 0) - (a.grade || 0) || (a.sex === b.sex ? 0 : a.sex === '男' ? -1 : 1); }).forEach(function (k) {
+      var g = (k.grade ? k.grade + '年' : '学年なし') + (k.sex ? ' ' + (k.sex === '男' ? '男子' : '女子') : '');
+      if (!by[g]) { by[g] = []; groups.push(g); }
+      by[g].push(k);
+    });
+    return groups.map(function (g) { return '<optgroup label="' + esc(g) + '（' + by[g].length + '人）">' + by[g].map(function (k) { return '<option value="' + esc(k.name) + '"' + (cur === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</optgroup>'; }).join('');
+  }
   function relayRunners(e) {
     var joined = ST.kids.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
     var relay = joined.filter(function (k) { return entryOf(e.key, k.name).races.some(function (r) { return /リレー/.test(r); }); });
@@ -3172,7 +3182,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   /** リレーのオーダーの入力欄（チーム名・1走〜4走・補欠） */
   function relayForm(e, R) {
     var W = legWord(e), runners = relayRunners(e);
-    var opt = function (cur) { return '<option value="">—</option>' + runners.map(function (k) { return '<option' + (cur === k.name ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join(''); };
+    var opt = function (cur) { return '<option value="">—</option>' + kidOptions(runners, cur); };
     return '<form class="f" id="relayForm">' + (R.old ? '<div class="sub">' + esc(R.old) + '・' + (R.kind === 'リレー予選' ? '予選' : W === '区' ? 'オーダー' : '決勝') + '</div>' : '<label>チーム名<input id="rl-name" value="' + esc(R.name) + '" placeholder="' + (W === '区' ? '例：河北SS A（男子5・6年の部）' : '例：4×100mR Aチーム') + '"></label>') +
       '<div class="two">' + legIdx(e).map(function (i) { return '<label>' + (i + 1) + W + '<select data-rl="' + i + '">' + opt(R.runners[i]) + '</select></label>'; }).join('') +
       '<label>補欠<select id="rl-sub">' + opt(R.sub) + '</select></label></div><label>メモ<input id="rl-memo" value="' + esc(R.extra) + '"></label><div class="row"><button class="btn" type="submit">保存する</button><button class="btn ghost" type="button" id="rlCancel">やめる</button></div></form>';
@@ -5165,7 +5175,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       var x = entryOf(e.key, R.child) || { races: [] }, races = x.races.length ? x.races : (e.detail && e.detail.races.length ? e.detail.races : ST.choices.races);
       if (!R.race || races.indexOf(R.race) < 0) R.race = races[0];
       h += '<section class="card"><h2>結果を入れる</h2><form class="f" id="resForm">' +
-        (targets.length > 1 ? '<label>だれの<select id="rs-child">' + targets.map(function (k) { return '<option' + (k.name === R.child ? ' selected' : '') + '>' + esc(k.name) + '</option>'; }).join('') + '</select></label>' : '<div class="sub"><b>' + esc(R.child) + '</b></div>') +
+        (targets.length > 1 ? '<label>だれの<select id="rs-child">' + kidOptions(targets, R.child) + '</select></label>' : '<div class="sub"><b>' + esc(R.child) + '</b></div>') +
         '<div class="lbl">種目</div><div class="choice">' + races.map(function (r) { return '<button type="button" data-rrace="' + esc(r) + '" aria-pressed="' + (R.race === r) + '">' + esc(r) + '</button>'; }).join('') + '</div>' +
         '<div class="lbl">ラウンド</div><div class="choice">' + ST.choices.rounds.map(function (r) { return '<button type="button" data-rround="' + r + '" aria-pressed="' + (R.round === r) + '">' + r + '</button>'; }).join('') + '</div>' +
         recordPicker(R) +

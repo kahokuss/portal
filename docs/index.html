@@ -832,9 +832,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "64f8c96f6f";
+var BUILD = "34ba17f6c9";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "6b5f7c945e";
+var EXPECT_SERVER = "28edb58e79";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = true;
 var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
@@ -3334,49 +3334,68 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   var PHOTO = {};
   /** 小さい写真を、12枚ずつまとめて読み込む */
   /** 資料のサムネイル（まとめて取りに行き、取れたら差しかえる） */
-  function loadDocThumbs() {
-    var want = [];
-    view.querySelectorAll('img[data-dsrc]').forEach(function (img) {
-      var id = img.dataset.dsrc;
-      if (PHOTO['d' + id]) { img.src = PHOTO['d' + id]; img.parentNode.classList.add('has'); return; }
-      if (PHOTO['dw' + id] || PHOTO['dn' + id] || want.indexOf(id) >= 0) return;
-      PHOTO['dw' + id] = 1; want.push(id);
-    });
-    if (!want.length || serverOld()) return;
-    for (var i = 0; i < want.length; i += 12) (function (ids) {
-      rpc('docThumbs', { ids: ids }, function (r) {
-        ids.forEach(function (id) {
-          delete PHOTO['dw' + id];
-          if (!r || !r[id]) { PHOTO['dn' + id] = 1; return; }
-          PHOTO['d' + id] = r[id];
-          view.querySelectorAll('img[data-dsrc="' + id + '"]').forEach(function (img) { img.src = r[id]; img.parentNode.classList.add('has'); });
-        });
-      }, function () { ids.forEach(function (id) { delete PHOTO['dw' + id]; PHOTO['dn' + id] = 1; }); });
-    })(want.slice(i, i + 12));
+  // ---- 写真・資料の小さい画像：スマホに保存（IndexedDB）しておき、次からは取りに行かない。見えるところから順に読む ----
+  var TDB = null;
+  function tdb(cb) {
+    if (TDB !== null) return cb(TDB);
+    try {
+      var rq = indexedDB.open('clubPortalThumbs', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('t'); };
+      rq.onsuccess = function () { TDB = rq.result; cb(TDB); };
+      rq.onerror = function () { TDB = false; cb(false); };
+    } catch (e) { TDB = false; cb(false); }
   }
-  function loadThumbs() {
-    var want = [];
-    view.querySelectorAll('img[data-src]').forEach(function (img) {
-      var id = img.dataset.src;
-      if (PHOTO['t' + id]) { img.src = PHOTO['t' + id]; return; }
-      if (PHOTO['w' + id] || want.indexOf(id) >= 0) return;
-      PHOTO['w' + id] = 1;
-      want.push(id);
+  function tget(keys, cb) {
+    tdb(function (db) {
+      var out = {}, n = keys.length;
+      if (!db || !n) return cb(out);
+      try {
+        var st = db.transaction('t', 'readonly').objectStore('t');
+        keys.forEach(function (k) { var r = st.get(k); r.onsuccess = function () { if (r.result) out[k] = r.result; if (--n === 0) cb(out); }; r.onerror = function () { if (--n === 0) cb(out); }; });
+      } catch (e) { cb(out); }
     });
-    for (var i = 0; i < want.length; i += 12) (function (ids) {
-      rpc('thumbs', { ids: ids }, function (r) {
-        ids.forEach(function (id) {
-          delete PHOTO['w' + id];
-          if (!r[id]) return;
-          PHOTO['t' + id] = r[id];
-          view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r[id]; });
-        });
-      }, function () {
-        // サーバーが古くて「まとめて」がないときは、1枚ずつ
-        ids.forEach(function (id) { rpc('photo', { id: id, thumb: true }, function (r) { delete PHOTO['w' + id]; PHOTO['t' + id] = r.data; view.querySelectorAll('img[data-src="' + id + '"]').forEach(function (x) { x.src = r.data; }); }, function () { delete PHOTO['w' + id]; }); });
+  }
+  function tput(k, v) { tdb(function (db) { if (!db) return; try { db.transaction('t', 'readwrite').objectStore('t').put(v, k); } catch (e) { /* いっぱいなどは無視 */ } }); }
+  /** kind：'t'（写真）か 'd'（資料）。画面にある img を、覚えている分はすぐ、ない分は見えたら取りに行く */
+  var TOBS = {};
+  function thumbLoader(kind, attr, action, onSet, eager) {
+    var setAll = function (id, data) { view.querySelectorAll('img[' + attr + '="' + id + '"]').forEach(function (img) { img.src = data; if (onSet) onSet(img); }); };
+    var fetchIds = function (ids) {
+      tget(ids.map(function (id) { return kind + id; }), function (hit) {
+        var miss = [];
+        ids.forEach(function (id) { var v = hit[kind + id]; if (v) { PHOTO[kind + id] = v; delete PHOTO[kind + 'w' + id]; setAll(id, v); } else miss.push(id); });
+        for (var i = 0; i < miss.length; i += 12) (function (part) {
+          rpc(action, { ids: part }, function (r) {
+            part.forEach(function (id) {
+              delete PHOTO[kind + 'w' + id];
+              if (!r || !r[id]) { PHOTO[kind + 'n' + id] = 1; return; }
+              PHOTO[kind + id] = r[id]; tput(kind + id, r[id]); setAll(id, r[id]);
+            });
+          }, function () { part.forEach(function (id) { delete PHOTO[kind + 'w' + id]; PHOTO[kind + 'n' + id] = 1; }); });
+        })(miss.slice(i, i + 12));
       });
-    })(want.slice(i, i + 12));
+    };
+    var obs = eager ? null : TOBS[kind] || (TOBS[kind] = ('IntersectionObserver' in window) ? new IntersectionObserver(function (es) {
+      var ids = [];
+      es.forEach(function (e) { if (!e.isIntersecting) return; obs.unobserve(e.target); var id = e.target.getAttribute(attr); if (!PHOTO[kind + id] && !PHOTO[kind + 'w' + id] && !PHOTO[kind + 'n' + id] && ids.indexOf(id) < 0) { PHOTO[kind + 'w' + id] = 1; ids.push(id); } });
+      if (ids.length) fetchIds(ids);
+    }, { rootMargin: '1200px 0px' }) : null);
+    var direct = [];
+    view.querySelectorAll('img[' + attr + ']').forEach(function (img) {
+      var id = img.getAttribute(attr);
+      if (PHOTO[kind + id]) { img.src = PHOTO[kind + id]; if (onSet) onSet(img); return; }
+      if (PHOTO[kind + 'w' + id] || PHOTO[kind + 'n' + id]) return;
+      if (obs) obs.observe(img); else if (direct.indexOf(id) < 0) { PHOTO[kind + 'w' + id] = 1; direct.push(id); }
+    });
+    if (direct.length) fetchIds(direct);
   }
+  /** 資料のサムネイル */
+  function loadDocThumbs() {
+    if (serverOld()) return;
+    thumbLoader('d', 'data-dsrc', 'docThumbs', function (img) { img.parentNode.classList.add('has'); }, true); // 資料は数が少ないので、すぐ読む
+  }
+  /** アルバムなどの小さい写真 */
+  function loadThumbs() { thumbLoader('t', 'data-src', 'thumbs'); }
   function showPhoto(id) {
     var info = ST.photos.find(function (p) { return p.id === id; }) || {}, canDel = ST.me.admin || info.mine;
     var box = document.createElement('div');

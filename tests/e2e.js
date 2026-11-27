@@ -1765,6 +1765,25 @@ async function openPortal(browser, gas, userId, name) {
       await p2.close();
       await q.close();
     });
+    await step('写真の小さい画像：一度見たらスマホに残り、次に開いたときはサーバーに取りに行かない', async () => {
+      const q = await openPortal(browser, gas, 'U1', 'thumbcache');
+      const orig = gas.ctx.api, calls = [];
+      gas.ctx.api = function (k, a, p) { if (a === 'thumbs') calls.push(a); return orig.apply(this, arguments); };
+      try {
+        await q.click('[data-nav="album"]');
+        await q.waitForTimeout(800);
+        const n1 = calls.length;
+        if (await q.$('img[data-src]')) {
+          assert.ok(n1 > 0, '1回目は取りに行く');
+          await q.reload(); await q.waitForSelector('#nav:not([hidden])');
+          await q.click('[data-nav="album"]');
+          await q.waitForTimeout(800);
+          assert.strictEqual(calls.length, n1, '2回目はスマホに残った分を使う');
+          assert.ok(await q.$('img[data-src][src^="data:image"]'), '画像は出ている');
+        }
+      } finally { gas.ctx.api = orig; }
+      await q.close();
+    });
     await step('役員: 当番カレンダー（輪番づくり）で、予定を押して家族を入れる・外す、月の空きを自動で入れる', async () => {
       const q = await openPortal(browser, gas, 'U1', 'dutycal');
       q.on('dialog', (d) => d.accept());

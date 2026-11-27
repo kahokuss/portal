@@ -1375,7 +1375,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '6b5f7c945e';
+const SERVER_VERSION = '28edb58e79';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -3534,10 +3534,16 @@ function photoAction_(ctx, p) {
 function thumbsAction_(ctx, p) {
   const known = {};
   readRows_(SHEETS.PHOTOS).forEach((x) => { const id = photoIdOf_(x); if (id) known[id] = true; });
-  const out = {};
-  (p.ids || []).slice(0, 12).forEach((id) => {
-    if (!known[id]) return;
-    try { out[id] = photoData_(id, true); } catch (err) { console.warn('写真を読めません: ' + id + ' ' + err); }
+  // ドライブから作るのは遅いので、作った小さい写真は6時間おぼえておく（まとめて取り出す）
+  const ids = (p.ids || []).slice(0, 12).filter((id) => known[id]);
+  const cache = CacheService.getScriptCache(), hit = cache.getAll(ids.map((id) => 'pth:' + id)) || {}, out = {};
+  ids.forEach((id) => {
+    let data = hit['pth:' + id];
+    if (!data) {
+      try { data = photoData_(id, true); } catch (err) { console.warn('写真を読めません: ' + id + ' ' + err); return; }
+      if (data.length < 95000) { try { cache.put('pth:' + id, data, 21600); } catch (e) { /* 入らなければそのまま */ } }
+    }
+    out[id] = data;
   });
   return out;
 }

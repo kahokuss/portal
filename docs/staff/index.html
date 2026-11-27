@@ -881,7 +881,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "c41d8aaac6";
+var BUILD = "bcce5c79ae";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "a266b8e935";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -2006,6 +2006,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'sheet') return adminSheet();
     if (S.admin === 'ledger') return adminLedger();
     if (S.admin === 'budget') return adminBudget();
+    if (S.admin === 'respick') return adminResPick();
+    if (S.admin === 'tmpick') return adminTmPick();
     if (S.admin === 'nearmiss') return adminNearMiss();
     if (S.admin === 'members') return adminMembers();
     if (S.admin === 'table') return adminTable();
@@ -2076,7 +2078,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   var ROLES = [
     { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
     { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け'], ['testfam', '🧪 テスト家族']] },
-    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['_lastres', '🏅 最近の大会の結果を入れる'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
+    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）'], ['tmpick', '⏱ 練習のタイムを記録する'], ['records', '📈 記録・自己ベスト表'], ['dash', '📊 記録ダッシュボード']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
     { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['budget', '📊 予算と残高（年度）'], ['fees', '💴 集金（期限・催促）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 お金の出入りを記録（領収書）']] },
   ];
@@ -6457,6 +6459,40 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
   }
 
+  // ---- 記録係：結果を入れる大会を選ぶ／練習のタイムを入れる練習を選ぶ ----
+  function adminResPick() {
+    var R = S.rp || (S.rp = { all: false });
+    var races = ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date <= addDays(ST.today, 1); }).slice().reverse();
+    var cnt = function (e) { return ST.results.filter(function (r) { return r.key === e.key; }).length; };
+    var joined = function (e) { return ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加'; }).length; };
+    var shown = R.all ? races : races.slice(0, 12);
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>🏅 結果を入れる大会<small>新しい順・' + races.length + '大会</small></h2>' +
+      (shown.length ? '<div class="list">' + shown.map(function (e) {
+        var n = cnt(e), j = joined(e);
+        return '<button type="button" class="opsit" data-rpick="' + e.key + '"><span class="pill ' + (n ? 'p-ok' : j ? 'p-warn' : 'p-gray') + '">' + (n ? n + '件' : 'まだ') + '</span><span class="main"><b>' + md(e.date) + ' ' + esc(e.title) + '</b><span class="sub">' + (j ? '参加 ' + j + '人' : '') + (e.place ? '・' + esc(e.place) : '') + '</span></span><span class="go">›</span></button>';
+      }).join('') + '</div>' : '<div class="sub">終わった大会がまだありません。</div>') +
+      (races.length > shown.length ? '<button class="btn small ghost" type="button" id="rpAll" style="justify-self:start">もっと前の大会も出す（あと' + (races.length - shown.length) + '大会）</button>' : '') +
+      '<div class="hint">「まだ」は結果が1件も入っていない大会です。押すと、その大会の「結果」が開きます（写真から読み取る・貼り付けもそこで）。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-rpick]', function () { goTo({ ev: this.dataset.rpick, etab: '結果' }); });
+    on('#rpAll', function () { R.all = true; render(); });
+  }
+  function adminTmPick() {
+    var pr = ST.events.filter(function (e) { return !e.cancelled && !isRace(e) && e.date >= addDays(ST.today, -45) && e.date <= addDays(ST.today, 7); });
+    var today = pr.filter(function (e) { return e.date === ST.today; }), past = pr.filter(function (e) { return e.date < ST.today; }).reverse(), next = pr.filter(function (e) { return e.date > ST.today; });
+    var cnt = function (e) { return ST.results.filter(function (r) { return r.key === e.key; }).length; };
+    var item = function (e) { var n = cnt(e); return '<button type="button" class="opsit" data-tpick="' + e.key + '"><span class="pill ' + (n ? 'p-ok' : 'p-gray') + '">' + (n ? n + '件' : '—') + '</span><span class="main"><b>' + md(e.date) + ' ' + esc(e.title) + '</b><span class="sub">' + esc([e.start && e.start !== '終日' ? e.start + '〜' : '', e.place].filter(Boolean).join(' ')) + '</span></span><span class="go">›</span></button>'; };
+    var h = backBtn() + toastHtml() + '<section class="card"><h2>⏱ 練習のタイムを記録する</h2><div class="sub">練習を選ぶと、その日の「タイム・記録の計測」が開きます。種目（50m・加速走・持久走・幅跳びなど）と何本目かを選んで、子どもごとに数字を入れます。</div>' +
+      (today.length ? '<div class="lbl">今日</div><div class="list">' + today.map(item).join('') + '</div>' : '') +
+      (past.length ? '<div class="lbl">これまで（45日）</div><div class="list">' + past.map(item).join('') + '</div>' : '') +
+      (next.length ? '<div class="lbl">これから（1週間）</div><div class="list">' + next.map(item).join('') + '</div>' : '') +
+      (!pr.length ? '<div class="sub">この期間の練習がありません。</div>' : '') +
+      '<div class="hint">入れたタイムは「練習」の記録として、記録・自己ベスト表（練習）と記録ダッシュボードに出ます。公式（大会）の記録とは分けて数えます。</div></section>';
+    view.innerHTML = h;
+    bindBack();
+    on('[data-tpick]', function () { goTo({ ev: this.dataset.tpick, etab: '概要' }); setTimeout(function () { flashTo('times'); }, 50); });
+  }
   // ---- 会計係：年度（4月はじまり）の予算・実績・残高 ----
   var MONEY_CATS = { '収入': ['年会費', '大会参加費（集金）', '寄付・協賛', '補助金', '雑収入'], '支出': ['大会参加費', '登録料', 'スポーツ保険', '用具・消耗品', 'ユニフォーム', '会場費', '交通費', '行事費', '通信・印刷', '雑費'] };
   var CARRY = '前年度繰越';

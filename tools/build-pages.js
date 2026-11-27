@@ -58,7 +58,7 @@ function buildGas() {
     files.map((f) => '// ===== ' + f + ' =====\n' + fs.readFileSync(path.join(root, 'src', f), 'utf8').trim().replace("const SERVER_VERSION = 'dev';", "const SERVER_VERSION = '" + serverVersion + "';") + '\n').join('\n');
 }
 
-const outputs = [[path.join(root, 'docs/index.html'), build(true)], [path.join(root, 'docs/staff/index.html'), build(false).replace('<title>' + club + ' ポータル</title>', '<title>' + club + ' 役員ページ</title>')], [path.join(root, 'dist/Code.gs'), buildGas()]];
+const outputs = [[path.join(root, 'docs/index.html'), build(true)], [path.join(root, 'docs/staff/index.html'), build(false).replace('<title>' + club + ' ポータル</title>', '<title>' + club + ' 役員ページ</title>\n<meta name="theme-color" content="#3d2a78">')], [path.join(root, 'dist/Code.gs'), buildGas()]];
 outputs.forEach(([target, text]) => {
   const rel = path.relative(root, target);
   if (process.argv.includes('--check')) {

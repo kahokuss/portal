@@ -34,6 +34,19 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-body); f
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 .app { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .frame { background: var(--surface-2); border: 0; border-radius: 22px; overflow: hidden; overflow: clip; display: flex; flex-direction: column; min-height: calc(100vh - 24px); }
+/* 役員ページ（staff/）：紫の配色で、保護者ポータルとひと目で分かるように */
+body.staffsite { --track: #5b3fa8; --track-soft: #ebe5f7; --bg: #ece9f3; --sky: #4a5fc1; --sky-soft: #e3e7f8; }
+body.staffsite .top { background: linear-gradient(135deg, #3d2a78, #5b3fa8); color: #fff; border-bottom: 0; }
+body.staffsite .top .me { color: rgba(255,255,255,.8); }
+body.staffsite .logo { background: #fff; color: #5b3fa8; }
+body.staffsite .top .btn.ghost, body.staffsite #reload { background: rgba(255,255,255,.18); color: #fff; }
+body.staffsite .nav { background: #f6f3fc; }
+body.staffsite .nav button[aria-current="page"] { color: #5b3fa8; }
+@media (prefers-color-scheme: dark) {
+  body.staffsite { --track: #b39af0; --track-soft: #2d2445; --bg: #14111c; --sky: #8fa2f0; --sky-soft: #1f2440; }
+  body.staffsite .top { background: linear-gradient(135deg, #2a1f4d, #3d2a78); }
+  body.staffsite .nav { background: #1b1726; }
+}
 .top { background: var(--surface); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
 .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--track); display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 13px; flex: none; }
 .top h1 { font-family: var(--font-display); font-size: 1.05rem; margin: 0; line-height: 1.3; }
@@ -837,7 +850,9 @@ var LITE = <?!= JSON.stringify(lite) ?>;
 var STAFF_KEEP = ['race', 'saved', 'ttb']; // 軽い版にも残す（大会の案内を直す・タイムテーブルづくりは当番の保護者も使う）
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
 var CODE_URL = 'https://github.com/kahokuss/portal/raw/main/dist/Code.gs';
-document.getElementById('clubName').textContent = CLUB + ' ポータル';
+var STAFF_SITE = !LITE && /\/staff\/?$/.test(location.pathname);
+if (STAFF_SITE) { document.body.classList.add('staffsite'); var tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.setAttribute('content', '#3d2a78'); }
+document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員ページ' : ' ポータル');
 (function () {
   var WD = ['日', '月', '火', '水', '木', '金', '土'];
   var ST = null;
@@ -6316,7 +6331,7 @@ document.getElementById('clubName').textContent = CLUB + ' ポータル';
   }
   function render() {
     CURKEY = ''; FORMDROP = {};
-    document.getElementById('clubName').textContent = ST.club + ' ポータル';
+    document.getElementById('clubName').textContent = ST.club + (STAFF_SITE ? ' 役員ページ' : ' ポータル');
     document.getElementById('me').textContent = ST.me.name + 'さん' + (ST.me.children.length ? '（' + ST.me.children.map(function (k) { return k.name + (k.grade ? ' ' + k.grade + '年' : ''); }).join('・') + '）' : '') + (ST.me.owner ? '・管理者' : ST.me.admin ? '・役員' : '');
     document.getElementById('reload').hidden = false;
     if (S.tab === 'admin' && !ST.me.admin && !(S.admin === 'race' && S.draft && S.draft.from === 'edit')) S.tab = 'home';

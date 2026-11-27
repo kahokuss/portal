@@ -831,6 +831,8 @@ async function openPortal(browser, gas, userId, name) {
       await g2.waitForURL(/\/staff\//);
       await g2.waitForSelector('.staffhead');
       assert.ok((await g2.textContent('#view')).includes('今やること'), '役員ページが開く（ログインはそのまま）');
+      assert.ok(await g2.$eval('body', (b) => b.classList.contains('staffsite')) && (await g2.textContent('#clubName')).includes('役員ページ'), '役員ページは紫の配色・名前も役員ページ');
+      if (SHOTS) await g2.screenshot({ path: path.join(shotDir, 'staff-site.png') });
       assert.deepStrictEqual(errs2, []);
       await g2.close();
     });

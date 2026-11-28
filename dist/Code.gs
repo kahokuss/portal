@@ -115,7 +115,7 @@ function handleNews_(ev) {
   const mine = duties.filter((x) => x['家族ID'] === u.famId && x['日付'] <= addDays_(d.today, 14));
   if (mine.length) {
     lines.push('', '🧹 わが家の当番');
-    mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + ' ' + x['種類'] + '当番（' + e.title + '）'); });
+    mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + ' ' + x['種類'] + '当番' + (x['役割'] ? '・' + x['役割'] : '') + '（' + e.title + '）'); });
   }
 
   const entries = readRows_(SHEETS.ENTRIES);
@@ -338,7 +338,7 @@ function handleDuty_(ev) {
   const mine = all.filter((x) => x['家族ID'] === u.famId);
   const lines = ['🧹 わが家の当番'];
   if (!mine.length) lines.push('これからの当番はありません。');
-  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + (isRaceStaffRow_(x) ? '大会係（入力の担当）' : x['種類'] + '当番') + '\n　' + e.title + (e.place ? '・' + e.place : '')); });
+  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + (isRaceStaffRow_(x) ? '大会係（入力の担当）' : x['種類'] + '当番' + (x['役割'] ? '（' + x['役割'] + '）' : '')) + '\n　' + e.title + (e.place ? '・' + e.place : '')); });
   const next = d.events.slice(0, 5).map((e) => '・' + formatDate_(e.date) + ' ' + e.title + '：' + (duties.filter((x) => x.eventKey === e.key).map((x) => labels[x['家族ID']]).filter(Boolean).join('、') || '未定'));
   // 役員には、当番カレンダー（輪番づくり）を開くボタン
   if (u.admin) return respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n'), '🗓 当番の入れかえ・空きの自動割り当ては「当番カレンダー」で\n' + dutyCalUrl_()], [{ type: 'uri', label: '🗓 当番カレンダー', uri: dutyCalUrl_() }].concat(MAIN_QUICK)));
@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '60b8789526';
+const SERVER_VERSION = '0d876263d1';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2961,7 +2961,7 @@ function buildState_(ctx) {
     .map((x) => {
       let key = x.eventKey;
       if (!key) { const e = (evOn[x['日付']] || []).find((y) => (y.type !== '練習') === (x['種類'] === '大会')); key = e ? e.key : ''; }
-      return { key: key, date: x['日付'], type: x['種類'], fam: kidFam(x['家族ID']) };
+      return { key: key, date: x['日付'], type: x['種類'], fam: kidFam(x['家族ID']), role: x['役割'] || '' };
     });
 
   const raceKeysAll = Object.keys(raceKeys);
@@ -3430,8 +3430,17 @@ function setDutyAction_(ctx, p) {
   if (staff && dutyType_(ev) !== '大会') throw new Error('大会係は、大会だけに決められます。');
   const type = staff ? RACE_STAFF : dutyType_(ev);
   withLock_(() => {
-    const row = readRows_(SHEETS.DUTIES).find((d) => d.eventKey === p.key && d['家族ID'] === fam && isRaceStaffRow_(d) === staff);
-    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': type, '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
+    const all = readRows_(SHEETS.DUTIES);
+    const row = all.find((d) => d.eventKey === p.key && d['家族ID'] === fam && isRaceStaffRow_(d) === staff);
+    // 大会当番はメインとサブの2家族。メインがいなければメイン、いればサブ（role で指定もできる）
+    const others = all.filter((d) => d.eventKey === p.key && !isRaceStaffRow_(d) && d !== row);
+    const role = type === '大会' ? (p.role === 'メイン' || p.role === 'サブ' ? p.role : others.some((d) => d['役割'] === 'メイン' || !d['役割']) ? 'サブ' : 'メイン') : '';
+    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': type, '家族ID': fam, '更新者': ctx.name, '更新日時': now_(), '役割': role });
+    else if (p.on && row && p.role && type === '大会') {
+      // メインとサブを入れかえる：ほかの家をもう一方の役割に
+      row['役割'] = role; updateRow_(SHEETS.DUTIES, row);
+      others.filter((d) => (d['役割'] || 'メイン') === role).forEach((d) => { d['役割'] = role === 'メイン' ? 'サブ' : 'メイン'; updateRow_(SHEETS.DUTIES, d); });
+    }
     if (!p.on && row) clearRow_(SHEETS.DUTIES, row);
   });
   if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, (staff ? '大会係：' : '当番：') + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
@@ -3444,7 +3453,7 @@ function setDutyAction_(ctx, p) {
  */
 function autoDutyAction_(ctx, p) {
   const type = p.type === '大会' ? '大会' : '練習';
-  const per = 1; // 当番は1回に1家族
+  const per = type === '大会' ? 2 : 1; // 練習当番は1回1家族、大会当番はメインとサブの2家族
   const days = Math.max(1, Math.min(400, Number(p.days) || 30));
   const today = today_();
   const families = familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_());
@@ -3480,7 +3489,7 @@ function autoDutyAction_(ctx, p) {
           // 同じなら役員が決めた順番、なければ前回から日がたっている順
           .sort((a, b) => count[a.id] * w(b) - count[b.id] * w(a) || idx(a.id) - idx(b.id) || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
         if (!pick) break;
-        const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_() });
+        const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_(), '役割': type === '大会' ? (n === 0 ? 'メイン' : 'サブ') : '' });
         duties.push(row);
         have.push(pick.id);
         last[pick.id] = e['日付'];
@@ -5273,7 +5282,7 @@ const SHEETS = {
   RESULTS: { name: '結果', headers: ['日時', 'eventKey', '大会・練習', '子ども', '種目', '記録', 'メモ', 'userId', '表示名', 'id', '順位', 'ラウンド', '区分'] },
   TIMETABLE: { name: 'タイムテーブル', headers: ['id', 'eventKey', '開始', '種目', '区分', '組', '招集', 'アップ', 'メモ', '更新日時'] },
   TASKS: { name: '手続き', headers: ['id', 'eventKey', '種類', '対象', '状態', 'メモ', '写真ID', '更新者', '日時'] },
-  DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時'] },
+  DUTIES: { name: '当番', headers: ['eventKey', '日付', '種類', '家族ID', '更新者', '更新日時', '役割'] },
   COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時', '提案'] },
   DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
   HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },

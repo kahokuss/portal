@@ -77,8 +77,17 @@ function setDutyAction_(ctx, p) {
   if (staff && dutyType_(ev) !== '大会') throw new Error('大会係は、大会だけに決められます。');
   const type = staff ? RACE_STAFF : dutyType_(ev);
   withLock_(() => {
-    const row = readRows_(SHEETS.DUTIES).find((d) => d.eventKey === p.key && d['家族ID'] === fam && isRaceStaffRow_(d) === staff);
-    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': type, '家族ID': fam, '更新者': ctx.name, '更新日時': now_() });
+    const all = readRows_(SHEETS.DUTIES);
+    const row = all.find((d) => d.eventKey === p.key && d['家族ID'] === fam && isRaceStaffRow_(d) === staff);
+    // 大会当番はメインとサブの2家族。メインがいなければメイン、いればサブ（role で指定もできる）
+    const others = all.filter((d) => d.eventKey === p.key && !isRaceStaffRow_(d) && d !== row);
+    const role = type === '大会' ? (p.role === 'メイン' || p.role === 'サブ' ? p.role : others.some((d) => d['役割'] === 'メイン' || !d['役割']) ? 'サブ' : 'メイン') : '';
+    if (p.on && !row) appendRow_(SHEETS.DUTIES, { eventKey: p.key, '日付': ev['日付'], '種類': type, '家族ID': fam, '更新者': ctx.name, '更新日時': now_(), '役割': role });
+    else if (p.on && row && p.role && type === '大会') {
+      // メインとサブを入れかえる：ほかの家をもう一方の役割に
+      row['役割'] = role; updateRow_(SHEETS.DUTIES, row);
+      others.filter((d) => (d['役割'] || 'メイン') === role).forEach((d) => { d['役割'] = role === 'メイン' ? 'サブ' : 'メイン'; updateRow_(SHEETS.DUTIES, d); });
+    }
     if (!p.on && row) clearRow_(SHEETS.DUTIES, row);
   });
   if (dutyType_(ev) === '大会') logHistory_(p.key, ctx, (staff ? '大会係：' : '当番：') + ((familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_()).find((f) => f.id === fam) || {}).label || '') + (p.on ? ' に決定' : ' を外す'));
@@ -91,7 +100,7 @@ function setDutyAction_(ctx, p) {
  */
 function autoDutyAction_(ctx, p) {
   const type = p.type === '大会' ? '大会' : '練習';
-  const per = 1; // 当番は1回に1家族
+  const per = type === '大会' ? 2 : 1; // 練習当番は1回1家族、大会当番はメインとサブの2家族
   const days = Math.max(1, Math.min(400, Number(p.days) || 30));
   const today = today_();
   const families = familiesList_(readRows_(SHEETS.FAMILIES), activeChildren_());
@@ -127,7 +136,7 @@ function autoDutyAction_(ctx, p) {
           // 同じなら役員が決めた順番、なければ前回から日がたっている順
           .sort((a, b) => count[a.id] * w(b) - count[b.id] * w(a) || idx(a.id) - idx(b.id) || (last[a.id] < last[b.id] ? -1 : last[a.id] > last[b.id] ? 1 : a.label < b.label ? -1 : 1))[0];
         if (!pick) break;
-        const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_() });
+        const row = appendRow_(SHEETS.DUTIES, { eventKey: e.eventKey, '日付': e['日付'], '種類': type, '家族ID': pick.id, '更新者': ctx.name, '更新日時': now_(), '役割': type === '大会' ? (n === 0 ? 'メイン' : 'サブ') : '' });
         duties.push(row);
         have.push(pick.id);
         last[pick.id] = e['日付'];

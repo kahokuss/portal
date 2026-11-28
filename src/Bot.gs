@@ -110,7 +110,7 @@ function handleNews_(ev) {
   const mine = duties.filter((x) => x['家族ID'] === u.famId && x['日付'] <= addDays_(d.today, 14));
   if (mine.length) {
     lines.push('', '🧹 わが家の当番');
-    mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + ' ' + x['種類'] + '当番（' + e.title + '）'); });
+    mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + ' ' + x['種類'] + '当番' + (x['役割'] ? '・' + x['役割'] : '') + '（' + e.title + '）'); });
   }
 
   const entries = readRows_(SHEETS.ENTRIES);
@@ -333,7 +333,7 @@ function handleDuty_(ev) {
   const mine = all.filter((x) => x['家族ID'] === u.famId);
   const lines = ['🧹 わが家の当番'];
   if (!mine.length) lines.push('これからの当番はありません。');
-  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + (isRaceStaffRow_(x) ? '大会係（入力の担当）' : x['種類'] + '当番') + '\n　' + e.title + (e.place ? '・' + e.place : '')); });
+  mine.forEach((x) => { const e = d.events.find((y) => y.key === x.eventKey); if (e) lines.push('・' + formatDate_(e.date) + '（' + dayWord_(e.date, d.today) + '）' + (isRaceStaffRow_(x) ? '大会係（入力の担当）' : x['種類'] + '当番' + (x['役割'] ? '（' + x['役割'] + '）' : '')) + '\n　' + e.title + (e.place ? '・' + e.place : '')); });
   const next = d.events.slice(0, 5).map((e) => '・' + formatDate_(e.date) + ' ' + e.title + '：' + (duties.filter((x) => x.eventKey === e.key).map((x) => labels[x['家族ID']]).filter(Boolean).join('、') || '未定'));
   // 役員には、当番カレンダー（輪番づくり）を開くボタン
   if (u.admin) return respond_(ev, botMessages_([lines.join('\n'), '📋 これからの当番\n' + next.join('\n'), '🗓 当番の入れかえ・空きの自動割り当ては「当番カレンダー」で\n' + dutyCalUrl_()], [{ type: 'uri', label: '🗓 当番カレンダー', uri: dutyCalUrl_() }].concat(MAIN_QUICK)));

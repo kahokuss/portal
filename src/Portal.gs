@@ -289,7 +289,7 @@ function buildState_(ctx) {
     .map((x) => {
       let key = x.eventKey;
       if (!key) { const e = (evOn[x['日付']] || []).find((y) => (y.type !== '練習') === (x['種類'] === '大会')); key = e ? e.key : ''; }
-      return { key: key, date: x['日付'], type: x['種類'], fam: kidFam(x['家族ID']) };
+      return { key: key, date: x['日付'], type: x['種類'], fam: kidFam(x['家族ID']), role: x['役割'] || '' };
     });
 
   const raceKeysAll = Object.keys(raceKeys);

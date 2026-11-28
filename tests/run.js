@@ -1803,6 +1803,29 @@ test('大会を消す：まちがえて登録した大会はカレンダーか�
   assert.ok(!st.events.some((e) => e.key === race.key) && !gas.rows('エントリー').some((x) => x.eventKey === race.key), '回答ごと消える');
 });
 
+test('大会当番はメインとサブの2家族：自動で2家族（回数が少ない家族がメイン）・入れかえ', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  gas.ctx.api(kA, 'testFamilies', { on: true });
+  let st = gas.ctx.api(kA, 'bootstrap');
+  const race = st.events.find((e) => e.type !== '練習' && e.date >= st.today);
+  gas.ctx.api(kA, 'autoDuty', { type: '大会', days: 120 });
+  st = gas.ctx.api(kA, 'bootstrap');
+  const ds = plain(st.duties).filter((x) => x.key === race.key);
+  assert.strictEqual(ds.length, 2, '大会は2家族');
+  assert.deepStrictEqual(ds.map((x) => x.role).sort(), ['サブ', 'メイン']);
+  const sub = ds.find((x) => x.role === 'サブ').fam, main = ds.find((x) => x.role === 'メイン').fam;
+  st = gas.ctx.api(kA, 'setDuty', { key: race.key, fam: sub, on: true, role: 'メイン' });
+  const ds2 = plain(st.duties).filter((x) => x.key === race.key);
+  assert.strictEqual(ds2.find((x) => x.fam === sub).role, 'メイン');
+  assert.strictEqual(ds2.find((x) => x.fam === main).role, 'サブ', '入れかわる');
+  // 手で入れると：メインがいればサブ
+  gas.ctx.api(kA, 'setDuty', { key: race.key, fam: main, on: false });
+  st = gas.ctx.api(kA, 'setDuty', { key: race.key, fam: 'TEST_E', on: true });
+  assert.strictEqual(plain(st.duties).find((x) => x.key === race.key && x.fam === 'TEST_E').role, 'サブ');
+});
+
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
   const gas = setupClub();
   gas.login('U1');

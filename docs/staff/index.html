@@ -898,7 +898,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9aee97e304";
+var BUILD = "abd8571acb";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "16dcbb33a3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -6888,6 +6888,58 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
   }
   function ledgerCancel(id) { var x = ST.ledger.filter(function (y) { return y.id === id; })[0]; if (x && confirm(md(x.date) + ' ' + x.kind + ' ' + yen(x.amount) + ' を取り消しますか？\n（スプレッドシートには「取消」として残ります）')) call('deleteLedger', { id: id }); }
+  /** 収支報告書のPDF：A4たて。題・期間・収入の表（前年度繰越から）・支出の表・次年度繰越・署名欄。字はキャンバスに書いて画像で貼る（日本語そのまま） */
+  function budgetPdf(M, done) {
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function () { return window.jspdf; }, function () {
+      var W = 1190, H = 1684, font = '"Hiragino Sans","Noto Sans CJK JP","Noto Sans JP","Yu Gothic",sans-serif', pages = [], c, y;
+      var cols = [70, 380, 560, 740, 900, 1120]; // 科目・予算額・決算額・差額・備考 の区切り
+      var num = function (n) { return (n < 0 ? '△' : '') + Math.abs(n).toLocaleString('ja-JP'); };
+      var newPage = function () { var cv = document.createElement('canvas'); cv.width = W; cv.height = H; c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); pages.push(cv); y = 90; };
+      var text = function (t, x, yy, opt) { opt = opt || {}; c.font = (opt.bold ? 'bold ' : '') + (opt.size || 22) + 'px ' + font; c.fillStyle = opt.color || '#111'; c.textAlign = opt.align || 'left'; c.fillText(t, x, yy); c.textAlign = 'left'; };
+      var line = function (x1, y1, x2, y2, w) { c.strokeStyle = '#333'; c.lineWidth = w || 1; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
+      var rowH = 44;
+      var table = function (title, rows, total) {
+        if (y + rowH * (rows.length + 3) > H - 260) newPage();
+        text(title, cols[0], y, { bold: true, size: 26 }); y += 16;
+        var top = y;
+        c.fillStyle = '#eef1f3'; c.fillRect(cols[0], y, cols[5] - cols[0], rowH);
+        ['科目', '予算額', '決算額', '差額', '備考'].forEach(function (h, i) { text(h, i === 0 || i === 4 ? cols[i] + 12 : cols[i + 1] - 12, y + 30, { bold: true, align: i === 0 || i === 4 ? 'left' : 'right' }); });
+        y += rowH;
+        rows.concat([total]).forEach(function (r, k) {
+          var isT = k === rows.length;
+          if (isT) { c.fillStyle = '#f7f7f2'; c.fillRect(cols[0], y, cols[5] - cols[0], rowH); }
+          text(r[0], cols[0] + 12, y + 30, { bold: isT });
+          [r[1], r[2], r[3]].forEach(function (v, i) { text(v === '' ? '' : num(v), cols[i + 2] - 12, y + 30, { bold: isT, align: 'right' }); });
+          if (r[4]) { var m = r[4]; c.font = '18px ' + font; while (m.length > 1 && c.measureText(m).width > cols[5] - cols[4] - 20) m = m.slice(0, -1); text(m, cols[4] + 12, y + 30, { size: 18, color: '#444' }); }
+          y += rowH; line(cols[0], y, cols[5], y, isT ? 2 : 1);
+        });
+        line(cols[0], top, cols[5], top, 2); line(cols[0], top + rowH, cols[5], top + rowH);
+        cols.forEach(function (x) { line(x, top, x, y); });
+        y += 50;
+      };
+      newPage();
+      text(ST.club + '　' + M.fy + '年度　収支報告書', W / 2, y, { bold: true, size: 40, align: 'center' }); y += 50;
+      text('（' + M.fy + '年4月1日 〜 ' + (M.fy + 1) + '年3月31日）', W / 2, y, { size: 24, align: 'center', color: '#333' }); y += 30;
+      text('（単位：円）', cols[5], y + 20, { size: 18, align: 'right', color: '#555' }); y += 50;
+      var inc = M.rows.filter(function (r) { return r.kind === '収入'; }), out = M.rows.filter(function (r) { return r.kind === '支出'; });
+      var incRows = [[CARRY, M.carry, M.carry, 0, '']].concat(inc.map(function (r) { return [r.cat, r.budget, r.actual, r.actual - r.budget, r.memo || '']; }));
+      table('【収入の部】', incRows, ['収入合計', M.carry + M.incB, M.carry + M.inc, M.inc - M.incB, '']);
+      table('【支出の部】', out.map(function (r) { return [r.cat, r.budget, r.actual, r.budget - r.actual, r.memo || '']; }), ['支出合計', M.outB, M.out, M.outB - M.out, '']);
+      if (y > H - 300) newPage();
+      c.strokeStyle = '#333'; c.lineWidth = 2; c.strokeRect(cols[0], y, cols[5] - cols[0], 70);
+      text('収入合計 ' + num(M.carry + M.inc) + ' 円 − 支出合計 ' + num(M.out) + ' 円 ＝ 次年度繰越金 ' + num(M.balance) + ' 円', W / 2, y + 45, { bold: true, size: 26, align: 'center' });
+      y += 130;
+      text('上記のとおり報告します。', cols[0], y); y += 40;
+      text('　　年　　月　　日　　会計　　＿＿＿＿＿＿＿＿＿＿　印', cols[5], y, { align: 'right' }); y += 80;
+      text('上記の収支について、帳簿・領収書と照合し、相違ないことを認めます。', cols[0], y); y += 40;
+      text('　　年　　月　　日　　監査　　＿＿＿＿＿＿＿＿＿＿　印', cols[5], y, { align: 'right' }); y += 60;
+      text('　　　　　　　　　　　　　　監査　　＿＿＿＿＿＿＿＿＿＿　印', cols[5], y, { align: 'right' });
+      pages.forEach(function (cv, i) { c = cv.getContext('2d'); text((i + 1) + ' / ' + pages.length, W / 2, H - 40, { size: 18, align: 'center', color: '#888' }); text('作成 ' + md(ST.today), cols[5], H - 40, { size: 18, align: 'right', color: '#888' }); });
+      var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+      pages.forEach(function (cv, i) { if (i) doc.addPage(); doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 595.28, 841.89); });
+      done(doc.output('blob'));
+    }, function () { S.toast = '⚠ PDFをつくる部品を読み込めませんでした。電波のよいところでもう一度'; S.toastErr = true; render(); });
+  }
   function adminBudget() {
     var B = S.bud || (S.bud = { fy: fyOf(ST.today) });
     var M = moneyFy(B.fy), h = backBtn() + toastHtml();
@@ -6919,7 +6971,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         }).join('') + '</tbody></table></div>' + list.filter(function (r) { return B.open === kind + '|' + r.cat; }).map(function (r) { return bdetail(kind, r); }).join('') + '<div class="hint">行を押すと、内訳（どの記録から出た金額か）と、予算・記録を直すボタンが出ます。</div>' : '<div class="sub">まだありません。</div>') +
         '<button class="btn small ghost" type="button" data-badd="' + kind + '" style="justify-self:start">＋ ' + kind + 'の科目と予算を入れる</button></section>';
     });
-    h += '<section class="card"><h2>📄 収支報告（決算）</h2><div class="sub">総会・監査用に、科目ごとの予算と実績の表をつくります。</div><div class="row"><button class="btn small" type="button" id="bCopy">表計算に貼れる形でコピー</button><button class="btn small ghost" type="button" id="bPrint">印刷</button></div></section>';
+    h += '<section class="card"><h2>📄 収支報告（決算）</h2><div class="sub">総会・監査用に、科目ごとの予算と決算の表をつくります。PDFは、題・期間・収入と支出の表・次年度への繰越・会計と監査の署名欄までの体裁です。</div>' +
+      (IN_LINE ? '<div class="toast err">LINEの中では、ファイルを保存できません。<a class="btn small" style="text-decoration:none" href="' + esc(extUrl('budget')) + '">🌐 Chromeなどで開く</a></div>' : '') +
+      '<div class="row"><button class="btn small" type="button" id="bPdf">📄 PDFで保存</button>' + (navigator.share ? '<button class="btn small ghost" type="button" id="bShare">📤 PDFをLINEなどで送る</button>' : '') + '<button class="btn small ghost" type="button" id="bCopy">表計算に貼れる形でコピー</button></div></section>';
     view.innerHTML = h;
     bindBack();
     on('[data-bfy]', function () { B.fy = +this.dataset.bfy; render(); });
@@ -6944,7 +6998,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       lines.push('', '収入合計（繰越を含む）\t\t' + (M.carry + M.incB) + '\t' + (M.carry + M.inc), '支出合計\t\t' + M.outB + '\t' + M.out, '次年度への繰越\t\t\t' + M.balance);
       copyText(lines.join('\n'), '収支報告をコピーしました。表計算に貼り付けてください');
     });
-    on('#bPrint', function () { window.print(); });
+    var bName = function () { return (ST.club + '_' + B.fy + '年度_収支報告書').replace(/[\\/:*?"<>|\s]+/g, '_') + '.pdf'; };
+    on('#bPdf', function () { budgetPdf(M, function (blob) { saveBlob(blob, bName()); }); });
+    on('#bShare', function () { budgetPdf(M, function (blob) { var file = new File([blob], bName(), { type: 'application/pdf' }); if (navigator.canShare && navigator.canShare({ files: [file] })) navigator.share({ files: [file], title: B.fy + '年度 収支報告書' }).catch(function () {}); else saveBlob(blob, file.name); }); });
   }
   function adminLedger() {
     var L = S.led || (S.led = { kind: '支払い' }), years = {};

@@ -897,7 +897,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "9aee97e304";
+var BUILD = "abd8571acb";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "16dcbb33a3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -5973,6 +5973,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   // （役員ページだけ：ledgerEdit）
   // （役員ページだけ：bindLedgerRow）
   // （役員ページだけ：ledgerCancel）
+  /** 収支報告書のPDF：A4たて。題・期間・収入の表（前年度繰越から）・支出の表・次年度繰越・署名欄。字はキャンバスに書いて画像で貼る（日本語そのまま） */
+  // （役員ページだけ：budgetPdf）
   // （役員ページだけ：adminBudget）
   // （役員ページだけ：adminLedger）
   // （役員ページだけ：adminSheet）

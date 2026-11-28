@@ -763,6 +763,8 @@ body.staffsite .sitesw { background: #f6f3fc; }
 .rspec { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; display: grid; gap: 6px; }
 .rspec > summary { cursor: pointer; }
 .rspec textarea { width: 100%; font: inherit; }
+.remind { border: 1.5px dashed var(--warn); border-radius: 12px; padding: 8px 10px; background: var(--warn-soft); display: grid; gap: 6px; }
+.paylist { display: grid; gap: 6px; } .paylist > div { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
 .qnav b { font-size: 14px; text-align: center; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
@@ -1868,7 +1870,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var joined = all.filter(function (k) { var x = entryOf(e.key, k.name); return x && x.join === '参加'; });
     var paid = joined.filter(function (k) { return entryOf(e.key, k.name).paid; });
     var mine = myNames();
-    h += '<section class="card"><h2>みんなのエントリー<small>' + all.length + '人中</small></h2>' + tallyHtml(e) + (det.fee ? '<div class="sub">💴 集金 ' + paid.length + '/' + joined.length + '人　' + yen(paid.length * det.fee) + '</div>' : '') +
+    var unans = all.filter(function (k) { return !entryOf(e.key, k.name); }).map(function (k) { return k.name; });
+    h += '<section class="card"><h2>みんなのエントリー<small>' + all.length + '人中</small></h2>' + tallyHtml(e) +
+      remindBox(e, 'エントリー催促', unans, '🏁 ' + e.title + '（' + md(e.date) + '）の参加・不参加' + (det.deadline ? '\n回答の締切：' + md(det.deadline) : '') + '\nまだ回答していない方：' + unans.join('、') + '\nポータルの「予定・大会」から回答してください👇\n' + HOME_URL) + (det.fee ? '<div class="sub">💴 集金 ' + paid.length + '/' + joined.length + '人　' + yen(paid.length * det.fee) + '</div>' : '') +
       '<div class="tbl-wrap"><table><thead><tr><th>名前</th><th>学年</th><th>回答</th><th>種目</th>' + (det.fee ? '<th>集金</th>' : '') + '</tr></thead><tbody>' + all.map(function (k) {
         var x = entryOf(e.key, k.name);
         var pay = !det.fee || !x || x.join !== '参加' ? '' : ST.me.admin ? '<button class="btn small ' + (x.paid ? 'ok' : 'ghost') + '" data-pay="' + esc(k.name) + '" data-paid="' + (x.paid ? '' : '1') + '" type="button">' + (x.paid ? '済' : '未') + '</button>' : (x.paid ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">未</span>');
@@ -1933,7 +1937,36 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
     return h + '</div></section>';
   }
+  // ---- 催促（集金・エントリー）：まだの人を出して、催促の文をコピー（Botからは送らない）。催促した日を記録 ----
+  var REMIND_TXT = {};
+  function remindBox(e, kind, names, text) {
+    if (!canManage(e.key) || LITE) return '';
+    if (!names.length) return '<div class="sub" style="color:var(--field)">✓ ' + (kind === '集金催促' ? '集金' : '回答') + 'は全員そろいました</div>';
+    REMIND_TXT[kind] = text;
+    var t = taskOf(e.key, kind, ''), last = t && t.memo;
+    return '<div class="remind"><div><b>まだ ' + names.length + '人</b>：' + names.map(esc).join('、') + '</div>' +
+      '<div class="row"><button class="btn small" type="button" data-rcopy="' + kind + '">📋 催促の文をコピー</button><button class="btn small ghost" type="button" data-rdone="' + kind + '">✓ 催促した（記録）</button></div>' +
+      '<div class="hint">' + (last ? '最後に催促した日：<b>' + esc(last) + '</b>。' : 'まだ催促していません。') + 'コピーした文を、LINEグループや個別のトークに貼って送ってください（Botからは送りません）。</div></div>';
+  }
+  /** 集金：子どもごとの金額と受け取り（押すと「受け取った」） */
+  function payListHtml(e, joined) {
+    if (!joined.length) return '<div class="sub">まだ「参加」の子がいません。</div>';
+    var can = ST.me.admin && !LITE;
+    return '<div class="paylist">' + joined.map(function (k) {
+      var x = entryOf(e.key, k.name), fee = feeOfKid(e, k.name);
+      var btn = can ? '<button class="btn small ' + (x.paid ? 'ok' : 'ghost') + '" type="button" data-pay="' + esc(k.name) + '" data-paid="' + (x.paid ? '' : '1') + '">' + (x.paid ? '✓ 受け取り済み' : '受け取った') + '</button>' : '<span class="pill ' + (x.paid ? 'p-ok' : 'p-warn') + '">' + (x.paid ? '済' : 'まだ') + '</span>';
+      return '<div class="between"><span><b>' + esc(k.name) + '</b>' + (k.grade ? ' <span class="sub">' + k.grade + '年</span>' : '') + '<br><span class="sub">' + yen(fee) + (feeUnit(e.detail) === '種目' ? '（' + Math.max(1, x.races.length) + '種目）' : '') + '</span></span>' + btn + '</div>';
+    }).join('') + '</div>';
+  }
+  function bindRemind(e) {
+    on('[data-rcopy]', function () { copyText(REMIND_TXT[this.dataset.rcopy] || ''); });
+    on('[data-rdone]', function () { call('setTask', { key: e.key, kind: this.dataset.rdone, target: '', memo: md(ST.today) + ' ' + nowHM().replace(/^0/, ''), done: true }); });
+  }
+  function bindPaid(e) {
+    on('[data-pay]', function () { var c = this.dataset.pay, pd = !!this.dataset.paid; quick('setPaid', { key: e.key, child: c, paid: pd }, function (st) { var x = st.entries.find(function (y) { return y.key === e.key && y.child === c; }); if (x) x.paid = pd; }); });
+  }
   function bindEntry(e) {
+    bindRemind(e);
     on('[data-applycopy]', function () {
       var rows = applyRows(e);
       S.applyCopy = e.key; render();
@@ -1971,7 +2004,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         });
       });
     });
-    on('[data-pay]', function () { var c = this.dataset.pay, pd = !!this.dataset.paid; quick('setPaid', { key: e.key, child: c, paid: pd }, function (st) { var x = st.entries.find(function (y) { return y.key === e.key && y.child === c; }); if (x) x.paid = pd; }); });
+    bindPaid(e);
     on('[data-tally]', function () { S.tally = S.tally === this.dataset.tally ? '' : this.dataset.tally; render(); });
   }
 
@@ -3905,6 +3938,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (det.fee) {
       steps.push({ label: '集金', done: joined.length > 0 && paid.length === joined.length, html: '<section class="card"><h2>参加費の集金' + (paid.length === joined.length && joined.length ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">' + paid.length + '/' + joined.length + '人</span>') + '</h2>' +
         '<div class="stats"><div class="stat"><b>' + yen(feeSum(e, joined.map(function (k) { return k.name; }))) + '</b><span>大会に払う合計（' + joined.length + '人' + (feeUnit(det) === '種目' ? '・1種目 ' : '×') + yen(det.fee) + '）</span></div><div class="stat"><b>' + yen(feeSum(e, paid.map(function (k) { return k.name; }))) + '</b><span>集まった額（' + paid.length + '人）</span></div></div>' +
+        payListHtml(e, joined) +
+        remindBox(e, '集金催促', joined.filter(function (k) { return !entryOf(e.key, k.name).paid; }).map(function (k) { return k.name; }),
+          '💴 ' + e.title + '（' + md(e.date) + '）の参加費\n集金締切：' + md(collectByOf(e)) + '\nまだの方：' + joined.filter(function (k) { return !entryOf(e.key, k.name).paid; }).map(function (k) { return k.name + ' ' + yen(feeOfKid(e, k.name)); }).join('、') + '\n会計係までお願いします。') +
         '<div class="sub">集金締切（保護者から）：<b>' + md(collectByOf(e)) + '</b>' + (det.collectBy ? '' : '（決めていないので、' + (det.payBy ? '支払期限の3日前' : '大会の7日前') + '）') + (det.deadline && det.deadline >= ST.today ? '。募集締切 ' + md(det.deadline) + ' までは人数が変わります' : '') + '</div>' +
         '<button class="link" type="button" data-et="エントリー">エントリーの一覧で確かめる ›</button>' +
         '<div class="copybox">' + esc(md(e.date).replace(/\(.\)/, '') + '\n' + e.title + '\n' + yen(feeSum(e, joined.map(function (k) { return k.name; }))).replace('¥', '') + '円\n（' + CLUB + '）') + '</div><div class="hint">封筒に書くときの見本です。</div></section>' });
@@ -3981,6 +4017,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
   }
   function bindTasks(e) {
+    bindRemind(e); bindPaid(e);
     bindPay(e);
     on('[data-fgo]', function () { flashTo(this.dataset.fgo); });
     on('[data-task]', function () { var p = this.dataset.task, i = p.indexOf('|'); call('setTask', { key: e.key, kind: p.slice(0, i), target: p.slice(i + 1), done: !!this.dataset.done }); });

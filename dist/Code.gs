@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'e84bc5bede';
+const SERVER_VERSION = '60b8789526';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -3258,7 +3258,7 @@ function saveRaceAction_(ctx, p) {
     '締切': deadline,
     '集合時刻': String(p.meetTime || '').slice(0, 10),
     '集合場所': String(p.meetPlace || '').slice(0, 80),
-    '種目': cleanList_(p.races).join(','),
+    '種目': cleanList_(p.races, 120).join(','),
     '持ち物': cleanList_(p.items).join(','),
     '注意': String(p.notes || '').slice(0, 1000),
     '更新日時': now_(),

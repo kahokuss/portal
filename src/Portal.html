@@ -760,6 +760,9 @@ body.staffsite .sitesw { background: #f6f3fc; }
 .card.howto > h2 .fold-ic { margin-left: auto; } .card.howto > h2 small + .fold-ic { margin-left: 0; }
 .bdet { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface-2); display: grid; gap: 6px; }
 .bdet .btn.ghost { background: var(--surface); }
+.rspec { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; display: grid; gap: 6px; }
+.rspec > summary { cursor: pointer; }
+.rspec textarea { width: 100%; font: inherit; }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
 .qnav b { font-size: 14px; text-align: center; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
@@ -2189,6 +2192,69 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function backBtn() { return '<button class="link" id="aBack" type="button">' + (STAFF_SITE && !S.adminAll ? '‹ 係のページ' : '‹ 管理メニュー') + '</button>'; }
   function bindBack() { on('#aBack', function () { S.admin = 'menu'; S.toast = ''; render(); }); }
 
+  // ---- 大会の種目を学年・男女ごとに（「100m（3年男子）」の形で持つ。エントリーではその子に合う種目だけ出る） ----
+  function gradeLabel(gs) {
+    gs = gs.slice().sort(function (a, b) { return a - b; });
+    return !gs.length ? '' : gs.length === 1 ? gs[0] + '年' : gs[0] + '〜' + gs[gs.length - 1] + '年';
+  }
+  /** 1行を読む：「3年男子 100m」「3,男子,100m」「5・6年女子 走幅跳」「4〜6年 男女 4×100mR」「学年,男女,種目」の見出しは飛ばす。→ ['100m（3年男子）'] */
+  function parseRaceSpec(line) {
+    var t = toHalf(String(line || '')).replace(/\t/g, ',').trim();
+    if (!t || /種目/.test(t) && /学年|男女|性別/.test(t)) return []; // 見出しの行
+    var cols = t.split(/\s*,\s*/);
+    if (cols.length >= 3 && /^[1-6](\s*[・〜~\-]\s*[1-6])*$/.test(cols[0])) t = cols[0] + '年 ' + cols.slice(1).join(' '); else t = cols.join(' ');
+    var gs = [], gm = t.match(/(?:小学?)?([1-6](?:\s*[・〜~\-]\s*[1-6])*)\s*年生?/);
+    if (gm) {
+      var parts = gm[1].split(/\s*([・〜~\-])\s*/);
+      for (var i = 0; i < parts.length; i += 2) {
+        var n = +parts[i], op = parts[i - 1];
+        if ((op === '〜' || op === '~' || op === '-') && gs.length) { for (var g = gs[gs.length - 1] + 1; g <= n; g++) gs.push(g); } else gs.push(n);
+      }
+      t = t.replace(gm[0], ' ');
+    }
+    var sex = /男女|混合/.test(t) ? '男女' : /男/.test(t) ? '男子' : /女/.test(t) ? '女子' : '';
+    var race = t.replace(/(男女|混合|男子|女子|男|女)(の部)?/g, ' ').replace(/全学年|の部|小学生?|学年/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s/g, '');
+    if (!race) return [];
+    gs = gs.filter(function (g, k, a) { return g >= 1 && g <= 6 && a.indexOf(g) === k; }).sort(function (a, b) { return a - b; });
+    var runs = [], cur = [];
+    gs.forEach(function (g) { if (cur.length && g !== cur[cur.length - 1] + 1) { runs.push(cur); cur = []; } cur.push(g); });
+    if (cur.length) runs.push(cur);
+    if (!runs.length) runs = [[]];
+    return runs.map(function (r) { var q = gradeLabel(r) + sex; return (race + (q ? '（' + q + '）' : '')).slice(0, 30); });
+  }
+  function raceSpecHtml(D) {
+    var B = S.rb || (S.rb = { grades: [], sex: '男子', race: '', paste: '' });
+    var specs = D.races.filter(function (x) { return raceQual(x); }), byRace = {}, order = [];
+    specs.forEach(function (x) { var b = raceBase(x); if (!byRace[b]) { byRace[b] = []; order.push(b); } byRace[b].push(x); });
+    return '<details class="rspec"' + (specs.length || B.openSpec ? ' open' : '') + '><summary><b>学年・男女ごとの種目</b>（例：3年男子 100m）' + (specs.length ? '<span class="pill p-prac">' + specs.length + '件</span>' : '') + '</summary>' +
+      '<div class="sub">要項で学年・男女ごとに種目が分かれているときに。入れると、エントリーではその子に合う種目だけが出ます。</div>' +
+      (order.length ? '<div class="list">' + order.map(function (b) { return '<div><b>' + esc(b) + '</b> ' + byRace[b].map(function (x) { return '<span class="pill p-gray">' + esc(raceQual(x)) + ' <button class="link" type="button" data-rsdel="' + esc(x) + '" aria-label="外す">×</button></span>'; }).join(' ') + '</div>'; }).join('') + '</div>' : '') +
+      '<div class="lbl">ボタンで足す</div><div class="choice sm">' + [1, 2, 3, 4, 5, 6].map(function (g) { return '<button type="button" data-rbg="' + g + '" aria-pressed="' + (B.grades.indexOf(g) >= 0) + '">' + g + '年</button>'; }).join('') + '</div>' +
+      '<div class="choice sm">' + ['男子', '女子', '男女'].map(function (x) { return '<button type="button" data-rbs="' + x + '" aria-pressed="' + (B.sex === x) + '">' + x + '</button>'; }).join('') + '</div>' +
+      '<div class="choice sm">' + ST.choices.races.concat(D.races.filter(function (x) { return !raceQual(x) && ST.choices.races.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-rbr="' + esc(x) + '" aria-pressed="' + (B.race === x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<button class="btn small" type="button" id="rbAdd"' + (B.grades.length && B.race ? '' : ' disabled') + '>＋ ' + (B.race && B.grades.length ? esc(parseRaceSpec(B.grades.join('・') + '年' + B.sex + ' ' + B.race).join('・')) + ' を足す' : '学年と種目を選ぶ') + '</button>' +
+      '<div class="lbl">まとめて貼り付ける（AIに要項の写真を見せて作ったCSVなど）</div>' +
+      '<textarea id="rbPaste" rows="4" placeholder="学年,男女,種目\n3,男子,100m\n3,女子,100m\n5・6年男子 走幅跳">' + esc(B.paste) + '</textarea>' +
+      '<div class="row"><button class="btn small ghost" type="button" id="rbRead">読み取って足す</button><button class="link" type="button" id="rbPrompt">AIへのお願い文をコピー</button></div>' +
+      '<div class="hint">1行に1つ。「学年,男女,種目」のCSVでも、「3年男子 100m」「5・6年女子 走幅跳」「4〜6年男女 4×100mR」のような書き方でも読めます。</div></details>';
+  }
+  function bindRaceSpec(D) {
+    var B = S.rb;
+    var keepP = function () { var el = document.getElementById('rbPaste'); if (el) B.paste = el.value; B.openSpec = true; };
+    on('[data-rbg]', function () { keepP(); var g = +this.dataset.rbg, i = B.grades.indexOf(g); if (i >= 0) B.grades.splice(i, 1); else B.grades.push(g); render(); });
+    on('[data-rbs]', function () { keepP(); B.sex = this.dataset.rbs; render(); });
+    on('[data-rbr]', function () { keepP(); B.race = this.dataset.rbr; render(); });
+    on('#rbAdd', function () { keepP(); parseRaceSpec(B.grades.join('・') + '年' + B.sex + ' ' + B.race).forEach(function (x) { if (D.races.indexOf(x) < 0) D.races.push(x); }); B.grades = []; render(); });
+    on('[data-rsdel]', function () { keepP(); var i = D.races.indexOf(this.dataset.rsdel); if (i >= 0) D.races.splice(i, 1); render(); });
+    on('#rbRead', function () {
+      keepP(); var n = 0, ng = [];
+      B.paste.split(/\n/).forEach(function (l) { if (!l.trim()) return; var r = parseRaceSpec(l); if (!r.length && !/種目/.test(l)) ng.push(l.trim()); r.forEach(function (x) { if (D.races.indexOf(x) < 0) { D.races.push(x); n++; } }); });
+      if (n) B.paste = '';
+      S.toast = n ? '✅ 種目を ' + n + '件足しました。最後に「保存する」を押してください' + (ng.length ? '（読めなかった行：' + ng.slice(0, 3).join('／') + '）' : '') : '⚠ 足せる種目がありませんでした' + (ng.length ? '（' + ng.slice(0, 3).join('／') + '）' : '');
+      S.toastErr = !n; render();
+    });
+    on('#rbPrompt', function () { copyText('この大会要項の写真から、小学生の種目を「学年,男女,種目」のCSVにしてください。1行目は見出し「学年,男女,種目」。学年は数字（2学年まとめてなら「5・6」）、男女は「男子」「女子」「男女」のどれか、種目は「100m」「走幅跳」「ジャベボール投」「4×100mR」のように。CSVだけを出してください。'); });
+  }
   function newDraft() { return { key: '', from: '', title: '', type: '大会', date: '', place: '', meetTime: '', meetPlace: '', target: '全員', fee: '', deadline: '', races: [], items: ['ユニフォーム', 'アスリートビブス', '水筒'], notes: '', autoDeadline: true, organizer: '', applyBy: '', applyHow: '', payBy: '', collectBy: '', reception: '', url: '' }; }
   function draftFrom(e) {
     var det = e.detail || {};
@@ -2257,8 +2323,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<div class="lbl">対象</div><div class="choice">' + ST.choices.targets.map(function (x) { return '<button type="button" data-set="target|' + x + '" aria-pressed="' + (D.target === x) + '">' + x + '</button>'; }).join('') + '</div>' +
       '<div class="two"><label>参加費（1人・円）<input id="d-fee"' + cls('fee') + ' inputmode="numeric" value="' + esc(D.fee) + '" placeholder="未定なら空のまま"></label><label>エントリー締切<input type="date" id="d-deadline"' + cls('deadline') + ' value="' + D.deadline + '"></label></div>' +
       '<div class="quick">' + [500, 700, 800, 1000].map(function (x) { return '<button type="button" data-set="fee|' + x + '">' + yen(x) + '</button>'; }).join('') + '<span class="hint">　締切は日付の' + ST.choices.deadlineDays + '日前が自動で入ります</span></div>' +
-      '<div class="lbl">種目（タップで選ぶ）</div><div class="choice">' + ST.choices.races.concat(D.races.filter(function (x) { return ST.choices.races.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="races|' + esc(x) + '" aria-pressed="' + (D.races.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<div class="lbl">種目（タップで選ぶ）</div><div class="choice">' + ST.choices.races.concat(D.races.filter(function (x) { return ST.choices.races.indexOf(x) < 0 && !raceQual(x); })).map(function (x) { return '<button type="button" data-tog="races|' + esc(x) + '" aria-pressed="' + (D.races.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<div class="row"><input id="d-race-new" placeholder="ほかの種目（例：2km、60mH）" style="flex:1"><button class="btn small" type="button" id="d-race-add">＋ 足す</button></div>' +
+      raceSpecHtml(D) +
       '<div class="lbl">持ち物（タップで選ぶ）</div><div class="choice">' + ST.choices.items.concat(D.items.filter(function (x) { return ST.choices.items.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="items|' + esc(x) + '" aria-pressed="' + (D.items.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<label>注意・連絡<textarea id="d-notes"' + cls('notes') + ' placeholder="例：寒さ対策にロングタイツ可">' + esc(D.notes) + '</textarea></label>' +
       '<div class="lbl" style="margin-top:6px;font-weight:700;color:var(--fg)">主催者への申込み（役員・当番用）</div>' +
@@ -2311,6 +2378,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     document.getElementById('d-meetTime').addEventListener('blur', function () { D.meetTime = this.value = fmtTime(this.value); });
     on('[data-set]', function () { var p = this.dataset.set.split('|'); D[p[0]] = p[1]; render(); });
     on('[data-tog]', function () { var p = this.dataset.tog.split('|'), arr = D[p[0]], i = arr.indexOf(p[1]); if (i >= 0) arr.splice(i, 1); else arr.push(p[1]); render(); });
+    bindRaceSpec(D);
     on('#d-race-add', function () {
       var v = toHalf(val('d-race-new')).trim().replace(/[、,]/g, ' ');
       v.split(/\s+/).filter(Boolean).forEach(function (x) { if (D.races.indexOf(x) < 0) D.races.push(x.slice(0, 30)); });

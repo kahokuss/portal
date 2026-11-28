@@ -762,6 +762,8 @@ body.staffsite .sitesw { background: #f6f3fc; }
 .card.howto > h2::before { content: '📘 説明'; flex: none; white-space: nowrap; font-size: 11px; font-weight: 700; color: #fff; background: var(--sky); border-radius: 999px; padding: 2px 8px; }
 .card.howto > h2 small { margin-left: auto; white-space: nowrap; }
 .card.howto > h2 .fold-ic { margin-left: auto; } .card.howto > h2 small + .fold-ic { margin-left: 0; }
+.bdet { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface-2); display: grid; gap: 6px; }
+.bdet .btn.ghost { background: var(--surface); }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
 .qnav b { font-size: 14px; text-align: center; }
 .mstat { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
@@ -885,9 +887,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "b2e21414c3";
+var BUILD = "edc8d4f79a";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "07e932ebcf";
+var EXPECT_SERVER = "fb5ab6fac0";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = false;
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -3881,7 +3883,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var t = taskOf(e.key, '参加費支払い', ''), done = list.length || (t && t.done);
     var h = '<section class="card"><h2>参加費を大会に払う' + (done ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' + dlChip(e, '参加費支払い', done);
     if (list.length) {
-      h += '<div class="list">' + list.map(function (x) { return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b> <span class="sub">' + esc(x.payee || '') + (x.note ? '・' + esc(x.note) : '') + '・' + esc(x.by) + 'さん</span></span>' + (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(x.photo) + '"><img data-src="' + esc(x.photo) + '" alt="領収書"></button>' : '') + '</div>'; }).join('') + '</div>';
+      h += '<div class="list">' + list.map(function (x) { return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b> <span class="sub">' + esc(x.payee || '') + (x.note ? '・' + esc(x.note) : '') + '・' + esc(x.by) + 'さん</span></span>' + (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') + '</div>'; }).join('') + '</div>';
       var diffY = collected - paidOut;
       if (collected) h += '<div class="sub">集めた額 ' + yen(collected) + ' − 払った額 ' + yen(paidOut) + ' ＝ <b>' + (diffY >= 0 ? yen(diffY) : '−' + yen(-diffY)) + '</b>' + (diffY ? '（欠場の返金や、ほかの費用がないか確かめてください）' : '') + '</div>';
     }
@@ -6729,20 +6731,54 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     return '<section class="card howto"><h2>会計係の1年<small>はじめての人へ</small></h2><div class="list">' + steps.map(function (x) { return '<button type="button" class="opsit" data-stool="' + x[2] + '"><span class="pill p-gray">' + x[0] + '</span><span class="main"><span class="sub" style="color:var(--fg)">' + esc(x[1]) + '</span></span><span class="go">›</span></button>'; }).join('') + '</div>' +
       '<div class="hint">お金は「集金」「大会の参加費」「お金の出入り」の3つで記録すると、予算と残高にまとめて出ます。現金の残りと、ここの残高がときどき合っているかを確かめましょう。</div></section>';
   }
+  /** 会計の記録がどの科目に入るか（予算の表と同じ決め方） */
+  function ledCat(x) { var inc = x.kind === '入金'; return x.cat || (x.key ? (inc ? '大会参加費（集金）' : '大会参加費') : '（科目なし）'); }
+  /** 会計の記録を直す・取り消す（予算の内訳・会計の一覧から） */
+  function ledgerEdit(id) {
+    var x = ST.ledger.filter(function (y) { return y.id === id; })[0]; if (!x) return;
+    var kind = x.kind === '入金' ? '収入' : '支出';
+    askForm({ title: '会計の記録を直す（' + x.kind + '）', hint: '直す前の値は、スプレッドシートの「修正履歴」に残ります。まちがえて入れた記録は、ここではなく「取り消す」を押してください。', ok: '直す',
+      fields: [{ label: '金額（円）', value: String(x.amount) }, { label: '日付', value: x.date, placeholder: '2026-11-28' }, { label: '科目', value: x.cat, chips: MONEY_CATS[kind] }, { label: '相手', value: x.payee || '' }, { label: '但し書き', value: x.note || '' }] },
+      function (v) { call('updateLedger', { id: id, amount: v[0], date: v[1], cat: v[2], payee: v[3], note: v[4] }); });
+  }
+  function bindLedgerRow() {
+    on('[data-ledit]', function () { ledgerEdit(this.dataset.ledit); });
+    on('[data-lcancel]', function () { ledgerCancel(this.dataset.lcancel); });
+    on('[data-photo]', function () { showPhoto(this.dataset.photo); });
+    view.querySelectorAll('[data-lphoto]').forEach(function (inp) {
+      inp.addEventListener('change', function () { var id = this.dataset.lphoto, file = this.files && this.files[0]; if (file) readImage(file, function (data) { if (data) call('ledgerPhoto', { id: id, data: data }); }); });
+    });
+  }
+  function ledgerCancel(id) { var x = ST.ledger.filter(function (y) { return y.id === id; })[0]; if (x && confirm(md(x.date) + ' ' + x.kind + ' ' + yen(x.amount) + ' を取り消しますか？\n（スプレッドシートには「取消」として残ります）')) call('deleteLedger', { id: id }); }
   function adminBudget() {
     var B = S.bud || (S.bud = { fy: fyOf(ST.today) });
     var M = moneyFy(B.fy), h = backBtn() + toastHtml();
     h += '<section class="card"><h2>📊 予算と残高</h2><div class="choice">' + [fyOf(ST.today) - 1, fyOf(ST.today), fyOf(ST.today) + 1].map(function (y) { return '<button type="button" data-bfy="' + y + '" aria-pressed="' + (B.fy === y) + '">' + y + '年度</button>'; }).join('') + '</div>' +
       '<div class="mstat"><div><span class="sub">' + CARRY + '</span><b>' + yen(M.carry) + '</b><button class="link" type="button" data-bcarry>' + (M.carryId ? '直す' : '入れる') + '</button></div><div><span class="sub">＋ 収入</span><b>' + yen(M.inc) + '</b></div><div><span class="sub">− 支出</span><b>' + yen(M.out) + '</b></div><div><span class="sub">＝ 残高</span><b class="big">' + yen(M.balance) + '</b></div></div>' +
       '<div class="hint">' + B.fy + '年4月1日〜' + (B.fy + 1) + '年3月31日。収入は、会計の「入金」・集金で受け取った分（集金の名前の科目）・大会の参加費の集金。支出は、会計の「支払い」です。</div></section>';
+    // 内訳：その科目の金額がどの記録から来ているか。会計の記録は直す・取り消す・領収書を付けられる
+    var bdetail = function (kind, r) {
+      var led = M.led.filter(function (x) { return (x.kind === '入金' ? '収入' : '支出') === kind && ledCat(x) === r.cat; });
+      var a = fyOf(ST.today) === B.fy, d0 = B.fy + '-04-01', d1 = (B.fy + 1) + '-03-31', other = [];
+      if (kind === '収入') ST.fees.forEach(function (f) { var dd = String(f.deadline || f.at || '').slice(0, 10); if (f.name === r.cat && dd >= d0 && dd <= d1 && f.paid.length) other.push('集金「' + esc(f.name) + '」で受け取った分 ' + f.paid.length + '人 × ' + yen(f.amount) + '（集金のページで直す）'); });
+      if (kind === '収入' && r.cat === '大会参加費（集金）') other.push('大会の参加費の集金（エントリーの「済」）から。直すときは大会の「エントリー」で');
+      return '<div class="bdet"><div class="lbl">「' + esc(r.cat) + '」の内訳</div><div class="list">' + led.map(function (x) {
+        var e = x.key && evByKey(x.key);
+        return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b><br><span class="sub">' + esc([e ? e.title : '', x.payee, x.note].filter(Boolean).join('・') || '（相手・但し書きなし）') + '・' + esc(x.by) + 'さん' + (x.fixed ? '<br>✎ ' + esc(x.fixed) : '') + '</span></span>' +
+          '<span class="row nowrap">' + (x.photo ? '<button class="thumb" style="width:40px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') +
+          '<label class="btn small ghost upl" title="領収書・レシートの写真を付ける">📷 領収書<input type="file" accept="image/*" data-lphoto="' + esc(x.id) + '" hidden></label><button class="btn small ghost" type="button" data-ledit="' + esc(x.id) + '">直す</button><button class="icon-btn" type="button" data-lcancel="' + esc(x.id) + '" aria-label="取り消す">×</button></span></div>';
+      }).join('') + other.map(function (t) { return '<div class="sub">・' + t + '</div>'; }).join('') + (!led.length && !other.length ? '<div class="sub">この科目の記録はまだありません。</div>' : '') +
+        '</div><div class="row"><button class="btn small ghost" type="button" data-bedit="' + esc(kind + '|' + r.cat) + '">予算を直す</button><button class="link" type="button" data-bopen="' + esc(kind + '|' + r.cat) + '">閉じる</button></div></div>';
+    };
     ['収入', '支出'].forEach(function (kind) {
       var list = M.rows.filter(function (r) { return r.kind === kind; }), tb = list.reduce(function (s, r) { return s + r.budget; }, 0), ta = list.reduce(function (s, r) { return s + r.actual; }, 0);
       h += '<section class="card"><h2>' + (kind === '収入' ? '💰 収入' : '💸 支出') + '<small>予算 ' + yen(tb) + '・実績 ' + yen(ta) + '</small></h2>' +
         (list.length ? '<div class="tbl-wrap"><table class="btbl"><thead><tr><th>科目</th><th>予算</th><th>実績</th><th>' + (kind === '支出' ? '残り' : '差') + '</th></tr></thead><tbody>' + list.map(function (r) {
           var left = r.budget - r.actual, over = kind === '支出' ? r.budget && r.actual > r.budget : false;
-          return '<tr data-bedit="' + esc(kind + '|' + r.cat) + '" style="cursor:pointer"><td class="wrap">' + esc(r.cat) + (r.memo ? '<br><span class="sub">' + esc(r.memo) + '</span>' : '') + '</td><td>' + (r.set ? yen(r.budget) : '<span class="sub">なし</span>') + '</td><td>' + yen(r.actual) +
+          var opened = B.open === kind + '|' + r.cat;
+          return '<tr data-bopen="' + esc(kind + '|' + r.cat) + '" style="cursor:pointer"' + (opened ? ' class="hl"' : '') + '><td class="wrap">' + esc(r.cat) + (r.memo ? '<br><span class="sub">' + esc(r.memo) + '</span>' : '') + '</td><td>' + (r.set ? yen(r.budget) : '<span class="sub">なし</span>') + '</td><td>' + yen(r.actual) +
             (r.budget ? '<div class="meter sm' + (over ? ' over' : '') + '"><i style="width:' + Math.min(100, Math.round(r.actual * 100 / r.budget)) + '%"></i></div>' : '') + '</td><td' + (over ? ' style="color:var(--track);font-weight:700"' : '') + '>' + (r.set ? (kind === '支出' ? yen(left) : (r.actual - r.budget >= 0 ? '+' : '') + yen(r.actual - r.budget)) : '') + '</td></tr>';
-        }).join('') + '</tbody></table></div><div class="hint">行を押すと予算を直せます。</div>' : '<div class="sub">まだありません。</div>') +
+        }).join('') + '</tbody></table></div>' + list.filter(function (r) { return B.open === kind + '|' + r.cat; }).map(function (r) { return bdetail(kind, r); }).join('') + '<div class="hint">行を押すと、内訳（どの記録から出た金額か）と、予算・記録を直すボタンが出ます。</div>' : '<div class="sub">まだありません。</div>') +
         '<button class="btn small ghost" type="button" data-badd="' + kind + '" style="justify-self:start">＋ ' + kind + 'の科目と予算を入れる</button></section>';
     });
     h += '<section class="card"><h2>📄 収支報告（決算）</h2><div class="sub">総会・監査用に、科目ごとの予算と実績の表をつくります。</div><div class="row"><button class="btn small" type="button" id="bCopy">表計算に貼れる形でコピー</button><button class="btn small ghost" type="button" id="bPrint">印刷</button></div></section>';
@@ -6756,6 +6792,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     };
     on('[data-badd]', function () { edit(this.dataset.badd, null); });
     on('[data-bedit]', function () { var k = this.dataset.bedit.split('|'), r = M.rows.filter(function (x) { return x.kind === k[0] && x.cat === k.slice(1).join('|'); })[0]; edit(k[0], r); });
+    on('[data-bopen]', function () { B.open = B.open === this.dataset.bopen ? '' : this.dataset.bopen; render(); });
+    bindLedgerRow();
+    loadThumbs();
     on('[data-bcarry]', function () {
       askForm({ title: B.fy + '年度の' + CARRY, hint: '前の年度の終わり（3月31日）に残っていたお金です。', ok: '保存する', fields: [{ label: '金額（円）', value: M.carryId ? String(M.carry) : (B.fy - 1 === fyOf(ST.today) - 1 ? String(moneyFy(B.fy - 1).balance) : ''), placeholder: '例：85000' }] },
         function (v) { call('saveBudget', { id: M.carryId, fy: B.fy, kind: '収入', cat: CARRY, amount: v[0] }); });
@@ -6783,7 +6822,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       h += '<section class="card"><h2>' + y + '年<small>支払い ' + yen(out) + '・入金 ' + yen(inn) + '</small></h2><div class="list">' + years[y].map(function (x) {
         var e = x.key && evByKey(x.key);
         return '<div class="between"><span>' + md(x.date) + ' <span class="pill ' + (x.kind === '入金' ? 'p-ok' : 'p-gray') + '">' + x.kind + '</span> <b>' + yen(x.amount) + '</b><br><span class="sub">' + esc([x.cat ? '［' + x.cat + '］' : '', e ? e.title : '', x.payee, x.note].filter(Boolean).join('・')) + '・' + esc(x.by) + 'さん</span></span><span class="row">' +
-          (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(x.photo) + '"><img data-src="' + esc(x.photo) + '" alt="領収書"></button>' : '') + '<button class="icon-btn" type="button" data-ldel="' + esc(x.id) + '" aria-label="消す">×</button></span></div>';
+          (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') + '<label class="btn small ghost upl" title="領収書・レシートの写真を付ける">📷 領収書<input type="file" accept="image/*" data-lphoto="' + esc(x.id) + '" hidden></label><button class="btn small ghost" type="button" data-ledit="' + esc(x.id) + '">直す</button><button class="icon-btn" type="button" data-lcancel="' + esc(x.id) + '" aria-label="取り消す">×</button></span></div>';
       }).join('') + '</div></section>';
     });
     if (!ST.ledger.length) h += '<div class="card empty">まだ記録はありません</div>';
@@ -6795,8 +6834,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     FORMDROP.led = function (data) { L.data = data; var el = document.getElementById('ld-file'); if (el) el.textContent = '写真を選びました'; };
     document.getElementById('ld-photo').addEventListener('change', function () { var file = this.files && this.files[0]; if (file) readImage(file, function (data) { L.data = data; document.getElementById('ld-file').textContent = data ? '写真を選びました' : '写真を読み込めませんでした'; }); });
     document.getElementById('ledForm').addEventListener('submit', function (x) { x.preventDefault(); keep(); call('saveLedger', { kind: L.kind, amount: L.amount, date: L.date, payee: L.payee, note: L.note, cat: L.cat || '', data: L.data || '' }, function () { S.led = null; }); });
-    on('[data-ldel]', function () { if (confirm('この記録を消しますか？')) call('deleteLedger', { id: this.dataset.ldel }); });
-    on('[data-photo]', function () { showPhoto(this.dataset.photo); });
+    bindLedgerRow();
     loadThumbs();
   }
   function adminSheet() {

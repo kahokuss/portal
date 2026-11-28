@@ -438,7 +438,7 @@ function deleteEventAction_(ctx, p) {
   const used = [
     !p.force && readRows_(SHEETS.ENTRIES).some((x) => x.eventKey === key) && '参加の回答',
     readRows_(SHEETS.RESULTS).some((x) => x.eventKey === key) && '結果',
-    readRows_(SHEETS.LEDGER).some((x) => x.id && x.eventKey === key) && 'お金の記録',
+    readRows_(SHEETS.LEDGER).some((x) => x.id && !x['取消'] && x.eventKey === key) && 'お金の記録',
   ].filter(Boolean);
   if (used.length) throw new Error(used.join('・') + 'があるので消せません。「中止にする」を使ってください。');
   const ce = editableCalEvent_(row);
@@ -545,20 +545,62 @@ function saveLedgerAction_(ctx, p) {
   return (kind === '入金' ? '入金' : '支払い') + ' ¥' + amount.toLocaleString('ja-JP') + ' を記録しました';
 }
 
+/** 会計の記録を取り消す。行は消さずに「取消」の印と日時・人を残す（監査のときに、何を直したか分かるように） */
 function deleteLedgerAction_(ctx, p) {
   withLock_(() => {
     const row = readRows_(SHEETS.LEDGER).find((x) => x.id && x.id === p.id);
     if (!row) throw new Error('記録が見つかりません。');
-    clearRow_(SHEETS.LEDGER, row);
+    row['取消'] = now_() + ' ' + ctx.name;
+    updateRow_(SHEETS.LEDGER, row);
   });
-  return '会計の記録を消しました';
+  return '会計の記録を取り消しました（スプレッドシートには「取消」として残ります）';
+}
+
+/** 会計の記録に、領収書・レシートの写真をあとから付ける（何枚でも） */
+function ledgerPhotoAction_(ctx, p) {
+  const row = readRows_(SHEETS.LEDGER).find((x) => x.id && x.id === p.id && !x['取消']);
+  if (!row) throw new Error('記録が見つかりません。');
+  if (row.eventKey) requireManager_(ctx, row.eventKey); else if (!ctx.admin) throw new Error('この操作は役員だけができます。');
+  const ev = row.eventKey ? findEvent_(row.eventKey) : null;
+  const id = savePhotoFile_(ctx, ev, p.data, '領収書').getId();
+  withLock_(() => {
+    const r2 = readRows_(SHEETS.LEDGER).find((x) => x.id === p.id);
+    r2['写真ID'] = splitNames_(r2['写真ID']).concat([id]).join(',');
+    updateRow_(SHEETS.LEDGER, r2);
+  });
+  return '領収書の写真を付けました';
+}
+
+/** 会計の記録を直す（金額・日付・科目・相手・但し書き）。直す前の値は「修正履歴」に残す */
+function updateLedgerAction_(ctx, p) {
+  let msg = '';
+  withLock_(() => {
+    const row = readRows_(SHEETS.LEDGER).find((x) => x.id && x.id === p.id && !x['取消']);
+    if (!row) throw new Error('記録が見つかりません。');
+    if (row.eventKey) requireManager_(ctx, row.eventKey); else if (!ctx.admin) throw new Error('この操作は役員だけができます。');
+    const next = {
+      '金額': p.amount != null ? String(Number(toHalfWidth_(String(p.amount)).replace(/[^0-9]/g, '')) || 0) : row['金額'],
+      '日付': /^\d{4}-\d{2}-\d{2}$/.test(p.date || '') ? p.date : row['日付'],
+      '科目': p.cat != null ? String(p.cat).trim().slice(0, 30) : row['科目'],
+      '相手': p.payee != null ? String(p.payee).trim().slice(0, 60) : row['相手'],
+      '但し書き': p.note != null ? String(p.note).trim().slice(0, 100) : row['但し書き'],
+    };
+    if (!Number(next['金額'])) throw new Error('金額を入れてください（取り消すときは「取り消す」を押してください）。');
+    const ch = Object.keys(next).filter((k) => String(row[k] || '') !== String(next[k] || '')).map((k) => k + ' ' + (row[k] || '（空）') + '→' + (next[k] || '（空）'));
+    if (!ch.length) { msg = '変わったところはありません'; return; }
+    row['修正履歴'] = (row['修正履歴'] ? row['修正履歴'] + '\n' : '') + now_() + ' ' + ctx.name + '：' + ch.join('、');
+    Object.assign(row, next);
+    updateRow_(SHEETS.LEDGER, row);
+    msg = '会計の記録を直しました（' + ch.join('、') + '）';
+  });
+  return msg;
 }
 
 /** 画面に渡す会計の記録。役員はすべて、当番は自分の大会の分だけ */
 function ledgerFor_(ctx, manageKeys) {
   return readRows_(SHEETS.LEDGER)
-    .filter((x) => x.id && (ctx.admin || (x.eventKey && manageKeys.indexOf(x.eventKey) >= 0)))
-    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'], cat: x['科目'] || '' }))
+    .filter((x) => x.id && !x['取消'] && (ctx.admin || (x.eventKey && manageKeys.indexOf(x.eventKey) >= 0)))
+    .map((x) => ({ id: x.id, date: x['日付'], key: x.eventKey, kind: x['種類'], amount: Number(x['金額']) || 0, payee: x['相手'], note: x['但し書き'], photo: x['写真ID'], by: x['記録者'], cat: x['科目'] || '', fixed: x['修正履歴'] ? String(x['修正履歴']).split('\n').pop() : '' }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 

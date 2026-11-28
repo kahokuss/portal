@@ -117,6 +117,8 @@ const API_ACTIONS = {
   deleteComment: { run: deleteCommentAction_ },
   setMeasure: { admin: true, run: setMeasureAction_ },
   deleteLedger: { admin: true, run: deleteLedgerAction_ },
+  updateLedger: { run: updateLedgerAction_ },
+  ledgerPhoto: { run: ledgerPhotoAction_ },
   deleteResult: { run: deleteResultAction_ },
   addRecords: { admin: true, run: addRecordsAction_ },
   removeDuplicateRecords: { admin: true, run: removeDuplicateRecordsAction_ },

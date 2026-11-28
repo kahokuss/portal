@@ -1196,6 +1196,19 @@ test('既読・アンケート・集金（未納は本人と役員だけに見�
   assert.strictEqual(gas.ctx.api(k2, 'bootstrap').budget.length, 0, '予算は役員だけに見える');
   st = gas.ctx.api(kA, 'saveLedger', { kind: '支払い', amount: 4800, cat: '用具・消耗品', payee: 'スポーツ店' });
   assert.strictEqual(plain(st.ledger)[0].cat, '用具・消耗品');
+  // 会計の記録を直す（前の値は修正履歴に）・領収書を付ける・取り消す（行は残る）
+  const lid = plain(st.ledger)[0].id;
+  assert.throws(() => gas.ctx.api(k2, 'updateLedger', { id: lid, amount: 100 }), /役員/);
+  st = gas.ctx.api(kA, 'updateLedger', { id: lid, amount: '５,０００', cat: '用具・消耗品' });
+  assert.ok(/4800→5000/.test(st.message), st.message);
+  assert.strictEqual(plain(st.ledger)[0].amount, 5000);
+  assert.ok(/4800→5000/.test(gas.rows('会計').find((x) => x.id === lid)['修正履歴']), '修正履歴が残る');
+  st = gas.ctx.api(kA, 'ledgerPhoto', { id: lid, data: 'data:image/jpeg;base64,' + Buffer.from('jpg').toString('base64') });
+  assert.ok(plain(st.ledger)[0].photo, '領収書の写真');
+  st = gas.ctx.api(kA, 'deleteLedger', { id: lid });
+  assert.ok(!plain(st.ledger).some((x) => x.id === lid), '取り消した記録は出ない');
+  assert.ok(gas.rows('会計').find((x) => x.id === lid)['取消'], 'シートには「取消」として残る');
+  st = gas.ctx.api(kA, 'bootstrap');
   st = gas.ctx.api(kA, 'saveBudget', { id: st.budget[0].id, remove: true });
   assert.strictEqual(st.budget.length, 0);
 });

@@ -28,7 +28,7 @@ const SHEETS = {
   COMMENTS: { name: 'コメント', headers: ['id', 'eventKey', '種類', '本文', '場所', '公開', '写真ID', 'userId', '表示名', '日時', '対策', '対策者', '対策日時', '提案'] },
   DOCS: { name: '資料', headers: ['id', 'eventKey', '種類', '名前', 'URL', 'ファイルID', '形式', '追加者', '日時'] },
   HISTORY: { name: '履歴', headers: ['日時', 'eventKey', '表示名', '内容'] },
-  LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時', '科目'] },
+  LEDGER: { name: '会計', headers: ['id', '日付', 'eventKey', '種類', '金額', '相手', '但し書き', '写真ID', '記録者', '日時', '科目', '修正履歴', '取消'] },
   BUDGET: { name: '予算', headers: ['id', '年度', '区分', '科目', '金額', 'メモ', '更新者', '日時'] },
   GOALS: { name: '目標', headers: ['id', '子ども', '種類', '期間', 'タイトル', '種目', '目標記録', '開始記録', '期限', 'eventKey', 'やること', '親id', '状態', '達成日', 'ひとこと', '出した人', 'userId', '日時', '更新日時'] },
   GOAL_LOG: { name: '目標のやること', headers: ['goalId', 'やること', '日付', '子ども', 'userId', '日時'] },

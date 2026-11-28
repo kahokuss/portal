@@ -767,6 +767,11 @@ body.staffsite .sitesw { background: #f6f3fc; }
 .rspec { border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; display: grid; gap: 6px; }
 .rspec > summary { cursor: pointer; }
 .rspec textarea { width: 100%; font: inherit; }
+.fhead { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.fwho { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.fwho.w-money { background: #fff4e0; border-color: #e9b45c; color: #8a5300; }
+.fwho.w-race { background: #e7f0fb; border-color: #8fb2de; color: #2f5f9a; }
+.fwho.w-duty { background: #eaf6ee; border-color: #8cc5a0; color: #2b6e43; }
 .remind { border: 1.5px dashed var(--warn); border-radius: 12px; padding: 8px 10px; background: var(--warn-soft); display: grid; gap: 6px; }
 .paylist { display: grid; gap: 6px; } .paylist > div { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
@@ -893,9 +898,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "bdf2b81a5c";
+var BUILD = "9aee97e304";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "54d384922d";
+var EXPECT_SERVER = "16dcbb33a3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = false;
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1447,7 +1452,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     // お金：大会への参加費の支払いがまだ（支払期限が近い・大会が近い）
     ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.detail && (e.detail.fee || e.detail.payBy) && e.date >= addDays(today, -3) && e.date <= addDays(today, 21); }).forEach(function (e) {
       var paid = ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || (taskOf(e.key, '参加費支払い', '') || {}).done;
-      if (!paid) add((e.detail.payBy || e.date) <= addDays(today, 3) ? 1 : 2, 'お金', md(e.date) + ' ' + e.title + '：大会への参加費の支払いがまだ', (e.detail.payBy ? '期限 ' + md(e.detail.payBy) + '。' : '') + '払ったら領収書を記録', { ev: e.key, etab: '手続き' });
+      var handed = !!(taskOf(e.key, '参加費の受け渡し', '') || {}).done, fs2 = e.detail.fee ? feeStage(e) : null;
+      // 会計係：集め終わったら、大会当番に渡す
+      if (!paid && fs2 && fs2.joined && fs2.paid === fs2.joined && !handed) add(2, 'お金', md(e.date) + ' ' + e.title + '：集めた参加費 ' + yen(feeSum(e, ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加'; }).map(function (x) { return x.child; }))) + ' を大会当番に渡す', (dutyText(e.key) ? '大会当番：' + dutyText(e.key) + '。' : '大会当番がまだ決まっていません。') + '渡したら「渡した」を押す', { ev: e.key, etab: '手続き' });
+      // 大会当番：主催者に払う
+      if (!paid) add((e.detail.payBy || e.date) <= addDays(today, 3) ? 1 : 2, '当番', md(e.date) + ' ' + e.title + '：大会への参加費の支払い（大会当番）', (e.detail.payBy ? '期限 ' + md(e.detail.payBy) + '。' : '') + (handed ? '会計係から受け取り済み。' : '') + '払ったら領収書を記録', { ev: e.key, etab: '手続き' });
     });
     if (unack.length) add(2, '連絡', '確認していない休みの連絡 ' + unack.length + '件', '', { admin: 'absences' }, unack.length);
     var nm = ST.comments.filter(function (c) { return c.kind === 'ヒヤリハット' && !c.measure; });
@@ -3952,6 +3961,14 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         '<button class="link" type="button" data-et="エントリー">エントリーの一覧で確かめる ›</button>' +
         '<div class="copybox">' + esc(md(e.date).replace(/\(.\)/, '') + '\n' + e.title + '\n' + yen(feeSum(e, joined.map(function (k) { return k.name; }))).replace('¥', '') + '円\n（' + CLUB + '）') + '</div><div class="hint">封筒に書くときの見本です。</div></section>' });
     }
+    if (det.fee) {
+      var hand = taskOf(e.key, '参加費の受け渡し', ''), handDone = !!(hand && hand.done), collected = feeSum(e, paid.map(function (k) { return k.name; }));
+      steps.push({ label: '当番に渡す', done: handDone, html: '<section class="card"><h2>集めたお金を大会当番に渡す' + (handDone ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' +
+        '<div class="sub">会計係が集めた参加費 <b>' + yen(collected) + '</b>（' + paid.length + '人分）を、大会当番に渡します。大会当番が主催者に払います。</div>' +
+        '<div class="sub">大会当番：<b>' + (dutyText(e.key) ? esc(dutyText(e.key)) : 'まだ決まっていません') + '</b></div>' +
+        (handDone ? '<div class="sub">✓ ' + esc(hand.memo || '渡しました') + '</div>' + (man && !LITE ? '<button class="link" type="button" data-handundo>取り消す</button>' : '') :
+          man && !LITE ? '<button class="btn" type="button" data-hand="' + collected + '">渡した（記録）</button>' + (paid.length < joined.length ? '<div class="hint">まだ集まっていない人がいます（' + (joined.length - paid.length) + '人）。先に渡す分だけでも記録できます。</div>' : '') : '') + '</section>' });
+    }
     // 参加費の金額が入っていなくても、支払期限・締切があれば「大会に払う」を出す
     if (det.fee || det.payBy || (det.deadlines || {})['参加費支払い']) {
       var payDone = ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || tdone('参加費支払い');
@@ -3975,11 +3992,14 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       return '<div class="between"><span><b class="callt">' + esc(p.r.call || '—') + '</b> ' + esc(p.k.name) + ' <span class="sub">' + esc(p.r.race + ' ' + (p.r.group || '') + ' ' + (p.r.heat || '')) + '</span></span>' + callBtn(e, p.r, p.k) + '</div>';
     }).join('') + '</div>' : '<div class="sub">時刻表を入れると、エントリーした子の招集の一覧がここに出ます。</div>') + '</section>' });
     var now = steps.findIndex(function (x) { return !x.done; });
+    // それぞれの手続きの担当（係）
+    var WHO = { 'エントリー': ['race', '🏁 大会係'], '集金': ['money', '💴 会計係'], '当番に渡す': ['money', '💴 会計係'], '大会に払う': ['duty', '🧹 大会当番'], 'プログラム': ['race', '🏁 大会係'], 'リレー': ['race', '🏁 大会係'], '当日の受付': ['race', '🏁 大会係・当番'], '招集': ['duty', '🧹 当番'] };
+    var who = function (x) { var w = WHO[x.label]; return w ? '<span class="fwho w-' + w[0] + '">' + w[1] + '</span>' : ''; };
     var h = '<section class="card"><h2>手続きの流れ<small>' + steps.filter(function (x) { return x.done; }).length + ' / ' + steps.length + ' 済</small></h2><div class="fchart">' + steps.map(function (x, i) {
-      return (i ? '<span class="farr" aria-hidden="true">→</span>' : '') + '<button type="button" class="fchip ' + (x.done ? 'done' : i === now ? 'now' : '') + '" data-fgo="fstep' + i + '"><b>' + (x.done ? '✓' : i + 1) + '</b>' + esc(x.label) + '</button>';
+      return (i ? '<span class="farr" aria-hidden="true">→</span>' : '') + '<button type="button" class="fchip ' + (x.done ? 'done' : i === now ? 'now' : '') + '" data-fgo="fstep' + i + '"><b>' + (x.done ? '✓' : i + 1) + '</b>' + esc(x.label) + (WHO[x.label] ? '<small class="fcw">' + WHO[x.label][1].split(' ')[0] + '</small>' : '') + '</button>';
     }).join('') + '</div>' + (man ? '' : '<div class="hint">手続きは役員と、この大会の当番の人が進めます。</div>') + '</section>';
     h += '<div class="flow">' + steps.map(function (x, i) {
-      return '<div class="fstep ' + (x.done ? 'done' : i === now ? 'now' : '') + '" id="fstep' + i + '" data-flabel="' + esc(x.label) + '"><div class="fnum">' + (x.done ? '✓' : i + 1) + '</div><div class="fbody">' + (i === now ? '<div class="fnow">▶ いまここ</div>' : '') + x.html + '</div></div>';
+      return '<div class="fstep ' + (x.done ? 'done' : i === now ? 'now' : '') + '" id="fstep' + i + '" data-flabel="' + esc(x.label) + '"><div class="fnum">' + (x.done ? '✓' : i + 1) + '</div><div class="fbody"><div class="fhead">' + who(x) + (i === now ? '<span class="fnow">▶ いまここ</span>' : '') + '</div>' + x.html + '</div></div>';
     }).join('') + '</div>';
     return h;
   }
@@ -4025,6 +4045,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   function bindTasks(e) {
     bindRemind(e); bindPaid(e);
+    on('[data-hand]', function () { var amt = +this.dataset.hand; if (confirm(yen(amt) + ' を大会当番（' + (dutyText(e.key) || '未定') + '）に渡しましたか？')) call('setTask', { key: e.key, kind: '参加費の受け渡し', target: '', done: true, memo: md(ST.today) + ' ' + yen(amt) + ' を ' + (dutyText(e.key) || '大会当番') + ' に渡しました' }); });
+    on('[data-handundo]', function () { if (confirm('「渡した」を取り消しますか？')) call('setTask', { key: e.key, kind: '参加費の受け渡し', target: '', done: false, memo: '' }); });
     bindPay(e);
     on('[data-fgo]', function () { flashTo(this.dataset.fgo); });
     on('[data-task]', function () { var p = this.dataset.task, i = p.indexOf('|'); call('setTask', { key: e.key, kind: p.slice(0, i), target: p.slice(i + 1), done: !!this.dataset.done }); });
@@ -4221,7 +4243,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (!e.detail || !(det.feeSet || det.fee)) return Object.assign(r, { k: 'unset', t: '参加費まだ', cls: 'p-gray' });
     if (!det.fee) return Object.assign(r, { k: 'free', t: '参加費なし', cls: 'p-ok' });
     if (payDone) return Object.assign(r, { k: 'paidout', t: '主催に支払い済', cls: 'p-ok' });
-    if (r.joined && r.paid === r.joined && !r.open) return Object.assign(r, { k: 'collected', t: '集金済 → 主催に払う', cls: 'p-prac' });
+    var handed = !!(taskOf(e.key, '参加費の受け渡し', '') || {}).done;
+    if (handed) return Object.assign(r, { k: 'handed', t: '当番が主催に払う', cls: 'p-prac' });
+    if (r.joined && r.paid === r.joined && !r.open) return Object.assign(r, { k: 'collected', t: '集金済 → 当番に渡す', cls: 'p-prac' });
     return Object.assign(r, { k: 'collecting', t: '集金 ' + r.paid + '/' + r.joined, cls: ST.today > r.cb ? 'p-race' : 'p-warn' });
   }
   /** 大会係と会計係の両方に出す：これからの大会の参加費の流れ */
@@ -4233,7 +4257,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       var sub = f.k === 'unset' ? '要項が出たら、大会係が「案内を直す」で参加費（1人・1種目）を入れる' : f.k === 'free' ? '集金はありません' :
         yen(det.fee) + '／' + feeUnit(det) + (f.joined ? '・参加 ' + f.joined + '人で ' + yen(feeSum(e, ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加'; }).map(function (x) { return x.child; }))) : '') + '<br>' + [det.deadline ? '募集 ' + md(det.deadline).replace(/\(.\)/, '') : '', '集金 ' + md(f.cb).replace(/\(.\)/, ''), det.payBy ? '主催へ ' + md(det.payBy).replace(/\(.\)/, '') : ''].filter(Boolean).join(' → ');
       return '<button type="button" class="opsit" data-ev2="' + e.key + '"><span class="pill ' + f.cls + '">' + f.t + '</span><span class="main"><b>' + md(e.date) + ' ' + esc(e.title) + '</b><span class="sub">' + sub + '</span></span><span class="go">›</span></button>';
-    }).join('') + '</div><div class="hint">締切は「募集（クラブ内の回答）→ 集金（保護者から）→ 主催へ（支払い）」の順。流れ：①大会を登録（大会係）→ ②参加費（1人・1種目）を入れる＝保護者に案内・集金スタート → ③募集締切 → ④主催へ申込（大会係）→ ⑤集金締切（会計係）→ ⑥主催へ支払い・領収書（会計係）→ 大会</div></section>';
+    }).join('') + '</div><div class="hint">締切は「募集（クラブ内の回答）→ 集金（保護者から）→ 主催へ（支払い）」の順。流れ：①大会を登録（大会係）→ ②参加費（1人・1種目）を入れる＝保護者に案内・集金スタート → ③募集締切 → ④主催へ申込（大会係）→ ⑤集金締切（会計係）→ ⑥集めたお金を大会当番に渡す（会計係）→ ⑦主催へ支払い・領収書（大会当番）→ 大会</div></section>';
   }
   function raceStatus(e) {
     var det = e.detail, done = function (k) { var t = taskOf(e.key, k, ''); return t && t.done; };
@@ -4271,8 +4295,9 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     rows.push({ t: '参加費（1人・1種目）の案内', done: !!(det.feeSet || det.fee), sub: det.feeSet || det.fee ? (det.fee ? yen(det.fee) + '／' + feeUnit(det) + '。参加と答えたら払えます' : 'なし') : 'まだ（要項が出たら大会係が入れる）' });
     if (det.deadline) rows.push({ t: 'クラブ内の回答', done: ST.today > det.deadline, sub: md(det.deadline) + 'まで' + (ST.today <= det.deadline ? '（' + untilText(det.deadline) + '）' : '（締め切りました）'), go: 'エントリー' });
     rows.push({ t: '主催への申込' + (det.applyHow ? '（' + esc(det.applyHow) + '）' : ''), done: applied, sub: det.applyBy ? '期限 ' + md(det.applyBy) : '', dl: 'エントリー控え', go: '手続き|エントリー' });
-    if (det.fee) { var fs = feeStage(e); rows.push({ t: '保護者からの集金', done: fs.joined > 0 && fs.paid === fs.joined && !fs.open, sub: fs.paid + '/' + fs.joined + '人・締切 ' + md(fs.cb), at: fs.cb + ' 23:59', go: '手続き' }); }
-    if (det.fee || det.payBy || (det.deadlines || {})['参加費支払い']) rows.push({ t: '参加費の支払い', done: ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || tdone('参加費支払い'), sub: det.payBy ? '期限 ' + md(det.payBy) : '', dl: '参加費支払い', go: '手続き|大会に払う' });
+    if (det.fee) { var fsh = taskOf(e.key, '参加費の受け渡し', ''); rows.push({ t: '大会当番に渡す（会計係）', done: !!(fsh && fsh.done), sub: fsh && fsh.done ? esc(fsh.memo || '') : '大会当番：' + (dutyText(e.key) ? esc(dutyText(e.key)) : 'まだ'), go: '手続き' }); }
+    if (det.fee) { var fs = feeStage(e); rows.splice(rows.length - 1, 0, { t: '保護者からの集金', done: fs.joined > 0 && fs.paid === fs.joined && !fs.open, sub: fs.paid + '/' + fs.joined + '人・締切 ' + md(fs.cb), at: fs.cb + ' 23:59', go: '手続き' }); }
+    if (det.fee || det.payBy || (det.deadlines || {})['参加費支払い']) rows.push({ t: '参加費の支払い（大会当番）', done: ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || tdone('参加費支払い'), sub: det.payBy ? '期限 ' + md(det.payBy) : '', dl: '参加費支払い', go: '手続き|大会に払う' });
     if (relayTeams(e).length || (det.deadlines || {})['リレー予選'] || (det.deadlines || {})['リレー決勝']) relayRounds(e).forEach(function (k) {
       rows.push({ t: (legWord(e) === '区' ? 'オーダー' : k.replace('リレー', 'リレー ')) + 'の提出', done: relayTeams(e).length > 0 && relayTeams(e).every(function (tm) { return (taskOf(e.key, k, tm) || {}).done; }), dl: k, go: '種目|relay' });
     });
@@ -6840,7 +6865,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<button class="btn small ghost" type="button" data-stool="budget" style="justify-self:start">📊 予算と残高をくわしく ›</button></section>';
   }
   function moneyGuideCard() {
-    var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、催促の文をコピーして手作業で催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会のページで ✓）→ 主催者に支払い → 領収書を写真で残す', '_nextpay'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
+    var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、催促の文をコピーして手作業で催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会の「手続き」で受け取った）→ 集めたお金を大会当番に渡す → 大会当番が主催者に払い、領収書を写真で残す', '_nextpay'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
     return '<section class="card howto"><h2>会計係の1年<small>はじめての人へ</small></h2><div class="list">' + steps.map(function (x) { return '<button type="button" class="opsit" data-stool="' + x[2] + '"><span class="pill p-gray">' + x[0] + '</span><span class="main"><span class="sub" style="color:var(--fg)">' + esc(x[1]) + '</span></span><span class="go">›</span></button>'; }).join('') + '</div>' +
       '<div class="hint">お金は「集金」「大会の参加費」「お金の出入り」の3つで記録すると、予算と残高にまとめて出ます。現金の残りと、ここの残高がときどき合っているかを確かめましょう。</div></section>';
   }

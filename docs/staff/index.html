@@ -893,7 +893,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "1fc050ad0f";
+var BUILD = "bdf2b81a5c";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "54d384922d";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1430,8 +1430,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       if (!(det.feeSet || det.fee) && n <= 90) add(n <= 21 ? 2 : 3, '大会', md(e.date) + ' ' + e.title + '：参加費（1人・1種目）がまだ', '要項が出たら「案内を直す」で入れると、保護者に案内され、会計係の集金が始まります（なしなら 0）', { editRace: e.key });
       if (det.fee) {
         var fs = feeStage(e), due = fs.joined - fs.paid;
-        if (!fs.paid && fs.open && !fs.payDone) add(3, 'お金', md(e.date) + ' ' + e.title + '：参加費 ' + yen(det.fee) + '／' + feeUnit(det) + 'が決まりました → 集金をはじめる', '参加と答えた子から受け取れます（いま ' + fs.joined + '人）。集金締切 ' + md(fs.cb), { ev: e.key, etab: '手続き' });
-        else if (due > 0 && !fs.payDone) add(ST.today > fs.cb ? 1 : diff(ST.today, fs.cb) <= 5 ? 2 : 3, 'お金', md(e.date) + ' ' + e.title + '：' + (ST.today > fs.cb ? '集金締切を過ぎた未集金 ' : '参加費の未集金 ') + due + '人', '集金締切 ' + md(fs.cb) + '。受け取ったら「エントリー」で済に', { ev: e.key, etab: 'エントリー' }, due);
+        // 保護者が「参加」と答えたら、その子の分が会計係の「今やること」に入る（だれの分かも出す）
+        var notPaid = ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加' && !x.paid; }).map(function (x) { return x.child; });
+        if (!fs.payDone && !fs.joined && fs.open) add(3, 'お金', md(e.date) + ' ' + e.title + '：参加費 ' + yen(det.fee) + '／' + feeUnit(det) + 'が決まりました', '「参加」と答えた子から、ここに集金の予定が入ります。集金締切 ' + md(fs.cb), { ev: e.key, etab: '手続き' });
+        else if (due > 0 && !fs.payDone) add(ST.today > fs.cb ? 1 : diff(ST.today, fs.cb) <= 5 ? 2 : 3, 'お金', md(e.date) + ' ' + e.title + '：' + (ST.today > fs.cb ? '集金締切を過ぎた未集金 ' : '参加費の集金 ') + due + '人（' + yen(feeSum(e, notPaid)) + '）',
+          notPaid.slice(0, 6).join('、') + (notPaid.length > 6 ? ' ほか' + (notPaid.length - 6) + '人' : '') + '。集金締切 ' + md(fs.cb) + '。受け取ったら「受け取った」を押す', { ev: e.key, etab: '手続き' }, due);
       }
     });
     // 連絡・お金・安全

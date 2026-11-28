@@ -891,7 +891,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "f9de0d019c";
+var BUILD = "20acc96998";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "ee65af40f7";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1845,6 +1845,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
     on('#noteWrong', function () { flashTo('secCmt'); var t = document.querySelector('#cmtForm textarea, #cmtForm input'); if (t) t.focus(); });
     on('#editRace', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('[data-fixrace]', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('#raceDelGo', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); setTimeout(function () { flashTo('raceDelCard'); }, 30); });
     on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
     bindEntry(e);
@@ -1885,6 +1886,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var out = [];
     (det.races || []).forEach(function (r) {
       if (raceQual(r) && (det.races || []).indexOf(raceBase(r)) >= 0) return; // 部つきは、もとの種目のところで出す
+      if (raceQual(r) && !groupMatch(raceQual(r), k) && x.races.indexOf(r) < 0) return; // 学年・男女つきの種目は、その子に合うものだけ
       var opts = raceOptions(e, r), fit = opts.filter(function (o) { return groupMatch(raceQual(o).replace('〜', '~'), k); });
       // その子に合う部が1つだけなら、部なしの種目1つで出す（時刻表は学年・男女で絞られるので同じ）。前にその部で登録していればそれを出す
       if (opts.length > 1 && fit.length > 1) { if (x.races.indexOf(r) >= 0) out.push(r); opts.forEach(function (o) { if (fit.indexOf(o) >= 0 || x.races.indexOf(o) >= 0) out.push(o); }); }
@@ -4256,6 +4258,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
         return (k === nowIdx ? nowLine : '') + '<div class="srow ' + cls + '"><span class="snum">' + (r.done ? '✓' : k + 1) + '</span><span class="smain"><span class="shd"><b' + (goA ? ' class="sgo" role="button" tabindex="0"' + goA : '') + '>' + r.t + (goA ? ' ›' : '') + '</b>' + (r.done ? '<span class="pill p-ok">済</span>' : k === now ? '<span class="pill p-race">いまここ</span>' : '') + '</span>' +
           (r.sub ? '<span class="sub">' + r.sub + '</span>' : '') + (r.dl ? dlChip(e, r.dl, r.done) : '') + '</span></div>';
       }).join('') + (nowIdx === rows.length ? nowLine : '') + '</div>' + (det.organizer ? '<div class="sub">主催：' + esc(det.organizer) + '</div>' : '');
+    if (ST.me.admin && !LITE) h += '<div class="row"><button class="btn small ghost" type="button" data-fixrace="' + e.key + '">✎ 大会の日付・期限・参加費を直す</button></div>';
     if (!det.applyBy && !det.organizer && ST.me.admin) h += '<div class="hint">「案内を直す」で、主催者の申込期限・支払期限・受付・要項のリンクも入れられます。</div>';
     return h + '</section>';
   }

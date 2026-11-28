@@ -178,6 +178,8 @@ function raceToObj_(r) {
   return {
     target: r['対象'] || '全員',
     fee: Number(r['参加費']) || 0,
+    feeSet: String(r['参加費'] || '') !== '', // 参加費（1人）が決まったか（0円＝なし も決まった扱い）
+    collectBy: r['集金締切'] || '',
     deadline: r['締切'],
     meetTime: r['集合時刻'],
     meetPlace: r['集合場所'],
@@ -577,7 +579,9 @@ function saveRaceAction_(ctx, p) {
     eventKey: ev.eventKey,
     '種別': ['大会', '記録会', '練習試合'].indexOf(p.type) >= 0 ? p.type : '大会',
     '対象': String(p.target || '全員').slice(0, 20),
-    '参加費': String(Math.max(0, Number(p.fee) || 0)),
+    // 参加費：空なら「まだ決まっていない」（0 は「なし」）
+    '参加費': p.fee === '' || p.fee == null ? '' : String(Math.max(0, Number(toHalfWidth_(String(p.fee)).replace(/[^0-9]/g, '')) || 0)),
+    '集金締切': ymd(p.collectBy),
     '締切': deadline,
     '集合時刻': String(p.meetTime || '').slice(0, 10),
     '集合場所': String(p.meetPlace || '').slice(0, 80),
@@ -592,6 +596,8 @@ function saveRaceAction_(ctx, p) {
     '受付': String(p.reception || '').trim().slice(0, 80),
     '要項URL': url,
   };
+  // 集金締切を送ってこない画面（ほかの入力）からの保存では、今の値を残す
+  if (p.collectBy === undefined) delete data['集金締切'];
   let created = false, changes = [];
   withLock_(() => {
     const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === ev.eventKey);
@@ -610,7 +616,7 @@ function saveRaceAction_(ctx, p) {
 /** 大会の案内で変わったところ（履歴に残して、みんなで確かめられるように） */
 function raceChanges_(before, after) {
   const out = [];
-  const short = { '集合時刻': 1, '参加費': 1, '締切': 1, '申込期限': 1, '支払期限': 1, '対象': 1, '種別': 1 };
+  const short = { '集合時刻': 1, '参加費': 1, '締切': 1, '申込期限': 1, '支払期限': 1, '集金締切': 1, '対象': 1, '種別': 1 };
   const md = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v.slice(5).replace('-', '/') : v);
   Object.keys(after).forEach((k) => {
     if (k === 'eventKey' || k === '更新日時') return;

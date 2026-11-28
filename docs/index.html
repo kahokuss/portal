@@ -884,9 +884,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "a469295ce4";
+var BUILD = "52dc285731";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "30114f1d3f";
+var EXPECT_SERVER = "01ba9f599c";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = true;
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -1146,7 +1146,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       var unpaid = det.fee ? joined.filter(function (k) { return !entryOf(e.key, k.name).paid; }) : [];
       var dleft = diff(ST.today, e.date);
       if (noRace.length && !closed) out.push({ ic: '🏃', hot: true, t: esc(e.title) + 'の種目を選ぶ', s: noRace.map(function (k) { return esc(k.name); }).join('・'), a: 'data-entry="' + e.key + '"', order: det.deadline ? diff(ST.today, det.deadline) : dleft });
-      if (unpaid.length) out.push({ ic: '💴', hot: dleft <= 7, t: esc(e.title) + 'の参加費 ' + yen(det.fee * unpaid.length), s: (unpaid.length > 1 ? unpaid.length + '人分　' : '') + '役員に渡してください（大会まであと' + dleft + '日）', a: 'data-entry="' + e.key + '"', order: dleft });
+      var cb = collectByOf(e), cleft = diff(ST.today, cb);
+      if (unpaid.length) out.push({ ic: '💴', hot: cleft <= 3, t: esc(e.title) + 'の参加費 ' + yen(det.fee * unpaid.length), s: (unpaid.length > 1 ? unpaid.length + '人分　' : '') + md(cb) + 'までに会計係へ（' + (cleft < 0 ? '過ぎています' : cleft === 0 ? '今日まで' : 'あと' + cleft + '日') + '）', a: 'data-entry="' + e.key + '"', order: cleft });
       if (!miss.length) return;
       var left = det.deadline ? diff(ST.today, det.deadline) : 99;
       out.push({ ic: '🏃', hot: left <= 3, t: esc(e.title) + 'のエントリー', s: miss.map(function (k) { return esc(k.name); }).join('・') + (det.deadline ? '　締切 ' + md(det.deadline) + (left === 0 ? '（今日）' : '（あと' + left + '日）') : ''), a: 'data-entry="' + e.key + '"', order: left });
@@ -1976,11 +1977,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function backBtn() { return '<button class="link" id="aBack" type="button">' + (STAFF_SITE && !S.adminAll ? '‹ 係のページ' : '‹ 管理メニュー') + '</button>'; }
   function bindBack() { on('#aBack', function () { S.admin = 'menu'; S.toast = ''; render(); }); }
 
-  function newDraft() { return { key: '', from: '', title: '', type: '大会', date: '', place: '', meetTime: '', meetPlace: '', target: '全員', fee: '', deadline: '', races: [], items: ['ユニフォーム', 'アスリートビブス', '水筒'], notes: '', autoDeadline: true, organizer: '', applyBy: '', applyHow: '', payBy: '', reception: '', url: '' }; }
+  function newDraft() { return { key: '', from: '', title: '', type: '大会', date: '', place: '', meetTime: '', meetPlace: '', target: '全員', fee: '', deadline: '', races: [], items: ['ユニフォーム', 'アスリートビブス', '水筒'], notes: '', autoDeadline: true, organizer: '', applyBy: '', applyHow: '', payBy: '', collectBy: '', reception: '', url: '' }; }
   function draftFrom(e) {
     var det = e.detail || {};
-    return { key: e.key, from: 'edit', title: e.title, type: e.type === '練習' ? '大会' : e.type, date: e.date, place: e.place || '', meetTime: det.meetTime || '', meetPlace: det.meetPlace || '', target: det.target || '全員', fee: det.fee ? String(det.fee) : '', deadline: det.deadline || (e.detail ? '' : addDays(e.date, -ST.choices.deadlineDays)), races: (det.races || []).slice(), items: det.items ? det.items.slice() : ['ユニフォーム', 'アスリートビブス', '水筒'], notes: det.notes || '', autoDeadline: !det.deadline,
-      organizer: det.organizer || '', applyBy: det.applyBy || '', applyHow: det.applyHow || '', payBy: det.payBy || '', reception: det.reception || '', url: det.url || '' };
+    return { key: e.key, from: 'edit', title: e.title, type: e.type === '練習' ? '大会' : e.type, date: e.date, place: e.place || '', meetTime: det.meetTime || '', meetPlace: det.meetPlace || '', target: det.target || '全員', fee: det.feeSet || det.fee ? String(det.fee || 0) : '', deadline: det.deadline || (e.detail ? '' : addDays(e.date, -ST.choices.deadlineDays)), races: (det.races || []).slice(), items: det.items ? det.items.slice() : ['ユニフォーム', 'アスリートビブス', '水筒'], notes: det.notes || '', autoDeadline: !det.deadline,
+      organizer: det.organizer || '', applyBy: det.applyBy || '', applyHow: det.applyHow || '', payBy: det.payBy || '', collectBy: det.collectBy || '', reception: det.reception || '', url: det.url || '' };
   }
   function pastRaces() { return ST.events.filter(function (e) { return isRace(e) && e.detail; }).slice().reverse(); }
   function venues() {
@@ -2042,7 +2043,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       (venues().length ? '<div class="quick">' + venues().map(function (v, i) { return '<button type="button" data-venue="' + i + '">' + esc(v.n) + '</button>'; }).join('') + '</div>' : '') +
       '<label>集合場所<input id="d-meetPlace"' + cls('meetPlace') + ' value="' + esc(D.meetPlace) + '" placeholder="例：正面スタンド下"></label>' +
       '<div class="lbl">対象</div><div class="choice">' + ST.choices.targets.map(function (x) { return '<button type="button" data-set="target|' + x + '" aria-pressed="' + (D.target === x) + '">' + x + '</button>'; }).join('') + '</div>' +
-      '<div class="two"><label>参加費（円）<input id="d-fee"' + cls('fee') + ' inputmode="numeric" value="' + esc(D.fee) + '"></label><label>エントリー締切<input type="date" id="d-deadline"' + cls('deadline') + ' value="' + D.deadline + '"></label></div>' +
+      '<div class="two"><label>参加費（1人・円）<input id="d-fee"' + cls('fee') + ' inputmode="numeric" value="' + esc(D.fee) + '" placeholder="未定なら空のまま"></label><label>エントリー締切<input type="date" id="d-deadline"' + cls('deadline') + ' value="' + D.deadline + '"></label></div>' +
       '<div class="quick">' + [500, 700, 800, 1000].map(function (x) { return '<button type="button" data-set="fee|' + x + '">' + yen(x) + '</button>'; }).join('') + '<span class="hint">　締切は日付の' + ST.choices.deadlineDays + '日前が自動で入ります</span></div>' +
       '<div class="lbl">種目（タップで選ぶ）</div><div class="choice">' + ST.choices.races.concat(D.races.filter(function (x) { return ST.choices.races.indexOf(x) < 0; })).map(function (x) { return '<button type="button" data-tog="races|' + esc(x) + '" aria-pressed="' + (D.races.indexOf(x) >= 0) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<div class="row"><input id="d-race-new" placeholder="ほかの種目（例：2km、60mH）" style="flex:1"><button class="btn small" type="button" id="d-race-add">＋ 足す</button></div>' +
@@ -2050,7 +2051,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<label>注意・連絡<textarea id="d-notes"' + cls('notes') + ' placeholder="例：寒さ対策にロングタイツ可">' + esc(D.notes) + '</textarea></label>' +
       '<div class="lbl" style="margin-top:6px;font-weight:700;color:var(--fg)">主催者への申込み（役員・当番用）</div>' +
       '<label>主催<input id="d-organizer"' + cls('organizer') + ' value="' + esc(D.organizer) + '" placeholder="例：〇〇陸上競技協会"></label>' +
-      '<div class="two"><label>申込期限（主催）<input type="date" id="d-applyBy"' + cls('applyBy') + ' value="' + esc(D.applyBy) + '"></label><label>支払期限<input type="date" id="d-payBy"' + cls('payBy') + ' value="' + esc(D.payBy) + '"></label></div>' +
+      '<div class="two"><label>申込期限（主催）<input type="date" id="d-applyBy"' + cls('applyBy') + ' value="' + esc(D.applyBy) + '"></label><label>支払期限（主催へ）<input type="date" id="d-payBy"' + cls('payBy') + ' value="' + esc(D.payBy) + '"></label></div>' +
+      '<div class="two"><label>集金締切（保護者から）<input type="date" id="d-collectBy"' + cls('collectBy') + ' value="' + esc(D.collectBy) + '"></label><span class="hint" style="align-self:end">空なら、主催への支払期限の3日前（なければ大会の7日前）。参加費が決まったら、会計係の「今やること」に集金が出ます。</span></div>' +
       '<div class="lbl">申込方法</div><div class="choice">' + ST.choices.applyHow.map(function (x) { return '<button type="button" data-set="applyHow|' + x + '" aria-pressed="' + (D.applyHow === x) + '">' + x + '</button>'; }).join('') + '</div>' +
       '<label>当日の受付<input id="d-reception"' + cls('reception') + ' value="' + esc(D.reception) + '" placeholder="例：8:00〜8:30 本部テント（代表者）"></label>' +
       '<label>要項のリンク<input id="d-url"' + cls('url') + ' inputmode="url" value="' + esc(D.url) + '" placeholder="https://…"></label>' +
@@ -2074,7 +2076,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       S.toast = n ? '✅ ' + n + 'か所を読み取りました。緑の欄を確認してください' : '読み取れる項目がありませんでした。手で入れてください'; S.toastErr = !n;
       render();
     });
-    ['title', 'place', 'meetPlace', 'fee', 'notes', 'deadline', 'organizer', 'applyBy', 'payBy', 'reception', 'url'].forEach(function (k) {
+    ['title', 'place', 'meetPlace', 'fee', 'notes', 'deadline', 'organizer', 'applyBy', 'payBy', 'collectBy', 'reception', 'url'].forEach(function (k) {
       document.getElementById('d-' + k).addEventListener('input', function () { D[k] = this.value; if (k === 'deadline') D.autoDeadline = false; });
     });
     document.getElementById('d-date').addEventListener('change', function () {
@@ -2097,7 +2099,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       e.preventDefault();
       if (!D.title.trim() || !D.date) { S.toast = '大会名と日付を入れてください。'; S.toastErr = true; render(); return; }
       var payload = { key: D.key, title: D.title, type: D.type, date: D.date, place: D.place, meetTime: fmtTime(D.meetTime), meetPlace: D.meetPlace, target: D.target, fee: D.fee, deadline: D.deadline, races: D.races, items: D.items, notes: D.notes,
-        organizer: D.organizer, applyBy: D.applyBy, applyHow: D.applyHow, payBy: D.payBy, reception: D.reception, url: D.url };
+        organizer: D.organizer, applyBy: D.applyBy, applyHow: D.applyHow, payBy: D.payBy, collectBy: D.collectBy, reception: D.reception, url: D.url };
       call('saveRace', payload, function (st) {
         if (!st.message) return;
         if (!ST.me.admin && D.from === 'edit') { S.tab = 'events'; S.event = D.key; S.etab = '概要'; S.draft = null; S.filled = {}; window.scrollTo(0, 0); return; }
@@ -3483,6 +3485,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (det.fee) {
       steps.push({ label: '集金', done: joined.length > 0 && paid.length === joined.length, html: '<section class="card"><h2>参加費の集金' + (paid.length === joined.length && joined.length ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">' + paid.length + '/' + joined.length + '人</span>') + '</h2>' +
         '<div class="stats"><div class="stat"><b>' + yen(det.fee * joined.length) + '</b><span>大会に払う合計（' + joined.length + '人×' + yen(det.fee) + '）</span></div><div class="stat"><b>' + yen(det.fee * paid.length) + '</b><span>集まった額（' + paid.length + '人）</span></div></div>' +
+        '<div class="sub">集金締切（保護者から）：<b>' + md(collectByOf(e)) + '</b>' + (det.collectBy ? '' : '（決めていないので、' + (det.payBy ? '支払期限の3日前' : '大会の7日前') + '）') + (det.deadline && det.deadline >= ST.today ? '。募集締切 ' + md(det.deadline) + ' までは人数が変わります' : '') + '</div>' +
         '<button class="link" type="button" data-et="エントリー">エントリーの一覧で確かめる ›</button>' +
         '<div class="copybox">' + esc(md(e.date).replace(/\(.\)/, '') + '\n' + e.title + '\n' + yen(det.fee * joined.length).replace('¥', '') + '円\n（' + CLUB + '）') + '</div><div class="hint">封筒に書くときの見本です。</div></section>' });
     }
@@ -3737,6 +3740,24 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
 
   // ---- 大会の状況・資料・履歴 ----
   var STEPS = ['案内待ち', '募集中', '申込準備', '申込済み', '受付済み', '終了'];
+  /** 保護者から参加費を集める締切：決めていなければ、主催への支払期限の3日前（なければ大会の7日前） */
+  function collectByOf(e) { var det = e.detail || {}; return det.collectBy || (det.payBy ? addDays(det.payBy, -3) : addDays(e.date, -7)); }
+  /**
+   * 大会のお金の流れ（大会係と会計係で同じものを見る）：
+   * 参加費未定 → 集金中（参加と答えた子から受け取る・募集締切まで人数が変わる）→ 集金済 → 主催に支払い済
+   */
+  function feeStage(e) {
+    var det = e.detail || {}, joined = ST.entries.filter(function (x) { return x.key === e.key && x.join === '参加'; }), paid = joined.filter(function (x) { return x.paid; });
+    var payDone = ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || !!(taskOf(e.key, '参加費支払い', '') || {}).done;
+    var r = { joined: joined.length, paid: paid.length, cb: collectByOf(e), payDone: payDone, open: !det.deadline || det.deadline >= ST.today };
+    if (!e.detail || !(det.feeSet || det.fee)) return Object.assign(r, { k: 'unset', t: '参加費まだ', cls: 'p-gray' });
+    if (!det.fee) return Object.assign(r, { k: 'free', t: '参加費なし', cls: 'p-ok' });
+    if (payDone) return Object.assign(r, { k: 'paidout', t: '主催に支払い済', cls: 'p-ok' });
+    if (r.joined && r.paid === r.joined && !r.open) return Object.assign(r, { k: 'collected', t: '集金済 → 主催に払う', cls: 'p-prac' });
+    return Object.assign(r, { k: 'collecting', t: '集金 ' + r.paid + '/' + r.joined, cls: ST.today > r.cb ? 'p-race' : 'p-warn' });
+  }
+  /** 大会係と会計係の両方に出す：これからの大会の参加費の流れ */
+  // （役員ページだけ：raceMoneyCard）
   function raceStatus(e) {
     var det = e.detail, done = function (k) { var t = taskOf(e.key, k, ''); return t && t.done; };
     if (e.cancelled) return '中止';
@@ -3770,8 +3791,10 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var tdone = function (k) { return !!(taskOf(e.key, k, '') || {}).done; };
     var rows = [];
     rows.push({ t: '大会の案内', done: !!e.detail, sub: e.detail ? (det.target ? '対象 ' + esc(det.target) : '') : 'まだ（「案内を直す」から入れられます）' });
+    rows.push({ t: '参加費（1人）の案内', done: !!(det.feeSet || det.fee), sub: det.feeSet || det.fee ? (det.fee ? yen(det.fee) + '／人。参加と答えたら払えます' : 'なし') : 'まだ（要項が出たら大会係が入れる）' });
     if (det.deadline) rows.push({ t: 'クラブ内の回答', done: ST.today > det.deadline, sub: md(det.deadline) + 'まで' + (ST.today <= det.deadline ? '（' + untilText(det.deadline) + '）' : '（締め切りました）'), go: 'エントリー' });
     rows.push({ t: '主催への申込' + (det.applyHow ? '（' + esc(det.applyHow) + '）' : ''), done: applied, sub: det.applyBy ? '期限 ' + md(det.applyBy) : '', dl: 'エントリー控え', go: '手続き|エントリー' });
+    if (det.fee) { var fs = feeStage(e); rows.push({ t: '保護者からの集金', done: fs.joined > 0 && fs.paid === fs.joined && !fs.open, sub: fs.paid + '/' + fs.joined + '人・締切 ' + md(fs.cb), at: fs.cb + ' 23:59', go: '手続き' }); }
     if (det.fee || det.payBy || (det.deadlines || {})['参加費支払い']) rows.push({ t: '参加費の支払い', done: ST.ledger.some(function (x) { return x.key === e.key && x.kind === '支払い'; }) || tdone('参加費支払い'), sub: det.payBy ? '期限 ' + md(det.payBy) : '', dl: '参加費支払い', go: '手続き|大会に払う' });
     if (relayTeams(e).length || (det.deadlines || {})['リレー予選'] || (det.deadlines || {})['リレー決勝']) relayRounds(e).forEach(function (k) {
       rows.push({ t: (legWord(e) === '区' ? 'オーダー' : k.replace('リレー', 'リレー ')) + 'の提出', done: relayTeams(e).length > 0 && relayTeams(e).every(function (tm) { return (taskOf(e.key, k, tm) || {}).done; }), dl: k, go: '種目|relay' });

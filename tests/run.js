@@ -1755,6 +1755,26 @@ test('当番の順番：役員が並べた順で自動で埋まる（回数が�
   assert.ok(Math.max.apply(null, counts) - Math.min.apply(null, counts) <= 1, JSON.stringify(n));
 });
 
+test('大会の参加費：空は「まだ決まっていない」、0は「なし」。集金締切は入れた画面からだけ変わる', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kA, 'bootstrap');
+  const race = st.events.find((e) => e.title === '秋季記録会');
+  const base = { key: race.key, title: '秋季記録会', date: race.date, target: '全員', deadline: '2026-10-22', races: ['100m'], items: ['水筒'] };
+  st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: '' }));
+  let det = st.events.find((e) => e.key === race.key).detail;
+  assert.ok(!det.feeSet && det.fee === 0, '未定');
+  st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: '0' }));
+  assert.ok(st.events.find((e) => e.key === race.key).detail.feeSet, '0円＝なし（決まった）');
+  st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: '４００', collectBy: '2026-10-25' }));
+  det = st.events.find((e) => e.key === race.key).detail;
+  assert.strictEqual(det.fee, 400);
+  assert.strictEqual(det.collectBy, '2026-10-25');
+  st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: 400 }));
+  assert.strictEqual(st.events.find((e) => e.key === race.key).detail.collectBy, '2026-10-25', 'ほかの画面からの保存では消えない');
+});
+
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
   const gas = setupClub();
   gas.login('U1');

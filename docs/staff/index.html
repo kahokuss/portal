@@ -901,7 +901,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "e407c47b88";
+var BUILD = "e5fe641a5a";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "16dcbb33a3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -2087,6 +2087,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'ledger') return adminLedger();
     if (S.admin === 'budget') return adminBudget();
     if (S.admin === 'respick') return adminResPick();
+    if (S.admin === 'racefees') return adminRaceFees();
     if (S.admin === 'export') return adminExport();
     if (S.admin === 'tmpick') return adminTmPick();
     if (S.admin === 'nearmiss') return adminNearMiss();
@@ -2100,7 +2101,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (S.admin === 'ops') return adminOps();
     if (!S.adminAll) return staffHome();
     var items = [['dutycal', '🗓 当番カレンダー（輪番づくり）', '月のカレンダーで、練習・大会の当番を入れる・入れかえる・空きを自動で。前回からの日数や近い日の当番も見ながら'], ['testfam', '🧪 テスト家族（親A〜E）', '本番で当番・エントリーなどを試すための架空の家族。入れて試して、まとめて消す'], ['budget', '📊 予算と残高（年度）', '年度の予算（収入・支出の科目ごと）と、実際に入った・出たお金、いまの残高。収支報告（決算）もコピーできます'], ['notes', '📌 来年への引き継ぎ', '大会ごとの申込の決まりや気づいたこと（先着順など）。来年その大会のページと運用チェックに出ます'], ['dash', '📊 記録ダッシュボード', '大会と練習の記録を、種目ごとのランキング・伸び・ベスト更新でまとめて見る（みんなも「わが家」から見られます。練習時間と記録がない子は役員・コーチだけ）'], ['table', '予定を表でまとめて直す', '日付・時刻・場所を一覧で直して、まとめて保存（PCで便利）'], ['practice', '練習の予定をつくる', 'カレンダーで日にちをタップして、まとめてつくれます'], ['ttb', 'タイムテーブルをつくる', '種目をボタンで足して、招集・アップは自動。出る子を割り当てて、印刷・LINE用にも'], ['race', '大会・記録会をつくる', '前回の大会をコピーするか、LINEの案内文を貼り付けるだけで下書きができます'],
-      ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '集金（年会費など）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます'],
+      ['duty', '当番表', '練習当番と大会当番。前回から日がたっている家族から自動で入れられます'], ['notice', 'お知らせを書く', 'ホームに載せて、LINEに貼る短い文章もコピーできます。だれが読んだかも分かります'], ['polls', 'アンケート', '出欠や希望をボタンで集めて、集計とまだの家族が分かります'], ['fees', '年会費・保険などの集金（大会以外）', '子どもごとに受け取ったかを記録。未納の家には「やること」に出ます。大会の参加費は大会の「手続き」で'],
       ['absences', '休みの連絡を見る', '日にちごとの一覧と確認'], ['nearmiss', 'ヒヤリハット一覧', '保護者からの報告と、対策の書きこみ'], ['ledger', '会計（領収書の履歴）', '大会への支払いや入金を、領収書の写真といっしょに残します'], ['notify', '休みの連絡を受け取る人', 'LINEで知らせる人を選びます'], ['sheet', 'スプレッドシートで入れる（PC）', 'たくさんの予定を表に書いて、まとめてカレンダーへ'], ['records', '記録・自己ベスト表', '種目ごとの自己ベスト一覧、グラフ、過去の記録の取り込み'], ['roster', '名簿（子どもの名前）', '子どもの名前・学年・男女をまとめて入れる。保護者が同じ名前で登録すると、その子に結びつきます'], ['members', 'メンバーと役員', 'ポータルを使っている保護者の一覧。役員・コーチにする・外す、役員の申請の承認、役員の番号']];
     if (!ST.choices.absencePush) items = items.filter(function (x) { return x[0] !== 'notify'; });
     // 目的ごとにまとめ、足りないもの（運用チェック）の件数を出す
@@ -2161,7 +2162,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる', '当番係の仕事（当番を決める）'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）', '当番係の仕事（当番を決める）'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け', '当番係の仕事（当番を決める）'], ['absences', '🙋 休みの連絡を確認', 'その日の当番（練習・大会当番の家）がやること'], ['testfam', '🧪 テスト家族', '試す']] },
     { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）', '主な仕事（入れる）'], ['tmpick', '⏱ 練習のタイムを記録する', '主な仕事（入れる）'], ['records', '📈 記録・自己ベスト表', '見る・書き出す'], ['export', '📤 ベスト記録を書き出す（Excel・CSV・PDF）', '見る・書き出す'], ['dash', '📊 記録ダッシュボード', '見る・書き出す']] },
     { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる', '主な仕事'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）', '主な仕事'], ['ttb', '⏱ タイムテーブルをつくる', '主な仕事'], ['notes', '📌 来年への引き継ぎ', '見る・メモ'], ['testfam', '🧪 テスト家族（大会係を試す）', '試す']] },
-    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['fees', '💴 集金（期限・催促）', '主な仕事'], ['_nextpay', '🏁 次の大会の参加費（集金・当番に渡す）', '主な仕事'], ['ledger', '🧾 お金の出入りを記録（領収書）', '主な仕事'], ['budget', '📊 予算と残高・収支報告（年度）', '見る・まとめる']] },
+    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['racefees', '🏁 大会の参加費の集金（大会ごと）', '主な仕事'], ['fees', '💴 年会費・保険などの集金（大会以外）', '主な仕事'], ['ledger', '🧾 お金の出入りを記録（領収書）', '主な仕事'], ['budget', '📊 予算と残高・収支報告（年度）', '見る・まとめる']] },
   ];
   /** 当番を決める流れ：① カレンダーに練習・大会の予定をつくる → ② 当番を入れる（予定がない日には当番を入れられない） */
   function dutyFlowInfo() {
@@ -6686,6 +6687,13 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
 
   // ---- 記録係：結果を入れる大会を選ぶ／練習のタイムを入れる練習を選ぶ ----
+  /** 会計係：大会ごとの参加費の集金（大会を選ぶ）。年会費などの集金は「集金」のページ */
+  function adminRaceFees() {
+    view.innerHTML = backBtn() + toastHtml() + (raceMoneyCard() || '<div class="card empty">これからの大会がありません</div>') +
+      '<div class="hint">大会を押すと、その大会の「手続き」が開きます。参加の子ごとに「受け取った」を押し、集め終わったら大会当番に渡します。年会費・保険などは「年会費・保険などの集金」で。</div>';
+    bindBack();
+    on('[data-ev2]', function () { var e = evByKey(this.dataset.ev2), f = e && feeStage(e); goTo({ ev: this.dataset.ev2, etab: f && f.k === 'unset' ? '概要' : '手続き' }); });
+  }
   function adminResPick() {
     var R = S.rp || (S.rp = { all: false });
     var races = ST.events.filter(function (e) { return isRace(e) && !e.cancelled && e.date <= addDays(ST.today, 1); }).slice().reverse();
@@ -6868,7 +6876,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<button class="btn small ghost" type="button" data-stool="budget" style="justify-self:start">📊 予算と残高をくわしく ›</button></section>';
   }
   function moneyGuideCard() {
-    var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、催促の文をコピーして手作業で催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会の「手続き」で受け取った）→ 集めたお金を大会当番に渡す → 大会当番が主催者に払い、領収書を写真で残す', '_nextpay'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
+    var steps = [['4月', '前年度からの繰越金を入れて、今年度の予算（科目ごと）をつくる → 総会で承認', 'budget'], ['4〜5月', '年会費・スポーツ保険などの集金をつくる（期限を決める）。期限を過ぎたら、催促の文をコピーして手作業で催促', 'fees'], ['大会ごと', '参加費を保護者から集める（大会の「手続き」で受け取った）→ 集めたお金を大会当番に渡す → 大会当番が主催者に払い、領収書を写真で残す', 'racefees'], ['その都度', '用具・会場費などのお金の出入りを、科目を選んで記録（領収書の写真も）', 'ledger'], ['3月', '収支報告（決算）をコピーして、監査の人に見てもらう → 総会で報告。残りを次の年度に繰越', 'budget']];
     return '<section class="card howto"><h2>会計係の1年<small>はじめての人へ</small></h2><div class="list">' + steps.map(function (x) { return '<button type="button" class="opsit" data-stool="' + x[2] + '"><span class="pill p-gray">' + x[0] + '</span><span class="main"><span class="sub" style="color:var(--fg)">' + esc(x[1]) + '</span></span><span class="go">›</span></button>'; }).join('') + '</div>' +
       '<div class="hint">お金は「集金」「大会の参加費」「お金の出入り」の3つで記録すると、予算と残高にまとめて出ます。現金の残りと、ここの残高がときどき合っているかを確かめましょう。</div></section>';
   }

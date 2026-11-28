@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '07aab7e427';
+const SERVER_VERSION = '07e932ebcf';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -3787,8 +3787,9 @@ function deleteEventAction_(ctx, p) {
   const row = findEvent_(p.key);
   if (!row) throw new Error('予定が見つかりません。');
   const key = row.eventKey;
+  // 参加の回答は、force（まちがえて登録した大会なので回答ごと消す）なら消せる。結果・お金の記録は消さない
   const used = [
-    readRows_(SHEETS.ENTRIES).some((x) => x.eventKey === key) && '参加の回答',
+    !p.force && readRows_(SHEETS.ENTRIES).some((x) => x.eventKey === key) && '参加の回答',
     readRows_(SHEETS.RESULTS).some((x) => x.eventKey === key) && '結果',
     readRows_(SHEETS.LEDGER).some((x) => x.id && x.eventKey === key) && 'お金の記録',
   ].filter(Boolean);
@@ -3796,7 +3797,7 @@ function deleteEventAction_(ctx, p) {
   const ce = editableCalEvent_(row);
   withLock_(() => {
     if (ce) ce.deleteEvent();
-    [SHEETS.RACES, SHEETS.DUTIES, SHEETS.TIMETABLE, SHEETS.TASKS].forEach((def) => {
+    [SHEETS.RACES, SHEETS.DUTIES, SHEETS.TIMETABLE, SHEETS.TASKS].concat(p.force ? [SHEETS.ENTRIES] : []).forEach((def) => {
       readRows_(def).filter((x) => x.eventKey === key).forEach((x) => clearRow_(def, x));
     });
     clearRow_(SHEETS.EVENTS, findEvent_(key));

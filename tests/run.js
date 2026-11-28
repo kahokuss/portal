@@ -1794,6 +1794,9 @@ test('大会を消す：まちがえて登録した大会はカレンダーか�
   gas.line({ type: 'user', userId: 'U2' }, '登録 鈴木けんた 5年');
   gas.ctx.api(k2, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加' });
   assert.throws(() => gas.ctx.api(kA, 'deleteEvent', { key: race.key }), /参加の回答.*中止/);
+  // まちがえて登録した大会なら、回答ごと消せる
+  st = gas.ctx.api(kA, 'deleteEvent', { key: race.key, force: true });
+  assert.ok(!st.events.some((e) => e.key === race.key) && !gas.rows('エントリー').some((x) => x.eventKey === race.key), '回答ごと消える');
 });
 
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {

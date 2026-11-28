@@ -2272,7 +2272,15 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     view.innerHTML = h;
     bindBack();
     on('#raceCancel', function () { var e = evByKey(D.key); if (e && confirm(md(e.date) + '「' + e.title + '」を中止にしますか？')) { S.draft = null; S.filled = {}; S.tab = 'events'; S.event = D.key; S.etab = '概要'; call('cancelEvent', { key: D.key }); } });
-    on('#raceDel', function () { var e = evByKey(D.key); if (e && confirm(md(e.date) + '「' + e.title + '」を消します。元にもどせません。よろしいですか？')) { var k = D.key; S.draft = null; S.filled = {}; S.tab = 'events'; S.event = null; call('deleteEvent', { key: k }); } });
+    on('#raceDel', function () {
+      var e = evByKey(D.key); if (!e) return;
+      var k = D.key, nE = ST.entries.filter(function (x) { return x.key === k; }).length, nR = ST.results.filter(function (x) { return x.key === k; }).length, nL = ST.ledger.filter(function (x) { return x.key === k; }).length;
+      var go = function (act, extra) { S.draft = null; S.filled = {}; S.tab = 'events'; S.event = act === 'cancelEvent' ? k : null; S.etab = '概要'; call(act, Object.assign({ key: k }, extra || {})); };
+      // 結果・お金の記録がある大会は消さない（中止にする）
+      if (nR || nL) { if (confirm('「' + e.title + '」には' + [nR ? '結果' : '', nL ? 'お金の記録' : ''].filter(Boolean).join('・') + 'があるので消せません。かわりに「中止」にしますか？')) go('cancelEvent'); return; }
+      if (nE) { if (confirm('「' + e.title + '」には参加の回答が ' + nE + '件あります。\nまちがえて登録した大会なら、回答ごと消します（元にもどせません）。\n消しますか？')) go('deleteEvent', { force: true }); return; }
+      if (confirm(md(e.date) + '「' + e.title + '」を消します。元にもどせません。よろしいですか？')) go('deleteEvent');
+    });
     on('#raceBack', function () { S.tab = 'events'; S.event = D.key; S.etab = '概要'; S.draft = null; S.filled = {}; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-from]', function () { D.from = this.dataset.from; render(); });
     on('[data-copy]', function () {

@@ -571,21 +571,12 @@ test('Bot: グループでの個人的なコマンドは、送った人にだけ
   assert.ok(gas.privateTo('U3').includes('予定を見る'), 'ヘルプ（メニュー）は本人にだけ');
 });
 
-test('一斉通知: 役員がLINEグループに送れる。通数が足りなければ送らない', () => {
+test('一斉通知: Botからグループには送らない（文章をコピーして手で貼る）', () => {
   const gas = setupClub();
-  gas.line(dm('U1'), '登録 山田たろう 3年');
-  const kAdmin = gas.login('U1').key, k2 = gas.login('U2').key;
+  const kAdmin = gas.login('U1').key;
   gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
-  assert.deepStrictEqual(plain(gas.ctx.api(kAdmin, 'broadcastInfo')), { limit: 200, used: 0, remaining: 200, members: 4 });
-  assert.throws(() => gas.ctx.api(k2, 'broadcast', { text: 'x' }), /役員だけ/);
-  const st = gas.ctx.api(kAdmin, 'broadcast', { text: '📢 明日の練習は中止です' });
-  assert.ok(st.message.includes('4通ぶん'));
-  const sent = gas.pushes().pop();
-  assert.deepStrictEqual([sent.payload.to, sent.payload.messages[0].text], ['G1', '📢 明日の練習は中止です']);
-  assert.strictEqual(gas.ctx.api(kAdmin, 'broadcastInfo').remaining, 196);
-  gas.quotaUsed.n = 198;
-  gas.cache.pushQuota && delete gas.cache.pushQuota;
-  assert.throws(() => gas.ctx.api(kAdmin, 'broadcast', { text: 'x' }), /足りません/);
+  assert.throws(() => gas.ctx.api(kAdmin, 'broadcast', { text: 'x' }), /不明な操作/);
+  assert.ok(!gas.pushes().some((p) => p.payload.to === 'G1'));
 });
 test('写真: アルバムはポータルで見る。前の版の行も出る。消せるのは上げた人と役員', () => {
   const gas = setupClub();

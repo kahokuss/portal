@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = 'fb5ab6fac0';
+const SERVER_VERSION = 'e84bc5bede';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -2774,8 +2774,6 @@ const API_ACTIONS = {
   cancelEvent: { admin: true, run: cancelEventAction_ },
   deleteEvent: { admin: true, run: deleteEventAction_ },
   saveResult: { run: saveResultAction_ },
-  broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
-  broadcast: { admin: true, run: broadcastAction_ },
   saveLedger: { run: saveLedgerAction_ },
   saveComment: { run: saveCommentAction_ },
   addDoc: { run: addDocAction_ },
@@ -3852,25 +3850,7 @@ function deleteResultAction_(ctx, p) {
   return '記録を消しました';
 }
 
-// ---- LINEグループへの一斉通知（役員） ----
-
-function broadcastInfoAction_() {
-  return pushQuota_();
-}
-
-/** LINEグループに送る。グループの人数分の通数を使うので、足りないときは送らない */
-function broadcastAction_(ctx, p) {
-  const groupId = requireProp_('GROUP_ID');
-  const text = String(p.text || '').trim().slice(0, 2000);
-  if (!text) throw new Error('送る文章がありません。');
-  const q = pushQuota_();
-  if (q.remaining !== null && q.members !== null && q.remaining < q.members) {
-    throw new Error('今月のLINEの無料の通数が足りません（残り' + q.remaining + '通・グループ' + q.members + '人）。文章をコピーして、手でグループに貼ってください。');
-  }
-  push_(groupId, [text_(text)]);
-  CacheService.getScriptCache().remove('pushQuota');
-  return 'LINEグループに送りました' + (q.members ? '（' + q.members + '通ぶん）' : '');
-}
+// LINEグループへの一斉通知（Botから送る）はやめた：お知らせは文章をコピーして、手でグループに貼る
 
 // ---- 会計（参加費の支払い・領収書の履歴） ----
 

@@ -102,8 +102,6 @@ const API_ACTIONS = {
   cancelEvent: { admin: true, run: cancelEventAction_ },
   deleteEvent: { admin: true, run: deleteEventAction_ },
   saveResult: { run: saveResultAction_ },
-  broadcastInfo: { admin: true, raw: true, run: broadcastInfoAction_ },
-  broadcast: { admin: true, run: broadcastAction_ },
   saveLedger: { run: saveLedgerAction_ },
   saveComment: { run: saveCommentAction_ },
   addDoc: { run: addDocAction_ },

@@ -2338,27 +2338,14 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       (det.fee ? '参加費 ' + yen(det.fee) : '') + (det.deadline ? (det.fee ? '／' : '') + '締切 ' + md(det.deadline) : '') +
       '\n参加・不参加と種目は、ポータルから回答してください👇\n' + HOME_URL;
   }
-  function copyBox(text, broadcast) {
-    return '<div class="copybox" id="copyText">' + esc(text) + '</div><button class="btn" id="copyBtn" type="button">LINEに貼る文章をコピー（無料）</button>' +
-      (broadcast && ST.me.admin ? '<button class="btn line" id="bcBtn" type="button">BotからLINEグループに送る</button><div class="hint" id="bcInfo">グループの人数分の通数（無料枠は月200通）を使います。</div>' : '');
+  /** LINEグループへのお知らせは、文章をコピーして手で貼る（Botからは送らない） */
+  function copyBox(text) {
+    return '<div class="copybox" id="copyText">' + esc(text) + '</div><button class="btn" id="copyBtn" type="button">LINEに貼る文章をコピー</button><div class="hint">コピーしたら、LINEグループのトークに貼り付けて送ってください。</div>';
   }
   function copyText(t) {
     try { navigator.clipboard.writeText(t).then(function () { S.toast = '✅ コピーしました'; S.toastErr = false; render(); }, function () { prompt('コピーしてください', t); }); } catch (err) { prompt('コピーしてください', t); }
   }
   function bindCopy() {
-    var bc = document.getElementById('bcBtn');
-    if (bc) {
-      var info = document.getElementById('bcInfo'), q = null;
-      rpc('broadcastInfo', {}, function (r) {
-        q = r;
-        if (r.remaining !== null) info.textContent = '今月の残り ' + r.remaining + '通。グループに送ると' + (r.members ? r.members + '通' : '人数分の通数') + '使います。コピーして手で貼れば通数はかかりません。';
-      }, function () {});
-      bc.addEventListener('click', function () {
-        var n = q && q.members ? q.members + '通' : '人数分の通数';
-        if (!confirm('LINEグループの全員に、Botから送りますか？（' + n + 'を使います）')) return;
-        call('broadcast', { text: document.getElementById('copyText').textContent });
-      });
-    }
     var b = document.getElementById('copyBtn'); if (!b) return;
     b.addEventListener('click', function () {
       var el = document.getElementById('copyText');
@@ -2369,7 +2356,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function adminSaved() {
     var e = S.saved && evByKey(S.saved);
     var h = backBtn() + toastHtml();
-    if (e) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox(noticeText(e), true) + '</section>' +
+    if (e) h += '<section class="card"><h2>LINEグループへのお知らせ</h2>' + copyBox(noticeText(e)) + '</section>' +
       '<section class="card"><div class="row"><button class="btn ghost" data-ev="' + e.key + '" type="button">ポータルで見る</button><button class="btn ghost" id="toNew" type="button">もう1つ作る</button></div></section>';
     view.innerHTML = h;
     bindBack(); bindCopy(); bindCommon();

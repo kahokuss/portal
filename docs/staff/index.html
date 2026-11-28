@@ -885,9 +885,9 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "52dc285731";
+var BUILD = "0e137583cb";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
-var EXPECT_SERVER = "01ba9f599c";
+var EXPECT_SERVER = "07aab7e427";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
 var LITE = false;
 // サーバーの更新で貼るコード（GitHub の dist/Code.gs をそのまま表示）
@@ -2268,9 +2268,13 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<div class="lbl">申込方法</div><div class="choice">' + ST.choices.applyHow.map(function (x) { return '<button type="button" data-set="applyHow|' + x + '" aria-pressed="' + (D.applyHow === x) + '">' + x + '</button>'; }).join('') + '</div>' +
       '<label>当日の受付<input id="d-reception"' + cls('reception') + ' value="' + esc(D.reception) + '" placeholder="例：8:00〜8:30 本部テント（代表者）"></label>' +
       '<label>要項のリンク<input id="d-url"' + cls('url') + ' inputmode="url" value="' + esc(D.url) + '" placeholder="https://…"></label>' +
-      '<button class="btn" type="submit">' + (D.from === 'edit' ? '保存する' : '保存してポータルに公開') + '</button><div class="hint">保存すると、クラブのGoogleカレンダーにも予定が入ります。</div></form></section>';
+      '<button class="btn" type="submit">' + (D.from === 'edit' ? '保存する' : '保存してポータルに公開') + '</button><div class="hint">保存すると、クラブのGoogleカレンダーにも予定が入ります。</div></form></section>' +
+      (D.key && ST.me.admin ? '<section class="card"><h2>中止・消す<small>役員</small></h2><div class="row"><button class="btn ghost" type="button" id="raceCancel">中止にする</button><button class="btn ghost" type="button" id="raceDel" style="color:var(--track)">消す（まちがえて登録した）</button></div>' +
+        '<div class="hint"><b>中止にする</b>：大会がなくなったとき。カレンダーから消え、ポータルには「中止」と残ります（回答や集金の記録も残る）。<br><b>消す</b>：まちがえて登録したとき。大会とその案内・当番・時刻表をまとめて消します。参加の回答・結果・お金の記録がある大会は消せないので、中止にしてください。</div></section>' : '');
     view.innerHTML = h;
     bindBack();
+    on('#raceCancel', function () { var e = evByKey(D.key); if (e && confirm(md(e.date) + '「' + e.title + '」を中止にしますか？')) { S.draft = null; S.filled = {}; S.tab = 'events'; S.event = D.key; S.etab = '概要'; call('cancelEvent', { key: D.key }); } });
+    on('#raceDel', function () { var e = evByKey(D.key); if (e && confirm(md(e.date) + '「' + e.title + '」を消します。元にもどせません。よろしいですか？')) { var k = D.key; S.draft = null; S.filled = {}; S.tab = 'events'; S.event = null; call('deleteEvent', { key: k }); } });
     on('#raceBack', function () { S.tab = 'events'; S.event = D.key; S.etab = '概要'; S.draft = null; S.filled = {}; S.toast = ''; render(); window.scrollTo(0, 0); });
     on('[data-from]', function () { D.from = this.dataset.from; render(); });
     on('[data-copy]', function () {

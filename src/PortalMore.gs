@@ -426,6 +426,31 @@ function cancelEventAction_(ctx, p) {
   return formatDate_(row['日付']) + '「' + row['タイトル'] + '」を中止にしました';
 }
 
+/**
+ * まちがえて登録した予定を消す（カレンダーからも）。大会の案内・当番・時刻表・手続きもまとめて消す。
+ * 参加の回答・結果・お金の記録がある予定は消さない（中止にしてもらう）
+ */
+function deleteEventAction_(ctx, p) {
+  const row = findEvent_(p.key);
+  if (!row) throw new Error('予定が見つかりません。');
+  const key = row.eventKey;
+  const used = [
+    readRows_(SHEETS.ENTRIES).some((x) => x.eventKey === key) && '参加の回答',
+    readRows_(SHEETS.RESULTS).some((x) => x.eventKey === key) && '結果',
+    readRows_(SHEETS.LEDGER).some((x) => x.id && x.eventKey === key) && 'お金の記録',
+  ].filter(Boolean);
+  if (used.length) throw new Error(used.join('・') + 'があるので消せません。「中止にする」を使ってください。');
+  const ce = editableCalEvent_(row);
+  withLock_(() => {
+    if (ce) ce.deleteEvent();
+    [SHEETS.RACES, SHEETS.DUTIES, SHEETS.TIMETABLE, SHEETS.TASKS].forEach((def) => {
+      readRows_(def).filter((x) => x.eventKey === key).forEach((x) => clearRow_(def, x));
+    });
+    clearRow_(SHEETS.EVENTS, findEvent_(key));
+  });
+  return formatDate_(row['日付']) + '「' + row['タイトル'] + '」を消しました';
+}
+
 // ---- 結果（記録） ----
 
 /** 結果を入れられる人：その子の家族、役員、その大会の当番 */

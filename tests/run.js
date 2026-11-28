@@ -1775,6 +1775,27 @@ test('大会の参加費：空は「まだ決まっていない」、0は「な�
   assert.strictEqual(st.events.find((e) => e.key === race.key).detail.collectBy, '2026-10-25', 'ほかの画面からの保存では消えない');
 });
 
+test('大会を消す：まちがえて登録した大会はカレンダーからも消える。回答・結果・お金の記録があれば消せない（中止に）', () => {
+  const gas = setupClub();
+  const kA = gas.login('U1').key, k2 = gas.login('U2').key;
+  gas.sheet('家族').data.forEach((r) => { if (r[0] === 'U1') r[3] = '○'; });
+  let st = gas.ctx.api(kA, 'saveRace', { title: 'まちがい大会', date: '2026-12-20', target: '全員', races: ['100m'], items: [] });
+  const ev = st.events.find((e) => e.title === 'まちがい大会');
+  assert.ok(gas.calendar.getEvents(new Date('2026-12-19'), new Date('2026-12-22')).some((c) => c.getTitle() === 'まちがい大会'));
+  assert.throws(() => gas.ctx.api(k2, 'deleteEvent', { key: ev.key }), /役員/);
+  st = gas.ctx.api(kA, 'deleteEvent', { key: ev.key });
+  assert.ok(/消しました/.test(st.message), st.message);
+  assert.ok(!st.events.some((e) => e.key === ev.key), '一覧から消える');
+  assert.ok(!gas.calendar.getEvents(new Date('2026-12-19'), new Date('2026-12-22')).some((c) => c.getTitle() === 'まちがい大会'), 'カレンダーからも');
+  assert.ok(!gas.ctx.api(kA, 'refresh').events.some((e) => e.title === 'まちがい大会'), '読み直してももどらない');
+  // 回答がある大会は消せない
+  const race = gas.ctx.api(kA, 'bootstrap').events.find((e) => e.title === '秋季記録会');
+  gas.ctx.api(kA, 'saveRace', { key: race.key, title: '秋季記録会', date: race.date, target: '全員', races: ['100m'], items: [] });
+  gas.line({ type: 'user', userId: 'U2' }, '登録 鈴木けんた 5年');
+  gas.ctx.api(k2, 'saveEntry', { key: race.key, child: '鈴木けんた', join: '参加' });
+  assert.throws(() => gas.ctx.api(kA, 'deleteEvent', { key: race.key }), /参加の回答.*中止/);
+});
+
 test('Bot：役員には当番カレンダー（輪番づくり）を開くリンク', () => {
   const gas = setupClub();
   gas.login('U1');

@@ -885,7 +885,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "0e137583cb";
+var BUILD = "63b3c59aba";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "07aab7e427";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -2131,13 +2131,15 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (STAFF_SITE) S.staffTab = tab;
     var ops = opsChecks(), of = function (r) { return ops.filter(function (x) { return r.areas.indexOf(x.area) >= 0; }); };
     var h = toastHtml() + (API_URL && serverOld() && (ST.me.owner || !ST.me.hasOwner) ? updateCard() : '') +
-      '<section class="card staffhead"><div class="between"><b class="sh-ttl">' + (STAFF_SITE ? R.icon + ' ' + R.t + (R.id === 'all' ? '（会長）' : '係') : '🛠 役員ページ') + '</b><span class="sub">' + (mine ? 'あなたの係：' + esc(mine) : '<button class="link inl" type="button" data-gomem>係が決まっていません（決める ›）</button>') + '</span></div>' +
+      '<section class="card staffhead"><div class="between"><b class="sh-ttl">' + (STAFF_SITE ? R.icon + ' ' + R.t + (R.id === 'all' ? '（会長）' : '係') : '🛠 役員ページ') + '</b><span class="sub">' + (mine ? 'あなたの係：' + esc(mine) : '<button class="link inl" type="button" data-gomem>あなた（' + esc(ST.me.name) + 'さん）の係はまだ（決める ›）</button>') + '</span></div>' +
       '<div class="stabs' + (STAFF_SITE ? ' hide' : '') + '" role="group" aria-label="係">' + ROLES.map(function (r) {
         var n = of(r).length, hi = of(r).filter(function (x) { return x.pri === 1; }).length;
         return '<button type="button" data-stab="' + r.id + '" aria-pressed="' + (r === R) + '"' + (my.indexOf(r) >= 0 ? ' class="mine"' : '') + '><span class="si">' + r.icon + '</span>' + r.t + (n ? '<i class="sn' + (hi ? ' hi' : '') + '">' + n + '</i>' : '') + '</button>';
       }).join('') + '</div></section>';
     var todo = of(R);
     if (R.id === 'all') {
+      var whoAll = roleOwner(R);
+      h += '<div class="sub" style="padding:0 4px">会長：' + (whoAll.length ? esc(whoAll.join('・')) : 'まだ決まっていません') + '</div>';
       h += '<section class="card"><h2>係ごとの「やること」</h2><div class="list">' + ROLES.slice(1).map(function (r) {
         var n = of(r).length, hi = of(r).filter(function (x) { return x.pri === 1; }).length, who = roleOwner(r);
         return '<button type="button" class="opsit" data-stab="' + r.id + '"><span class="pill ' + (hi ? 'p-race' : n ? 'p-warn' : 'p-ok') + '">' + (hi ? '急ぎ' + hi : n ? n + '件' : '✓') + '</span><span class="main"><b>' + r.icon + ' ' + r.t + '係</b><span class="sub">' + (who.length ? esc(who.join('・')) : '担当が決まっていません') + '</span></span><span class="go">›</span></button>';

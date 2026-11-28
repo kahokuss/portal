@@ -1777,6 +1777,11 @@ test('大会の参加費：空は「まだ決まっていない」、0は「な�
   assert.strictEqual(det.collectBy, '2026-10-25');
   st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: 400 }));
   assert.strictEqual(st.events.find((e) => e.key === race.key).detail.collectBy, '2026-10-25', 'ほかの画面からの保存では消えない');
+  assert.strictEqual(st.events.find((e) => e.key === race.key).detail.feeUnit, '人', 'ふつうは1人あたり');
+  st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: 400, feeUnit: '種目' }));
+  assert.strictEqual(st.events.find((e) => e.key === race.key).detail.feeUnit, '種目', '1種目あたり');
+  st = gas.ctx.api(kA, 'saveRace', Object.assign({}, base, { fee: 400 }));
+  assert.strictEqual(st.events.find((e) => e.key === race.key).detail.feeUnit, '種目', 'ほかの画面からの保存では変わらない');
 });
 
 test('大会を消す：まちがえて登録した大会はカレンダーからも消える。回答・結果・お金の記録があれば消せない（中止に）', () => {

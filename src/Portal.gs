@@ -181,6 +181,7 @@ function raceToObj_(r) {
     fee: Number(r['参加費']) || 0,
     feeSet: String(r['参加費'] || '') !== '', // 参加費（1人）が決まったか（0円＝なし も決まった扱い）
     collectBy: r['集金締切'] || '',
+    feeUnit: r['参加費の単位'] === '種目' ? '種目' : '人', // 参加費は1人いくら／1種目いくら
     deadline: r['締切'],
     meetTime: r['集合時刻'],
     meetPlace: r['集合場所'],
@@ -583,6 +584,7 @@ function saveRaceAction_(ctx, p) {
     // 参加費：空なら「まだ決まっていない」（0 は「なし」）
     '参加費': p.fee === '' || p.fee == null ? '' : String(Math.max(0, Number(toHalfWidth_(String(p.fee)).replace(/[^0-9]/g, '')) || 0)),
     '集金締切': ymd(p.collectBy),
+    '参加費の単位': p.feeUnit === '種目' ? '種目' : '人',
     '締切': deadline,
     '集合時刻': String(p.meetTime || '').slice(0, 10),
     '集合場所': String(p.meetPlace || '').slice(0, 80),
@@ -599,6 +601,7 @@ function saveRaceAction_(ctx, p) {
   };
   // 集金締切を送ってこない画面（ほかの入力）からの保存では、今の値を残す
   if (p.collectBy === undefined) delete data['集金締切'];
+  if (p.feeUnit === undefined) delete data['参加費の単位'];
   let created = false, changes = [];
   withLock_(() => {
     const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === ev.eventKey);

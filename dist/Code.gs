@@ -1376,7 +1376,7 @@ function handleStaff_(ev) {
  *   LINE_LOGIN_CHANNEL_SECRET … LINE ログインのチャネルシークレット（必須）
  */
 /** サーバー（Apps Script）の版。tools/build-pages.js が dist/Code.gs を作るときに入れる（画面の版とくらべて、古いままなら知らせる） */
-const SERVER_VERSION = '0d876263d1';
+const SERVER_VERSION = 'ee65af40f7';
 
 const CONFIG = {
   TIMEZONE: 'Asia/Tokyo',
@@ -1483,7 +1483,7 @@ const SHEET_GUIDE = {
   '子ども': { edit: ['名前', '学年', '性別'], hide: ['保護者userId'], note: '4月に学年を1つ上げてください。性別は 男 か 女' },
   '予定入力': { edit: ['日付', '開始', '終了', 'タイトル', '場所', '種別', '削除'], hide: ['カレンダーID', '反映内容'], note: '1行に1つの予定。書くとすぐGoogleカレンダーとポータルに入ります' },
   '予定': { edit: [], hide: ['eventKey', 'カレンダーID'], note: 'Googleカレンダーから自動で取り込みます。直すときは「予定入力」シートかポータルで' },
-  '大会': { edit: ['種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '集金締切'], hide: ['eventKey', '手続き期限'], note: '大会の案内。ポータルの「案内を直す」と同じ内容です' },
+  '大会': { edit: ['種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '集金締切', '参加費の単位'], hide: ['eventKey', '手続き期限'], note: '大会の案内。ポータルの「案内を直す」と同じ内容です' },
   'エントリー': { edit: ['回答', '種目', '集金'], hide: ['eventKey'], note: '回答は 参加 / 不参加、集金は 済 か空欄' },
   '休み': { edit: ['理由', 'メモ', '確認'], hide: ['id', '連絡者userId'], note: '' },
   'お知らせ': { edit: ['タイトル', '本文'], hide: ['id', 'eventKey'], note: '' },
@@ -2853,6 +2853,7 @@ function raceToObj_(r) {
     fee: Number(r['参加費']) || 0,
     feeSet: String(r['参加費'] || '') !== '', // 参加費（1人）が決まったか（0円＝なし も決まった扱い）
     collectBy: r['集金締切'] || '',
+    feeUnit: r['参加費の単位'] === '種目' ? '種目' : '人', // 参加費は1人いくら／1種目いくら
     deadline: r['締切'],
     meetTime: r['集合時刻'],
     meetPlace: r['集合場所'],
@@ -3255,6 +3256,7 @@ function saveRaceAction_(ctx, p) {
     // 参加費：空なら「まだ決まっていない」（0 は「なし」）
     '参加費': p.fee === '' || p.fee == null ? '' : String(Math.max(0, Number(toHalfWidth_(String(p.fee)).replace(/[^0-9]/g, '')) || 0)),
     '集金締切': ymd(p.collectBy),
+    '参加費の単位': p.feeUnit === '種目' ? '種目' : '人',
     '締切': deadline,
     '集合時刻': String(p.meetTime || '').slice(0, 10),
     '集合場所': String(p.meetPlace || '').slice(0, 80),
@@ -3271,6 +3273,7 @@ function saveRaceAction_(ctx, p) {
   };
   // 集金締切を送ってこない画面（ほかの入力）からの保存では、今の値を残す
   if (p.collectBy === undefined) delete data['集金締切'];
+  if (p.feeUnit === undefined) delete data['参加費の単位'];
   let created = false, changes = [];
   withLock_(() => {
     const row = readRows_(SHEETS.RACES).find((r) => r.eventKey === ev.eventKey);
@@ -5264,7 +5267,7 @@ const SHEETS = {
   FAMILIES: { name: '家族', headers: ['userId', '表示名', 'ポータルキー', '役員', '更新日時', 'グループ確認', '家族ID', '休み通知', '新着確認', 'コーチ', '役員申請', '係', '管理者'] },
   CHILDREN: { name: '子ども', headers: ['名前', '学年', '保護者userId', '更新日時', '性別', '名簿'] },
   EVENTS: { name: '予定', headers: ['eventKey', '日付', '開始', '終了', 'タイトル', '場所', 'カレンダーID', '種別', '状態', '更新日時', 'ダウン'] },
-  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き', '集金締切'] },
+  RACES: { name: '大会', headers: ['eventKey', '種別', '対象', '参加費', '締切', '集合時刻', '集合場所', '種目', '持ち物', '注意', '更新日時', '主催', '申込期限', '申込方法', '支払期限', '受付', '要項URL', '手続き期限', '時刻表メモ', '時刻表下書き', '集金締切', '参加費の単位'] },
   ENTRIES: { name: 'エントリー', headers: ['eventKey', '子ども', '回答', '種目', '集金', '更新者', '更新日時'] },
   ABSENCES: { name: '休み', headers: ['id', '日付', '子ども', '理由', 'メモ', '連絡者userId', '連絡者', '確認', '確認者', '日時'] },
   NOTICES: { name: 'お知らせ', headers: ['id', '日付', 'タイトル', '本文', 'eventKey', '作成者', '日時', '重要'] },

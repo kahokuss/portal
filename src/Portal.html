@@ -1807,7 +1807,8 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
           (det.races.length ? '<dt>種目</dt><dd>' + esc(det.races.join('・')) + '</dd>' : '') + (det.items.length ? '<dt>持ち物</dt><dd>' + det.items.map(esc).join('<br>') + '</dd>' : '') +
           (det.notes ? '<dt>注意</dt><dd>' + esc(det.notes) + '</dd>' : '') + '</dl><div class="between"><span class="hint">' + (LITE ? 'まちがい・漏れに気づいたら、コメントで役員に知らせてください</span><button class="btn small ghost" id="noteWrong" type="button" style="flex:none">知らせる</button>' : 'まちがい・漏れに気づいたら、だれでも直せます（直したところは下の「履歴」に残ります）</span><button class="btn small ghost" id="editRace" type="button" style="flex:none">案内を直す</button>') + '</div></section>';
       }
-      h += (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1) ? '' : jinchiCard(e)) + docsCard(e) + dutyCard(e) + commentsCard(e) + historyCard(e);
+      h += (e.date >= addDays(ST.today, -1) && e.date <= addDays(ST.today, 1) ? '' : jinchiCard(e)) + docsCard(e) + dutyCard(e) + commentsCard(e) + historyCard(e) +
+        (ST.me.admin && !LITE && !e.cancelled ? '<div class="row" style="justify-content:flex-end"><button class="link" type="button" id="raceDelGo">🗑 この大会を中止にする・消す ›</button></div>' : '');
     }
     if (S.etab === 'エントリー') h += entryHtml(e);
     if (S.etab === 'タイムテーブル') h += timetableHtml(e);
@@ -1839,6 +1840,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     });
     on('#noteWrong', function () { flashTo('secCmt'); var t = document.querySelector('#cmtForm textarea, #cmtForm input'); if (t) t.focus(); });
     on('#editRace', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); window.scrollTo(0, 0); });
+    on('#raceDelGo', function () { S.draft = draftFrom(e); S.filled = {}; S.tab = 'admin'; S.admin = 'race'; S.toast = ''; render(); setTimeout(function () { flashTo('raceDelCard'); }, 30); });
     on('[data-type]', function () { call('setEventType', { key: e.key, type: this.dataset.type }); });
     bindEntry(e);
     bindGoto();
@@ -2336,7 +2338,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       '<label>当日の受付<input id="d-reception"' + cls('reception') + ' value="' + esc(D.reception) + '" placeholder="例：8:00〜8:30 本部テント（代表者）"></label>' +
       '<label>要項のリンク<input id="d-url"' + cls('url') + ' inputmode="url" value="' + esc(D.url) + '" placeholder="https://…"></label>' +
       '<button class="btn" type="submit">' + (D.from === 'edit' ? '保存する' : '保存してポータルに公開') + '</button><div class="hint">保存すると、クラブのGoogleカレンダーにも予定が入ります。</div></form></section>' +
-      (D.key && ST.me.admin ? '<section class="card"><h2>中止・消す<small>役員</small></h2><div class="row"><button class="btn ghost" type="button" id="raceCancel">中止にする</button><button class="btn ghost" type="button" id="raceDel" style="color:var(--track)">消す（まちがえて登録した）</button></div>' +
+      (D.key && ST.me.admin ? '<section class="card" id="raceDelCard"><h2>中止・消す<small>役員</small></h2><div class="row"><button class="btn ghost" type="button" id="raceCancel">中止にする</button><button class="btn ghost" type="button" id="raceDel" style="color:var(--track)">消す（まちがえて登録した）</button></div>' +
         '<div class="hint"><b>中止にする</b>：大会がなくなったとき。カレンダーから消え、ポータルには「中止」と残ります（回答や集金の記録も残る）。<br><b>消す</b>：まちがえて登録したとき。大会とその案内・当番・時刻表をまとめて消します。参加の回答・結果・お金の記録がある大会は消せないので、中止にしてください。</div></section>' : '');
     view.innerHTML = h;
     bindBack();

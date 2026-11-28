@@ -891,7 +891,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "8432955375";
+var BUILD = "ec99ab28ce";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "0d876263d1";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -2321,7 +2321,6 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     }
     h += toastHtml() + '<section class="card"><h2>' + (D.from === 'edit' ? '大会の案内を直す' : '大会の内容') + (Object.keys(S.filled).length ? '<small>緑の欄は自動で入りました</small>' : '') + '</h2><form class="f" id="evForm">' +
       '<label><span class="fl">大会名<b class="req">必須</b></span><input id="d-title"' + cls('title') + ' value="' + esc(D.title) + '" placeholder="例：秋季記録会"></label>' +
-      '<div class="lbl">種別</div><div class="choice">' + ['大会', '記録会', '練習試合'].map(function (x) { return '<button type="button" data-set="type|' + x + '" aria-pressed="' + (D.type === x) + '">' + x + '</button>'; }).join('') + '</div>' +
       '<div class="two"><label><span class="fl">日付<b class="req">必須</b></span><input type="date" id="d-date"' + cls('date') + ' value="' + D.date + '"></label><label>集合時刻<input id="d-meetTime"' + cls('meetTime') + ' inputmode="numeric" placeholder="820 → 8:20" value="' + esc(D.meetTime) + '"></label></div>' +
       '<div class="quick">' + ['7:30', '7:50', '8:00', '8:20', '8:30'].map(function (x) { return '<button type="button" data-set="meetTime|' + x + '">' + x + '</button>'; }).join('') + '</div>' +
       '<label>会場<input id="d-place"' + cls('place') + ' value="' + esc(D.place) + '" placeholder="例：市営陸上競技場"></label>' +

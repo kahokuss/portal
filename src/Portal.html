@@ -768,6 +768,9 @@ body.staffsite .sitesw { background: #f6f3fc; }
 .fwho.w-money { background: #fff4e0; border-color: #e9b45c; color: #8a5300; }
 .fwho.w-race { background: #e7f0fb; border-color: #8fb2de; color: #2f5f9a; }
 .fwho.w-duty { background: #eaf6ee; border-color: #8cc5a0; color: #2b6e43; }
+.stools .stg { grid-column: 1 / -1; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 6px; }
+.stools .stg.main { color: var(--staff); }
+.stools button.sub2 { opacity: .85; font-weight: 500; }
 .remind { border: 1.5px dashed var(--warn); border-radius: 12px; padding: 8px 10px; background: var(--warn-soft); display: grid; gap: 6px; }
 .paylist { display: grid; gap: 6px; } .paylist > div { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .qnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
@@ -2150,11 +2153,11 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
   // ---- 役員ページ：係ごとに「今やること」と道具だけ ----
   var ROLES = [
-    { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く'], ['members', '👥 メンバー・役員と係'], ['roster', '📝 名簿（子ども）'], ['nearmiss', '⚠ ヒヤリハット'], ['polls', '🗳 アンケート'], ['testfam', '🧪 テスト家族（親A〜E）']] },
-    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）'], ['absences', '🙋 休みの連絡を確認'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け'], ['testfam', '🧪 テスト家族']] },
-    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）'], ['tmpick', '⏱ 練習のタイムを記録する'], ['records', '📈 記録・自己ベスト表'], ['export', '📤 ベスト記録を書き出す（Excel・CSV・PDF）'], ['dash', '📊 記録ダッシュボード']] },
-    { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）'], ['ttb', '⏱ タイムテーブルをつくる'], ['notes', '📌 来年への引き継ぎ'], ['testfam', '🧪 テスト家族（大会係を試す）']] },
-    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['budget', '📊 予算と残高（年度）'], ['fees', '💴 集金（期限・催促）'], ['_nextpay', '🏁 次の大会の参加費（集金・支払い）'], ['ledger', '🧾 お金の出入りを記録（領収書）']] },
+    { id: 'all', t: '全体', icon: '🏛', who: /会長/, areas: ['メンバー', '安全', 'しくみ'], tools: [['notice', '📣 お知らせを書く', '主な仕事'], ['members', '👥 メンバー・役員と係', '主な仕事'], ['roster', '📝 名簿（子ども）', '主な仕事'], ['nearmiss', '⚠ ヒヤリハット', '見る・対応する'], ['polls', '🗳 アンケート', '見る・対応する'], ['testfam', '🧪 テスト家族（親A〜E）', '試す']] },
+    { id: 'duty', t: '当番', icon: '🧹', who: /当番/, areas: ['当番', '連絡', '予定'], tools: [['practice', '① 📅 練習の予定をつくる', '当番係の仕事（当番を決める）'], ['dutycal', '② 🗓 当番カレンダー（輪番・自動）', '当番係の仕事（当番を決める）'], ['duty', '🔢 当番の順番（並べかえ）・当番表の貼り付け', '当番係の仕事（当番を決める）'], ['absences', '🙋 休みの連絡を確認', 'その日の当番（練習・大会当番の家）がやること'], ['testfam', '🧪 テスト家族', '試す']] },
+    { id: 'rec', t: '記録', icon: '⏱', who: /記録/, areas: ['記録'], tools: [['respick', '🏅 大会の結果を入れる（大会を選ぶ）', '主な仕事（入れる）'], ['tmpick', '⏱ 練習のタイムを記録する', '主な仕事（入れる）'], ['records', '📈 記録・自己ベスト表', '見る・書き出す'], ['export', '📤 ベスト記録を書き出す（Excel・CSV・PDF）', '見る・書き出す'], ['dash', '📊 記録ダッシュボード', '見る・書き出す']] },
+    { id: 'race', t: '大会', icon: '🏁', who: /大会/, areas: ['大会'], tools: [['race', '➕ 大会・記録会をつくる', '主な仕事'], ['_nextrace', '🏃 次の大会のページ（エントリー・時刻表・手続き）', '主な仕事'], ['ttb', '⏱ タイムテーブルをつくる', '主な仕事'], ['notes', '📌 来年への引き継ぎ', '見る・メモ'], ['testfam', '🧪 テスト家族（大会係を試す）', '試す']] },
+    { id: 'money', t: '会計', icon: '💴', who: /会計/, areas: ['お金'], tools: [['fees', '💴 集金（期限・催促）', '主な仕事'], ['_nextpay', '🏁 次の大会の参加費（集金・当番に渡す）', '主な仕事'], ['ledger', '🧾 お金の出入りを記録（領収書）', '主な仕事'], ['budget', '📊 予算と残高・収支報告（年度）', '見る・まとめる']] },
   ];
   /** 当番を決める流れ：① カレンダーに練習・大会の予定をつくる → ② 当番を入れる（予定がない日には当番を入れられない） */
   function dutyFlowInfo() {
@@ -2203,7 +2206,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (R.id === 'duty') h += dutyFlowCard();
     if (R.id === 'money') h += moneySummaryCard() + raceMoneyCard() + moneyGuideCard();
     if (R.id === 'race') h += raceMoneyCard();
-    h += '<section class="card"><h2>' + R.icon + ' ' + R.t + (R.id === 'all' ? '' : '係') + 'の道具</h2><div class="stools">' + R.tools.map(function (t) { return '<button type="button" data-stool="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></section>';
+    h += '<section class="card"><h2>' + R.icon + ' ' + R.t + (R.id === 'all' ? '' : '係') + 'の道具</h2><div class="stools">' + R.tools.map(function (t, i) { return (t[2] && (!i || R.tools[i - 1][2] !== t[2]) ? '<div class="stg' + (/^主な|当番係の仕事/.test(t[2]) ? ' main' : '') + '">' + esc(t[2]) + '</div>' : '') + '<button type="button" data-stool="' + t[0] + '"' + (/^主な|当番係の仕事/.test(t[2] || '') ? '' : ' class="sub2"') + '>' + t[1] + '</button>'; }).join('') + '</div></section>';
     h += '<button class="link" type="button" id="adminAll" style="justify-self:start">すべての機能（今までの管理メニュー） ›</button>';
     view.innerHTML = h;
     bindCommon(); bindOps(); bindDutyFlow();

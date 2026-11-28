@@ -901,7 +901,7 @@ var CLUB = "河北SS";
 // GitHub Pages に置いた画面では、Apps Script のウェブアプリの URL が入る（Apps Script の画面では空）
 var API_URL = "https://script.google.com/macros/s/AKfycbyUMYsbH2Ivw5SlLrcQxO4DCnb1Gj2K8JNSYmgrlqYlXuoCYs9guHuqi0FN2m65t2qz/exec";
 // GitHub Pages の画面の版（tools/build-pages.js が入れる）。新しい版が出ていたら読み直すのに使う
-var BUILD = "e5fe641a5a";
+var BUILD = "3fcf011a44";
 // この画面に合うサーバー（Apps Script）の版。ちがえば「サーバーの更新がまだ」と知らせる
 var EXPECT_SERVER = "16dcbb33a3";
 // 保護者ポータル（軽い版）：役員だけの画面は入っていない。「管理」は役員ページ（staff/）へ
@@ -1597,7 +1597,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       h += '<div class="list">' + abs.map(function (a) {
         var right = a.ack ? '<span class="pill p-ok">確認済み</span>' : '<span class="pill p-warn">未確認</span>';
         if (ST.me.admin) right = '<button class="btn small ' + (a.ack ? 'ghost' : 'ok') + '" data-ack="' + a.id + '" type="button">' + (a.ack ? '確認済み' : '確認した') + '</button>';
-        return '<div class="between"><span>' + md(a.date) + ' <b>' + esc(a.child) + '</b> <span class="sub">' + esc(a.reason) + (a.memo ? '・' + esc(a.memo) : '') + (ST.me.admin && !a.mine ? '（' + esc(a.by) + 'さん）' : '') + '</span></span>' +
+        return '<div class="between"><span>' + md(a.date) + ' <b>' + esc(a.child) + '</b> <span class="sub">' + esc(a.reason) + (a.memo ? '・' + esc(a.memo) : '') + (ST.me.admin && !a.mine ? '（' + esc(whoName(a.by)) + '）' : '') + '</span></span>' +
           '<span class="row">' + right + (a.mine ? '<button class="btn small ghost" data-unabs="' + a.id + '" type="button">取消</button>' : '') + '</span></div>';
       }).join('') + '</div>';
     }
@@ -2633,7 +2633,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     list.forEach(function (a) {
       if (a.date !== date) { if (date) h += '</div></section>'; date = a.date; h += '<section class="card"><h2>' + md(a.date) + (a.date < ST.today ? '<small>終了</small>' : '') + '</h2><div class="list">'; }
       var k = kidInfo(a.child);
-      h += '<div class="between"><span><b>' + esc(a.child) + '</b>' + (k.grade ? '（' + k.grade + '年）' : '') + ' <span class="sub">' + esc(a.reason) + (a.memo ? '・' + esc(a.memo) : '') + '・' + esc(a.by) + 'さん</span></span>' +
+      h += '<div class="between"><span><b>' + esc(a.child) + '</b>' + (k.grade ? '（' + k.grade + '年）' : '') + ' <span class="sub">' + esc(a.reason) + (a.memo ? '・' + esc(a.memo) : '') + '・' + esc(whoName(a.by)) + '</span></span>' +
         '<button class="btn small ' + (a.ack ? 'ghost' : 'ok') + '" data-ack="' + a.id + '" type="button">' + (a.ack ? '確認済み' : '確認した') + '</button></div>';
     });
     if (date) h += '</div></section>';
@@ -2643,6 +2643,13 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   }
 
   // ---- 当番・出欠・大会の日の共通 ----
+  /** 記録した人の名前：LINEの名前はイニシャルやあだ名のこともあるので、家族の名前（○○家）を前に付ける。「西田家・にしだひとし」 */
+  function whoName(n) {
+    n = String(n || '').trim(); if (!n) return '';
+    var f = (ST.families || []).filter(function (x) { return (x.parents || []).indexOf(n) >= 0; })[0];
+    var base = f ? String(f.label || '').replace(/（.*$/, '') : '';
+    return base && base !== n ? base + '・' + n : n + 'さん';
+  }
   function famName(id) {
     var f = ST.families.find(function (x) { return x.id === id; });
     if (f) return f.label;
@@ -3144,7 +3151,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function ttRows(e) { return ST.timetable.filter(function (r) { return r.key === e.key && !isAll(r); }).sort(function (a, b) { return tkey(a.start) < tkey(b.start) ? -1 : tkey(a.start) > tkey(b.start) ? 1 : 0; }); }
   function callBtn(e, row, k) {
     var t = taskOf(e.key, '招集', k.name + '|' + row.id), done = t && t.done;
-    return '<button type="button" class="btn small ' + (done ? 'ok' : 'ghost') + '" data-call="' + esc(k.name + '|' + row.id) + '" data-done="' + (done ? '' : '1') + '"' + (done && t.by ? ' title="' + esc(t.by) + 'さん"' : '') + '>' + (done ? '招集OK ✓' : '招集した') + '</button>';
+    return '<button type="button" class="btn small ' + (done ? 'ok' : 'ghost') + '" data-call="' + esc(k.name + '|' + row.id) + '" data-done="' + (done ? '' : '1') + '"' + (done && t.by ? ' title="' + esc(whoName(t.by)) + '"' : '') + '>' + (done ? '招集OK ✓' : '招集した') + '</button>';
   }
   /** わが家の子の、まだ招集が済んでいない種目（時刻順） */
   function myCalls(e) {
@@ -3646,7 +3653,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   var DROP_HINT = '<div class="hint wide-only">💻 写真をこの枠にドラッグ＆ドロップ（または Ctrl+V で貼り付け）しても追加できます。何枚でもまとめてOK。</div>';
   function dropAttr(mode, key, kind, target, isDefault) { return ' data-drop="' + esc([mode, key || '', kind || '', target || ''].join('|')) + '"' + (isDefault ? ' data-drop-default="1"' : ''); }
   function photosHtml(ids) { return ids.length ? '<div class="thumbs">' + ids.map(function (id) { return '<button class="thumb" type="button" data-photo="' + esc(id) + '"><img data-src="' + esc(id) + '" alt="写真"></button>'; }).join('') + '</div>' : ''; }
-  function whoWhen(t) { return t && t.by ? '<div class="hint">' + esc(t.by) + 'さん・' + esc(String(t.at).slice(5, 16).replace('-', '/')) + '</div>' : ''; }
+  function whoWhen(t) { return t && t.by ? '<div class="hint">' + esc(whoName(t.by)) + '・' + esc(String(t.at).slice(5, 16).replace('-', '/')) + '</div>' : ''; }
   function taskCard(e, kind, title, hint, man) {
     var t = taskOf(e.key, kind, '') || { done: false, photos: [] };
     var h = '<section class="card"' + (man ? dropAttr('photo', e.key, kind, '') : '') + '><h2>' + title + (t.done ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' + dlChip(e, kind, t.done) + whoWhen(t) + photosHtml(t.photos);
@@ -4013,7 +4020,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var t = taskOf(e.key, '参加費支払い', ''), done = list.length || (t && t.done);
     var h = '<section class="card"><h2>参加費を大会に払う' + (done ? '<span class="pill p-ok">済</span>' : '<span class="pill p-warn">まだ</span>') + '</h2>' + dlChip(e, '参加費支払い', done);
     if (list.length) {
-      h += '<div class="list">' + list.map(function (x) { return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b> <span class="sub">' + esc(x.payee || '') + (x.note ? '・' + esc(x.note) : '') + '・' + esc(x.by) + 'さん</span></span>' + (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') + '</div>'; }).join('') + '</div>';
+      h += '<div class="list">' + list.map(function (x) { return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b> <span class="sub">' + esc(x.payee || '') + (x.note ? '・' + esc(x.note) : '') + '・' + esc(whoName(x.by)) + '</span></span>' + (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') + '</div>'; }).join('') + '</div>';
       var diffY = collected - paidOut;
       if (collected) h += '<div class="sub">集めた額 ' + yen(collected) + ' − 払った額 ' + yen(paidOut) + ' ＝ <b>' + (diffY >= 0 ? yen(diffY) : '−' + yen(-diffY)) + '</b>' + (diffY ? '（欠場の返金や、ほかの費用がないか確かめてください）' : '') + '</div>';
     }
@@ -4340,7 +4347,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (list.length) h += '<div class="docgrid">' + list.map(function (x) {
       var open = x.type === 'link' ? '<a class="dtile" href="' + esc(x.url) + '" target="_blank" rel="noopener">' : '<button class="dtile" type="button" data-doc="' + esc(x.id) + '">';
       var thumb = x.type === 'link' ? '<span class="dicon">🔗</span>' : '<img alt="" data-dsrc="' + esc(x.id) + '"><span class="dicon">' + (x.type === 'pdf' ? '📄' : '🖼') + '</span>';
-      return '<div class="dcell">' + open + '<span class="dthumb">' + thumb + (x.type === 'pdf' ? '<span class="dtype">PDF</span>' : '') + '</span><span class="dname"><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '</span><span class="sub">' + esc(x.by) + 'さん・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + '</span>' + (x.type === 'link' ? '</a>' : '</button>') +
+      return '<div class="dcell">' + open + '<span class="dthumb">' + thumb + (x.type === 'pdf' ? '<span class="dtype">PDF</span>' : '') + '</span><span class="dname"><span class="pill p-gray">' + esc(x.kind) + '</span> ' + esc(x.name) + '</span><span class="sub">' + esc(whoName(x.by)) + '・' + esc(String(x.at).slice(5, 10).replace('-', '/')) + '</span>' + (x.type === 'link' ? '</a>' : '</button>') +
         (man ? '<button class="icon-btn ddel" type="button" data-ddel="' + esc(x.id) + '" aria-label="消す">×</button>' : '') +
         (man && x.type === 'pdf' ? '<button class="btn small ghost dread" type="button" data-docread="' + esc(x.id) + '">⏱ 時刻表に読み込む</button>' : '') + '</div>';
     }).join('') + '</div>';
@@ -4358,7 +4365,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     var list = ST.history.filter(function (x) { return x.key === e.key; }), all = S.histAll === e.key, shown = all ? list : list.slice(0, 6);
     if (!list.length) return '';
     return '<section class="card"><h2>履歴<small>' + list.length + '件</small></h2><div class="list">' + shown.map(function (x) {
-      return '<div class="between" style="align-items:flex-start"><span>' + esc(x.text) + '</span><span class="sub" style="white-space:nowrap">' + esc(x.by) + '・' + esc(String(x.at).slice(5, 16).replace('-', '/')) + '</span></div>';
+      return '<div class="between" style="align-items:flex-start"><span>' + esc(x.text) + '</span><span class="sub" style="white-space:nowrap">' + esc(whoName(x.by)) + '・' + esc(String(x.at).slice(5, 16).replace('-', '/')) + '</span></div>';
     }).join('') + '</div>' + (list.length > shown.length ? '<button class="link" type="button" id="histAll">すべて見る（' + list.length + '件）</button>' : '') + '</section>';
   }
   function bindRaceInfo(e) {
@@ -4477,7 +4484,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function noticesOf(key) { return ST.comments.filter(function (c) { return c.kind === '変更連絡' && c.key === key && !c.measure; }); }
   function noticeHtml(c) {
     var ev = c.key && evByKey(c.key);
-    return '<div class="cmt nm" style="background:var(--sky-soft)"><div class="between"><span><span class="pill p-prac">📣 LINEの変更連絡</span> <span class="sub">' + esc(c.by) + 'さん・' + esc(String(c.at).slice(5, 16).replace('-', '/')) + '</span></span></div>' +
+    return '<div class="cmt nm" style="background:var(--sky-soft)"><div class="between"><span><span class="pill p-prac">📣 LINEの変更連絡</span> <span class="sub">' + esc(whoName(c.by)) + '・' + esc(String(c.at).slice(5, 16).replace('-', '/')) + '</span></span></div>' +
       '<div class="b">' + esc(c.body) + '</div>' +
       (c.measure ? '<div class="measure">✅ ' + esc(c.measure) + '（' + esc(c.measureBy) + 'さん）</div>' :
         '<div class="sub">読み取った内容：<b>' + esc(suggestText(c.suggest)) + '</b>' + (ev ? '' : '（この日は予定に入っていません）') + '</div>' +
@@ -4499,7 +4506,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
     if (c.kind === '変更連絡') return noticeHtml(c);
     var nm = c.kind === 'ヒヤリハット';
     return '<div class="cmt' + (nm ? ' nm' : '') + '"><div class="between"><span>' + (nm ? '<span class="pill p-nm">⚠ ヒヤリハット</span> ' : '') + (c.adminOnly ? '<span class="pill p-gray">役員だけ</span> ' : '') +
-      '<span class="sub">' + esc(c.by) + 'さん・' + esc(String(c.at).slice(5, 16).replace('-', '/')) + '</span></span>' +
+      '<span class="sub">' + esc(whoName(c.by)) + '・' + esc(String(c.at).slice(5, 16).replace('-', '/')) + '</span></span>' +
       (c.mine || ST.me.admin ? '<button class="icon-btn" type="button" data-cdel="' + esc(c.id) + '" aria-label="消す">×</button>' : '') + '</div>' +
       (withEvent ? '<button class="link" type="button" data-ev="' + esc(c.key) + '">' + md(c.date) + ' ' + esc(c.title || '') + ' ›</button>' : '') +
       (c.place ? '<div class="sub">📍 ' + esc(c.place) + '</div>' : '') + '<div class="b">' + esc(c.body) + '</div>' + (c.photo ? photosHtml([c.photo]) : '') +
@@ -4640,7 +4647,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
   function vById(id) { return ST.videos.find(function (v) { return v.id === id; }); }
   function vThumb(v) { return v.yt ? '<img src="https://i.ytimg.com/vi/' + esc(v.yt) + '/mqdefault.jpg" alt="" loading="lazy">' : '<span class="vnoimg">▶</span>'; }
   function vItem(v, small) {
-    return '<div class="vitem' + (small ? ' sm' : '') + '"><a class="vlink" href="' + esc(v.url) + '" target="_blank" rel="noopener">' + vThumb(v) + '<span class="main"><b>' + esc(v.title) + '</b><span class="sub">' + esc(v.kind) + (v.memo ? '・' + esc(v.memo) : '') + '</span>' + (small ? '' : '<span class="sub">' + esc(v.by) + 'さん・' + md(v.at) + '</span>') + '</span></a>' +
+    return '<div class="vitem' + (small ? ' sm' : '') + '"><a class="vlink" href="' + esc(v.url) + '" target="_blank" rel="noopener">' + vThumb(v) + '<span class="main"><b>' + esc(v.title) + '</b><span class="sub">' + esc(v.kind) + (v.memo ? '・' + esc(v.memo) : '') + '</span>' + (small ? '' : '<span class="sub">' + esc(whoName(v.by)) + '・' + md(v.at) + '</span>') + '</span></a>' +
       (!small && (v.mine || ST.me.admin) ? '<button class="link" type="button" data-vdel="' + v.id + '">消す</button>' : '') + '</div>';
   }
   /** 小さく並べる（自主トレの記録・今日やることのそばに） */
@@ -6965,7 +6972,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       if (kind === '収入' && r.cat === '大会参加費（集金）') other.push('大会の参加費の集金（エントリーの「済」）から。直すときは大会の「エントリー」で');
       return '<div class="bdet"><div class="lbl">「' + esc(r.cat) + '」の内訳</div><div class="list">' + led.map(function (x) {
         var e = x.key && evByKey(x.key);
-        return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b><br><span class="sub">' + esc([e ? e.title : '', x.payee, x.note].filter(Boolean).join('・') || '（相手・但し書きなし）') + '・' + esc(x.by) + 'さん' + (x.fixed ? '<br>✎ ' + esc(x.fixed) : '') + '</span></span>' +
+        return '<div class="between"><span>' + md(x.date) + ' <b>' + yen(x.amount) + '</b><br><span class="sub">' + esc([e ? e.title : '', x.payee, x.note].filter(Boolean).join('・') || '（相手・但し書きなし）') + '・' + esc(whoName(x.by)) + '' + (x.fixed ? '<br>✎ ' + esc(x.fixed) : '') + '</span></span>' +
           '<span class="row nowrap">' + (x.photo ? '<button class="thumb" style="width:40px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') +
           '<label class="btn small ghost upl" title="領収書・レシートの写真を付ける">📷 領収書<input type="file" accept="image/*" data-lphoto="' + esc(x.id) + '" hidden></label><button class="btn small ghost" type="button" data-ledit="' + esc(x.id) + '">直す</button><button class="icon-btn" type="button" data-lcancel="' + esc(x.id) + '" aria-label="取り消す">×</button></span></div>';
       }).join('') + other.map(function (t) { return '<div class="sub">・' + t + '</div>'; }).join('') + (!led.length && !other.length ? '<div class="sub">この科目の記録はまだありません。</div>' : '') +
@@ -7026,7 +7033,7 @@ document.getElementById('clubName').textContent = CLUB + (STAFF_SITE ? ' 役員�
       var out = years[y].filter(function (x) { return x.kind === '支払い'; }).reduce(function (a, x) { return a + x.amount; }, 0), inn = years[y].filter(function (x) { return x.kind === '入金'; }).reduce(function (a, x) { return a + x.amount; }, 0);
       h += '<section class="card"><h2>' + y + '年<small>支払い ' + yen(out) + '・入金 ' + yen(inn) + '</small></h2><div class="list">' + years[y].map(function (x) {
         var e = x.key && evByKey(x.key);
-        return '<div class="between"><span>' + md(x.date) + ' <span class="pill ' + (x.kind === '入金' ? 'p-ok' : 'p-gray') + '">' + x.kind + '</span> <b>' + yen(x.amount) + '</b><br><span class="sub">' + esc([x.cat ? '［' + x.cat + '］' : '', e ? e.title : '', x.payee, x.note].filter(Boolean).join('・')) + '・' + esc(x.by) + 'さん</span></span><span class="row">' +
+        return '<div class="between"><span>' + md(x.date) + ' <span class="pill ' + (x.kind === '入金' ? 'p-ok' : 'p-gray') + '">' + x.kind + '</span> <b>' + yen(x.amount) + '</b><br><span class="sub">' + esc([x.cat ? '［' + x.cat + '］' : '', e ? e.title : '', x.payee, x.note].filter(Boolean).join('・')) + '・' + esc(whoName(x.by)) + '</span></span><span class="row">' +
           (x.photo ? '<button class="thumb" style="width:44px" type="button" data-photo="' + esc(String(x.photo).split(',')[0]) + '"><img data-src="' + esc(String(x.photo).split(',')[0]) + '" alt="領収書"></button>' : '') + '<label class="btn small ghost upl" title="領収書・レシートの写真を付ける">📷 領収書<input type="file" accept="image/*" data-lphoto="' + esc(x.id) + '" hidden></label><button class="btn small ghost" type="button" data-ledit="' + esc(x.id) + '">直す</button><button class="icon-btn" type="button" data-lcancel="' + esc(x.id) + '" aria-label="取り消す">×</button></span></div>';
       }).join('') + '</div></section>';
     });
